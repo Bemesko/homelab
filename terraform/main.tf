@@ -52,7 +52,7 @@ resource "azurerm_network_interface" "bernetes" {
   ip_configuration {
     name                          = "ipconfig-bernetes-01"
     subnet_id                     = azurerm_subnet.bernetes.id
-    private_ip_address_allocation = "Static"
+    private_ip_address_allocation = "Dynamic"
   }
 }
 
