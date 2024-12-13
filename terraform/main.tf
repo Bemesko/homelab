@@ -7,7 +7,7 @@ resource "azurerm_linux_virtual_machine" "bernetes" {
   name                  = "vm-bernetes-01"
   resource_group_name   = azurerm_resource_group.bernetes.name
   location              = azurerm_resource_group.bernetes.location
-  size                  = "Standard_Bpsv2"
+  size                  = "Standard_B2ps_v2"
   admin_username        = var.admin_username
   network_interface_ids = [azurerm_network_interface.bernetes.id]
 
