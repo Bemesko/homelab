@@ -36,3 +36,7 @@ resource "aws_key_pair" "bernetes" {
   key_name   = "free-tier-key"
   public_key = file("~/.ssh/id_rsa.pub") # Update with your actual public key path
 }
+
+output "public_ip" {
+  value = aws_instance.bernetes.public_ip
+}
