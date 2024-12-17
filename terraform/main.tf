@@ -32,11 +32,21 @@ resource "aws_security_group" "bernetes" {
   }
 }
 
+resource "tls_private_key" "bernetes" {
+  algorithm = "RSA"
+  rsa_bits  = 4096
+}
+
 resource "aws_key_pair" "bernetes" {
   key_name   = "free-tier-key"
-  public_key = file("~/.ssh/id_rsa.pub") # Update with your actual public key path
+  public_key = tls_private_key.bernetes.public_key_openssh
 }
 
 output "public_ip" {
   value = aws_instance.bernetes.public_ip
+}
+
+output "private_key" {
+  value     = tls_private_key.bernetes.private_key_pem
+  sensitive = true
 }
