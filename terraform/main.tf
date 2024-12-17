@@ -13,6 +13,8 @@ resource "aws_instance" "bernetes" {
   key_name = aws_key_pair.bernetes.key_name
 }
 
+# TODO: create VPC
+
 resource "aws_security_group" "bernetes" {
   name_prefix = "allow-ssh-"
 
