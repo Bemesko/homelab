@@ -13,10 +13,14 @@ resource "aws_instance" "bernetes" {
   key_name = aws_key_pair.bernetes.key_name
 }
 
-# TODO: create VPC
+resource "aws_vpc" "bernetes" {
+  cidr_block = "10.0.0.0/16"
+}
 
 resource "aws_security_group" "bernetes" {
   name_prefix = "allow-ssh-"
+
+  vpc_id = aws_vpc.bernetes.id
 
   ingress {
     description = "Allow SSH from anywhere"
