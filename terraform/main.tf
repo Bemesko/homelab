@@ -13,6 +13,8 @@ resource "aws_instance" "bernetes" {
   key_name = aws_key_pair.bernetes.key_name
 }
 
+# TODO: Create a subnet in the VPC and a NIC in the VM and link both
+
 resource "aws_vpc" "bernetes" {
   cidr_block = "10.0.0.0/16"
 }
