@@ -1,22 +1,36 @@
 resource "aws_instance" "bernetes" {
-  ami           = "ami-0453ec754f44f9a4a"
-  instance_type = "t3.micro"
+  ami               = "ami-0453ec754f44f9a4a"
+  instance_type     = "t3.micro"
+  availability_zone = "us-east-1a"
 
   tags = {
     Name = "Free-Tier-VM"
   }
 
-  # Optional: Add a security group to allow SSH
-  vpc_security_group_ids = [aws_security_group.bernetes.id]
-
-  # Optional: Add a key pair for SSH access
   key_name = aws_key_pair.bernetes.key_name
+
+  network_interface {
+    device_index         = 0
+    network_interface_id = aws_network_interface.bernetes.id
+  }
 }
 
-# TODO: Create a subnet in the VPC and a NIC in the VM and link both
+resource "aws_network_interface" "bernetes" {
+  subnet_id  = aws_subnet.bernetes.id
+  private_ip = "10.0.0.10"
+  security_groups = [
+    aws_security_group.bernetes.id
+  ]
+}
 
 resource "aws_vpc" "bernetes" {
   cidr_block = "10.0.0.0/16"
+}
+
+resource "aws_subnet" "bernetes" {
+  vpc_id            = aws_vpc.bernetes.id
+  cidr_block        = "10.0.0.0/24"
+  availability_zone = "us-east-1a"
 }
 
 resource "aws_security_group" "bernetes" {
