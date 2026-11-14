@@ -23,7 +23,11 @@ WSL (controle)  ──ssh via Tailscale──▶  notebook (Ubuntu 26.04)
 - **Sem lockout.** O playbook nunca mexe no Tailscale, no SSH, no firewall ou na rede do host. O role `tailscale_check` só lê o status, e o hook `no-lockout` barra qualquer task que tente alterar essas coisas.
 - **Nada identificável no repo.** O inventário real fica em `ansible/inventory/local.yaml` (ignorado pelo git e barrado por hook). O nome da tailnet (`*.ts.net`) é descoberto em runtime e barrado pelo gitleaks. Os kubeconfigs ficam em `~/.kube/`.
 - **Segredos com SOPS + age.** A chave privada fica só no WSL. O Ansible descriptografa no controller e cria os Secrets do bootstrap com `no_log` (veja [ADR 002](docs/adr/002-sops-age-secrets.md)). Os segredos dos apps são commitados criptografados ao lado do app, e o ArgoCD os descriptografa com KSOPS usando uma chave age própria do cluster (veja [ADR 004](docs/adr/004-ksops.md)).
-- **Tampa fechada na energia não suspende.** O role `power` configura o `systemd-logind` (`HandleLidSwitchExternalPower=ignore` e `HandleLidSwitchDocked=ignore`) e confere via D-Bus que o valor efetivo foi aplicado. Na bateria continua valendo o padrão do sistema (suspender).
+- **Notebooks nunca suspendem, e uma queda de energia não derruba nada sem aviso.** O role `power` (notebook do cluster e NAS; veja o [ADR 012](docs/adr/012-power-management.md)):
+  - ignora a tampa no `systemd-logind` e mascara os alvos de sono;
+  - trava o GNOME para não suspender por inatividade;
+  - roda um guardião que, sem energia externa, avisa (alerta `host-on-battery`), desliga com 10% de bateria e arma o RTC para religar e conferir se a energia voltou.
+  - Limite de carga: nenhum dos dois firmwares tem (o ADR registra o que foi tentado).
 - **Atualizações do Ubuntu sem surpresa.** O role `os_updates` roda o unattended-upgrades às 05:15, com prioridade idle de CPU e I/O, e tira o kernel (`linux-*`) do automático: kernel só com `make kernel-upgrade`, que reinicia e valida o cluster. Veja o [ADR 010](docs/adr/010-notebook-os-updates.md).
 - **Versões fixadas com sha256** para k3s (instalador), helm, kubectl, sops, age, kubeconform, kube-linter e kustomize. A imagem do hello-world é fixada por digest.
 - **Uma fonte por versão.** As versões dos charts ficam só em [kubernetes/apps/values.yaml](kubernetes/apps/values.yaml), que o Ansible também lê no bootstrap.
@@ -137,7 +141,7 @@ O Obsidian desktop roda no cluster ([linuxserver/obsidian](https://docs.linuxser
 
 ### Syncthing no NAS
 
-O vault chega ao celular pelo Syncthing do NAS. Ele é a única coisa no NAS que o Ansible altera: o OMV não gerencia o Syncthing pela UI. Veja o [ADR 011](docs/adr/011-syncthing-nas-ansible.md).
+O vault chega ao celular pelo Syncthing do NAS. Junto com a energia (role `power`, `nas_power_enabled`; veja o [ADR 012](docs/adr/012-power-management.md)), ele é o que o Ansible altera no NAS: o OMV não gerencia o Syncthing pela UI. Veja o [ADR 011](docs/adr/011-syncthing-nas-ansible.md).
 
 - **Inventário:** preencha o grupo `nas` de `inventory.example.yaml`. Ele leva `ansible_user: root`, `nas_syncthing_home` (um diretório no disco de dados, fora do pendrive do sistema), `nas_syncthing_devices` e `nas_syncthing_folders`.
   - `nas_syncthing_devices` é a lista **completa**: um device que não estiver nela é removido.

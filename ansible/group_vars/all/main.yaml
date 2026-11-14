@@ -36,6 +36,10 @@ otel_host_agent_enabled: false
 # gerencia o Syncthing do NAS (ADR 011). O CI não tem grupo `nas`.
 nas_syncthing_enabled: false
 
+# true só no NAS (var de host em ansible/inventory/local.yaml): aplica o role power
+# no NAS (tampa, sono, guardião de bateria; ADR 012). O CI não tem grupo `nas`.
+nas_power_enabled: false
+
 # Versões dos charts: fonte única em kubernetes/apps/values.yaml (lido no controller)
 apps_values: "{{ lookup('ansible.builtin.file', playbook_dir ~ '/../kubernetes/apps/values.yaml') | from_yaml }}"
 

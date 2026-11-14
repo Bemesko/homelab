@@ -41,6 +41,9 @@
   become: false
   gather_facts: true
   roles:
+    - role: power
+      when: nas_power_enabled | bool
+      tags: [nas, power]
     - role: nas_syncthing
       when: nas_syncthing_enabled | bool
       tags: [nas, syncthing]

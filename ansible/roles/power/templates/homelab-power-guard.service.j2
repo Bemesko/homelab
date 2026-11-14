@@ -1,0 +1,16 @@
+# Gerenciado pelo Ansible (2026-kubernetes), role power. Veja o ADR 012.
+[Unit]
+Description=Guardião de energia: desliga com bateria baixa e arma o RTC
+After=local-fs.target
+
+[Service]
+Type=simple
+Environment=HOMELAB_POWER_SHUTDOWN_PERCENT={{ power_shutdown_percent }}
+Environment=HOMELAB_POWER_WAKE_INTERVAL={{ power_rtc_wake_interval }}
+ExecStart=/usr/local/sbin/homelab-power-guard
+Restart=always
+RestartSec=10
+Nice=-5
+
+[Install]
+WantedBy=multi-user.target

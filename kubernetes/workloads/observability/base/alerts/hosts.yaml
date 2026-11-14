@@ -214,6 +214,36 @@ groups:
               conditions:
                 - evaluator: {type: gt, params: [0]}
 
+      # Próprio (ADR 012): o homelab-power-guard registra a troca para a bateria. Sem
+      # energia o notebook desliga sozinho com 10%; o aviso dá tempo de agir antes.
+      - uid: host-on-battery
+        title: Notebook na bateria (sem energia externa)
+        condition: B
+        for: 0s
+        noDataState: OK
+        execErrState: Error
+        labels: {severity: warning}
+        annotations:
+          summary: "{{ $labels.service_name }}: energia externa caiu nos últimos 10 min; desliga sozinho com bateria baixa"
+        data:
+          - refId: A
+            relativeTimeRange: {from: 600, to: 0}
+            datasourceUid: loki
+            model:
+              refId: A
+              queryType: instant
+              expr: >-
+                sum by (service_name) (count_over_time({service_name=~"homelab-host|nas-host"} |= "homelab-power" |=
+                "energia externa caiu" [10m]))
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: {type: gt, params: [0]}
+
       # Origem: awesome-prometheus-alerts (CC BY 4.0), HostOomKillDetected (via logs)
       - uid: host-oom-kill
         title: OOM kill no host
