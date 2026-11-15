@@ -26,7 +26,8 @@ WSL (controle)  ──ssh via Tailscale──▶  notebook (Ubuntu 26.04)
 - **Notebooks nunca suspendem, e uma queda de energia não derruba nada sem aviso.** O role `power` (notebook do cluster e NAS; veja o [ADR 012](docs/adr/012-power-management.md)):
   - ignora a tampa no `systemd-logind` e mascara os alvos de sono;
   - trava o GNOME para não suspender por inatividade;
-  - roda um guardião que, sem energia externa, avisa (alerta `host-on-battery`), desliga com 10% de bateria e arma o RTC para religar e conferir se a energia voltou.
+  - roda um guardião que, sem energia externa, avisa (alerta `host-on-battery`) e desliga com 10% de bateria;
+  - religar é manual (abrir a tampa do Acer, botão do NAS): os dois BIOS ignoram o alarme do RTC. A automação por Wake-on-LAN está na issue #23.
   - Limite de carga: nenhum dos dois firmwares tem (o ADR registra o que foi tentado).
 - **Atualizações do Ubuntu sem surpresa.** O role `os_updates` roda o unattended-upgrades às 05:15, com prioridade idle de CPU e I/O, e tira o kernel (`linux-*`) do automático: kernel só com `make kernel-upgrade`, que reinicia e valida o cluster. Veja o [ADR 010](docs/adr/010-notebook-os-updates.md).
 - **Versões fixadas com sha256** para k3s (instalador), helm, kubectl, sops, age, kubeconform, kube-linter e kustomize. A imagem do hello-world é fixada por digest.

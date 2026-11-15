@@ -42,6 +42,9 @@ O role `power` vale para os dois notebooks: no play do k3s e num play `hosts: na
 ## Consequências
 
 - **Bateria do NAS:** dura menos de um minuto a 10%, então o desligamento dele é "melhor esforço" até a troca (Sanyo 42T4654 ou equivalente).
-- **RTC:** religar depende de o BIOS acordar de S5 pelo RTC, o que é testado com alguém em casa. Onde não funcionar, `power_rtc_wake_interval: 0` naquele host.
+- **RTC:** religar depende de o BIOS acordar de S5 pelo RTC, o que é testado com alguém em casa (`rtcwake -m no -s 300` + `systemctl poweroff`). Onde não funcionar, `power_rtc_wake_interval: 0` naquele host.
+  - **T400 (2026-11-14): não acorda.** O alarme ficou gravado no chip (`/proc/driver/rtc`) e nada o apagou no desligamento, mas o BIOS 3.23 o ignora em S5. O NAS usa `power_rtc_wake_interval: 0`: desliga com segurança e só volta pelo botão.
+  - **Acer (2026-11-15): não acorda.** O BIOS Insyde marca a hora certa em UTC e também ignora o alarme em S5. O único "wake" do BIOS é o Wake on LAN, que vale só para a placa com cabo, e o Acer está no Wi-Fi.
+  - **Resultado:** os dois hosts usam `power_rtc_wake_interval: 0`, e o item 5 da issue fica sem solução no hardware. O código do RTC e do gate continua no role, testado, para um host que acorde de S5. Depois de um desligamento pela bateria, a recuperação é manual: abrir a tampa do Acer ("Lid Open Resume" ligado no BIOS) e apertar o botão do NAS. A alternativa de um Raspberry Pi mandar Wake-on-LAN quando a energia voltar está na issue #23.
 - **Ciclos de boot:** cada boot do gate na bateria gasta um pouco de carga, mas o desligamento acontece antes da rede e do k3s, então o consumo é pequeno.
 - **Limite de carga, se um dia houver:** a bateria nova do NAS reabre o `tp_smapi` (exige os headers do kernel no pendrive). Um notebook de cluster mais novo (Acer a partir de ~2019) teria o "health mode" pelo acer-wmi-battery.
