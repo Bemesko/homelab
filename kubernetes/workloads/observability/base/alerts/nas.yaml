@@ -382,6 +382,11 @@ groups:
                 - evaluator: {type: gt, params: [0]}
 
       # --- SMART (smartctl-exporter no NAS, raspado pelo collector) ---
+      # O label `device` (sda, sdb) é a ordem de detecção do kernel e muda quando um disco troca
+      # de conexão (aconteceu em 2026-11-17, ao passar a réplica do USB para o UltraBay). Por isso
+      # as regras juntam o modelo e o serial do disco (série smartctl_device, valor 1) e agrupam
+      # por eles. Nas regras de delta, a junção fica dentro de uma subconsulta [1d:5m]: o serial
+      # é resolvido a cada passo, e o delta atravessa uma troca de letras sem quebrar.
       - uid: nas-smart-failed
         title: SMART do disco do NAS reprovado
         condition: B
@@ -390,7 +395,7 @@ groups:
         execErrState: Error
         labels: {severity: critical}
         annotations:
-          summary: "{{ $labels.device }}: o próprio disco reporta falha no SMART; troque-o e confira a réplica"
+          summary: "{{ $labels.model_name }} ({{ $labels.serial_number }}): o próprio disco reporta falha no SMART; troque-o e confira a réplica"
         data:
           - refId: A
             relativeTimeRange: {from: 900, to: 0}
@@ -398,7 +403,9 @@ groups:
             model:
               refId: A
               instant: true
-              expr: min by (device) (smartctl_device_smart_status{job="nas-host"})
+              expr: >-
+                min by (serial_number, model_name) (smartctl_device_smart_status{job="nas-host"} * on (instance, device)
+                group_left (serial_number, model_name) smartctl_device{job="nas-host"})
           - refId: B
             datasourceUid: __expr__
             model:
@@ -418,7 +425,7 @@ groups:
         labels: {severity: warning}
         annotations:
           summary: >-
-            {{ $labels.device }}: {{ $labels.attribute_name }} subiu {{ $values.A.Value }} em 24h;
+            {{ $labels.model_name }} ({{ $labels.serial_number }}): {{ $labels.attribute_name }} subiu {{ $values.A.Value }} em 24h;
             planeje a troca do disco
         data:
           - refId: A
@@ -428,8 +435,10 @@ groups:
               refId: A
               instant: true
               expr: >-
-                max by (device, attribute_name) (delta(smartctl_device_attribute{job="nas-host", attribute_value_type="raw",
-                attribute_name=~"Reallocated_.*|Current_Pending_Sector|Offline_Uncorrectable|Reported_Uncorrect|Program_Fail_Count|Erase_Fail_Count|Runtime_Bad_Block"}[1d]))
+                max by (serial_number, model_name, attribute_name) (delta((max by (serial_number, model_name, attribute_name)
+                (smartctl_device_attribute{job="nas-host", attribute_value_type="raw",
+                attribute_name=~"Reallocated_.*|Current_Pending_Sector|Offline_Uncorrectable|Reported_Uncorrect|Program_Fail_Count|Erase_Fail_Count|Runtime_Bad_Block"}
+                * on (instance, device) group_left (serial_number, model_name) smartctl_device{job="nas-host"}))[1d:5m]))
           - refId: B
             datasourceUid: __expr__
             model:
@@ -449,7 +458,7 @@ groups:
         labels: {severity: warning}
         annotations:
           summary: >-
-            {{ $labels.device }}: {{ $labels.attribute_name }} subiu {{ $values.A.Value }} em 24h;
+            {{ $labels.model_name }} ({{ $labels.serial_number }}): {{ $labels.attribute_name }} subiu {{ $values.A.Value }} em 24h;
             confira o conector, o cabo ou o case antes de culpar o disco
         data:
           - refId: A
@@ -459,8 +468,10 @@ groups:
               refId: A
               instant: true
               expr: >-
-                max by (device, attribute_name) (delta(smartctl_device_attribute{job="nas-host",
-                attribute_value_type="raw", attribute_name=~"SATA_CRC_Error_Count|UDMA_CRC_Error_Count|CRC_Error_Count"}[1d]))
+                max by (serial_number, model_name, attribute_name) (delta((max by (serial_number, model_name, attribute_name)
+                (smartctl_device_attribute{job="nas-host", attribute_value_type="raw",
+                attribute_name=~"SATA_CRC_Error_Count|UDMA_CRC_Error_Count|CRC_Error_Count"}
+                * on (instance, device) group_left (serial_number, model_name) smartctl_device{job="nas-host"}))[1d:5m]))
           - refId: B
             datasourceUid: __expr__
             model:
@@ -479,7 +490,7 @@ groups:
         execErrState: Error
         labels: {severity: warning}
         annotations:
-          summary: "{{ $labels.device }}: vida restante do SSD em {{ $values.A.Value }}%; compre o substituto"
+          summary: "{{ $labels.model_name }} ({{ $labels.serial_number }}): vida restante do SSD em {{ $values.A.Value }}%; compre o substituto"
         data:
           - refId: A
             relativeTimeRange: {from: 900, to: 0}
@@ -488,8 +499,9 @@ groups:
               refId: A
               instant: true
               expr: >-
-                min by (device) (smartctl_device_attribute{job="nas-host", attribute_value_type="value",
-                attribute_name=~"SSD_Life_Left|Percent_Lifetime_Remain|Wear_Leveling_Count|Media_Wearout_Indicator|Remaining_Lifetime_Perc"})
+                min by (serial_number, model_name) (smartctl_device_attribute{job="nas-host", attribute_value_type="value",
+                attribute_name=~"SSD_Life_Left|Percent_Lifetime_Remain|Wear_Leveling_Count|Media_Wearout_Indicator|Remaining_Lifetime_Perc"}
+                * on (instance, device) group_left (serial_number, model_name) smartctl_device{job="nas-host"})
           - refId: B
             datasourceUid: __expr__
             model:
@@ -507,7 +519,7 @@ groups:
         execErrState: Error
         labels: {severity: warning}
         annotations:
-          summary: "{{ $labels.device }}: {{ $values.A.Value }} °C há 30 min"
+          summary: "{{ $labels.model_name }} ({{ $labels.serial_number }}): {{ $values.A.Value }} °C há 30 min"
         data:
           - refId: A
             relativeTimeRange: {from: 900, to: 0}
@@ -515,7 +527,9 @@ groups:
             model:
               refId: A
               instant: true
-              expr: max by (device) (smartctl_device_temperature{job="nas-host", temperature_type="current"})
+              expr: >-
+                max by (serial_number, model_name) (smartctl_device_temperature{job="nas-host", temperature_type="current"}
+                * on (instance, device) group_left (serial_number, model_name) smartctl_device{job="nas-host"})
           - refId: B
             datasourceUid: __expr__
             model:
