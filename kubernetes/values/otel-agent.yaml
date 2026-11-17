@@ -1,7 +1,8 @@
 # Values do chart opentelemetry-collector (release otel-agent), versão em
-# kubernetes/apps/values.yaml. DaemonSet: logs dos pods, métricas do kubelet, OTLP
-# dos apps e scrape dos /metrics que já existem; tudo enriquecido com metadados do
-# k8s e enviado por OTLP ao otel-gateway. Veja docs/adr/008.
+# kubernetes/apps/values.yaml. DaemonSet: logs dos pods, métricas do Kubernetes (cAdvisor
+# do kubelet e kube-state-metrics, no formato Prometheus), OTLP dos apps e scrape dos
+# /metrics que já existem; tudo enriquecido com metadados do k8s e enviado por OTLP ao
+# otel-gateway. Veja docs/adr/008 (transporte) e 013 (métricas do Kubernetes).
 mode: daemonset
 fullnameOverride: otel-agent
 
@@ -10,13 +11,21 @@ image:
   tag: 0.163.2
   digest: sha256:7f22d2a6748110ffb6a59bc0df448bccbf501cdb667d610ede4c61d3863d5849
 
+# Sem o preset kubeletMetrics: o kubeletstats emitia container_memory_working_set_bytes e
+# outros nomes do cAdvisor com labels k8s_*, e duplicaria as séries do cAdvisor de verdade.
 presets:
   logsCollection:
     enabled: true
   kubernetesAttributes:
     enabled: true
-  kubeletMetrics:
-    enabled: true
+
+# O job kubernetes-nodes-cadvisor lê /metrics/cadvisor do kubelet com o token do
+# ServiceAccount, o que exige nodes/metrics (os presets só concedem o que usam).
+clusterRole:
+  rules:
+    - apiGroups: [""]
+      resources: [nodes/metrics]
+      verbs: [get]
 
 # filelog lê /var/log/pods (root:root 0640 no host).
 securityContext:
@@ -50,11 +59,42 @@ config:
   receivers:
     jaeger: null
     zipkin: null
-    kubeletstats:
-      collection_interval: 30s
     prometheus:
       config:
         scrape_configs:
+          # Métricas do Kubernetes no formato Prometheus (ADR 013). Uso real de CPU e memória
+          # por container: cAdvisor do kubelet do próprio nó (o agent roda em todo nó).
+          # O k3s usa certificado próprio no :10250, então sem verificação do servidor.
+          - job_name: kubernetes-nodes-cadvisor
+            scrape_interval: 60s
+            scheme: https
+            metrics_path: /metrics/cadvisor
+            authorization:
+              credentials_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+            tls_config:
+              insecure_skip_verify: true
+            static_configs:
+              - targets: ["${env:K8S_NODE_IP}:10250"]
+                labels: {cluster: homelab, node: "${env:K8S_NODE_NAME}"}
+            metric_relabel_configs:
+              - source_labels: [__name__]
+                # yamllint disable-line rule:line-length
+                regex: (container_(cpu_(usage_seconds_total|cfs_(periods_total|throttled_periods_total|throttled_seconds_total))|memory_(working_set_bytes|rss|usage_bytes|cache)|network_(receive|transmit)_(bytes|packets|packets_dropped|errors)_total|fs_(usage_bytes|limit_bytes|reads_bytes_total|writes_bytes_total)|oom_events_total|spec_memory_limit_bytes)|machine_(cpu_cores|memory_bytes))
+                action: keep
+          # Estado dos objetos (kube_*): Deployments, Pods, Nodes, PVCs, labels.
+          - job_name: kube-state-metrics
+            scrape_interval: 60s
+            static_configs:
+              - targets: [kube-state-metrics.observability.svc:8080]
+                labels: {cluster: homelab}
+          # Custos por pod, nó e namespace. honor_labels: as métricas do OpenCost trazem
+          # instance e namespace próprios, que o scrape trocaria por exported_*.
+          - job_name: opencost
+            scrape_interval: 60s
+            honor_labels: true
+            static_configs:
+              - targets: [opencost.opencost.svc:9003]
+                labels: {cluster: homelab}
           # Substitui o scrape do próprio coletor (default do chart).
           # Nomes dos jobs iguais aos do dashboard oficial do ArgoCD.
           - job_name: argocd-application-controller-metrics

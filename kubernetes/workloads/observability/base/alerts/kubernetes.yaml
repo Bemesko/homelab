@@ -1,8 +1,8 @@
 # Regras do Grafana Alerting, carregadas pelo sidecar (label grafana_alert).
-# Derivadas de regras da comunidade (origem em cada comentário), reescritas para os
-# nomes OTel que chegam ao Prometheus por OTLP. Hosts se distinguem por host_name
-# (service.name vira o label job). Severidades: critical e warning chegam por e-mail;
-# info só aparece na UI (veja a política em overlays/tailscale/contact-points.yaml).
+# Derivadas de regras da comunidade (origem em cada comentário). As métricas do Kubernetes
+# seguem os nomes do kube-state-metrics (kube_*) e do cAdvisor (container_*), raspados pelo
+# otel-agent (docs/adr/013). Severidades: critical e warning chegam por e-mail; info só
+# aparece na UI (veja a política em overlays/tailscale/contact-points.yaml).
 apiVersion: 1
 groups:
   - orgId: 1
@@ -19,7 +19,7 @@ groups:
         execErrState: Error
         labels: {severity: critical}
         annotations:
-          summary: "O nó {{ $labels.k8s_node_name }} está NotReady"
+          summary: "O nó {{ $labels.node }} está NotReady"
         data:
           - refId: A
             relativeTimeRange: {from: 600, to: 0}
@@ -28,7 +28,7 @@ groups:
               refId: A
               instant: true
               expr: >-
-                k8s_node_condition_ready
+                kube_node_status_condition{condition="Ready", status="true"}
           - refId: B
             datasourceUid: __expr__
             model:
@@ -38,7 +38,7 @@ groups:
               conditions:
                 - evaluator: {type: lt, params: [1]}
 
-      # Origem: kubernetes-mixin, KubePodNotReady (fase numérica do k8s_cluster: 1=Pending, 5=Unknown)
+      # Origem: kubernetes-mixin, KubePodNotReady
       - uid: k8s-pod-stuck
         title: Pod Pending ou Unknown
         condition: B
@@ -47,7 +47,7 @@ groups:
         execErrState: Error
         labels: {severity: warning}
         annotations:
-          summary: "{{ $labels.k8s_namespace_name }}/{{ $labels.k8s_pod_name }} está Pending/Unknown há 15 min"
+          summary: "{{ $labels.namespace }}/{{ $labels.pod }} está Pending/Unknown há 15 min"
         data:
           - refId: A
             relativeTimeRange: {from: 600, to: 0}
@@ -56,8 +56,7 @@ groups:
               refId: A
               instant: true
               expr: >-
-                max by (k8s_namespace_name, k8s_pod_name) (k8s_pod_phase) == 1 or max by (k8s_namespace_name,
-                k8s_pod_name) (k8s_pod_phase) == 5
+                sum by (namespace, pod) (kube_pod_status_phase{phase=~"Pending|Unknown"})
           - refId: B
             datasourceUid: __expr__
             model:
@@ -76,7 +75,7 @@ groups:
         execErrState: Error
         labels: {severity: warning}
         annotations:
-          summary: "{{ $labels.k8s_namespace_name }}/{{ $labels.k8s_pod_name }} ({{ $labels.k8s_container_name }}) não está pronto"
+          summary: "{{ $labels.namespace }}/{{ $labels.pod }} ({{ $labels.container }}) está esperando há 15 min: {{ $labels.reason }}"
         data:
           - refId: A
             relativeTimeRange: {from: 600, to: 0}
@@ -85,8 +84,7 @@ groups:
               refId: A
               instant: true
               expr: >-
-                (1 - min by (k8s_namespace_name, k8s_pod_name, k8s_container_name) (k8s_container_ready)) and on
-                (k8s_namespace_name, k8s_pod_name) (max by (k8s_namespace_name, k8s_pod_name) (k8s_pod_phase) == 2)
+                max by (namespace, pod, container, reason) (kube_pod_container_status_waiting_reason)
           - refId: B
             datasourceUid: __expr__
             model:
@@ -105,7 +103,7 @@ groups:
         execErrState: Error
         labels: {severity: warning}
         annotations:
-          summary: "{{ $labels.k8s_namespace_name }}/{{ $labels.k8s_deployment_name }}: {{ $values.A.Value }} réplica(s) indisponível(is)"
+          summary: "{{ $labels.namespace }}/{{ $labels.deployment }}: {{ $values.A.Value }} réplica(s) indisponível(is)"
         data:
           - refId: A
             relativeTimeRange: {from: 600, to: 0}
@@ -114,7 +112,8 @@ groups:
               refId: A
               instant: true
               expr: >-
-                k8s_deployment_desired - k8s_deployment_available
+                max by (namespace, deployment) (kube_deployment_spec_replicas) - max by (namespace, deployment)
+                (kube_deployment_status_replicas_available)
           - refId: B
             datasourceUid: __expr__
             model:
@@ -133,7 +132,7 @@ groups:
         execErrState: Error
         labels: {severity: warning}
         annotations:
-          summary: "{{ $labels.k8s_namespace_name }}/{{ $labels.k8s_statefulset_name }}: {{ $values.A.Value }} réplica(s) não pronta(s)"
+          summary: "{{ $labels.namespace }}/{{ $labels.statefulset }}: {{ $values.A.Value }} réplica(s) não pronta(s)"
         data:
           - refId: A
             relativeTimeRange: {from: 600, to: 0}
@@ -142,7 +141,8 @@ groups:
               refId: A
               instant: true
               expr: >-
-                k8s_statefulset_desired_pods - k8s_statefulset_ready_pods
+                max by (namespace, statefulset) (kube_statefulset_replicas) - max by (namespace, statefulset)
+                (kube_statefulset_status_replicas_ready)
           - refId: B
             datasourceUid: __expr__
             model:
@@ -161,7 +161,7 @@ groups:
         execErrState: Error
         labels: {severity: warning}
         annotations:
-          summary: "{{ $labels.k8s_namespace_name }}/{{ $labels.k8s_daemonset_name }}: {{ $values.A.Value }} nó(s) sem pod pronto"
+          summary: "{{ $labels.namespace }}/{{ $labels.daemonset }}: {{ $values.A.Value }} nó(s) sem pod pronto"
         data:
           - refId: A
             relativeTimeRange: {from: 600, to: 0}
@@ -170,7 +170,8 @@ groups:
               refId: A
               instant: true
               expr: >-
-                k8s_daemonset_desired_scheduled_nodes - k8s_daemonset_ready_nodes
+                max by (namespace, daemonset) (kube_daemonset_status_desired_number_scheduled) - max by (namespace,
+                daemonset) (kube_daemonset_status_number_ready)
           - refId: B
             datasourceUid: __expr__
             model:
@@ -189,7 +190,7 @@ groups:
         execErrState: Error
         labels: {severity: info}
         annotations:
-          summary: "{{ $labels.k8s_namespace_name }}/{{ $labels.k8s_job_name }}: {{ $values.A.Value }} pod(s) falharam"
+          summary: "{{ $labels.namespace }}/{{ $labels.job_name }}: {{ $values.A.Value }} pod(s) falharam"
         data:
           - refId: A
             relativeTimeRange: {from: 600, to: 0}
@@ -198,7 +199,7 @@ groups:
               refId: A
               instant: true
               expr: >-
-                k8s_job_failed_pods
+                max by (namespace, job_name) (kube_job_status_failed)
           - refId: B
             datasourceUid: __expr__
             model:
@@ -217,7 +218,7 @@ groups:
         execErrState: Error
         labels: {severity: warning}
         annotations:
-          summary: "{{ $labels.k8s_pod_name }} ({{ $labels.k8s_container_name }}) usa {{ humanizePercentage $values.A.Value }} do limite"
+          summary: "{{ $labels.pod }} ({{ $labels.container }}) usa {{ humanizePercentage $values.A.Value }} do limite"
         data:
           - refId: A
             relativeTimeRange: {from: 600, to: 0}
@@ -226,8 +227,8 @@ groups:
               refId: A
               instant: true
               expr: >-
-                max by (k8s_namespace_name, k8s_pod_name, k8s_container_name) (container_memory_working_set_bytes /
-                on (k8s_namespace_name, k8s_pod_name, k8s_container_name) k8s_container_memory_limit_bytes)
+                max by (namespace, pod, container) (container_memory_working_set_bytes{container!=""}) / on (namespace, pod,
+                container) max by (namespace, pod, container) (kube_pod_container_resource_limits{resource="memory"})
           - refId: B
             datasourceUid: __expr__
             model:

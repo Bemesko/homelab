@@ -74,7 +74,7 @@ groups:
         execErrState: Error
         labels: {severity: warning}
         annotations:
-          summary: "{{ $labels.k8s_namespace_name }}/{{ $labels.k8s_pod_name }} ({{ $labels.k8s_container_name }}) reiniciou {{ $values.A.Value }}x em 30 min"
+          summary: "{{ $labels.namespace }}/{{ $labels.pod }} ({{ $labels.container }}) reiniciou {{ $values.A.Value }}x em 30 min"
         data:
           - refId: A
             relativeTimeRange: {from: 1800, to: 0}
@@ -83,8 +83,8 @@ groups:
               refId: A
               instant: true
               expr: >-
-                max by (k8s_namespace_name, k8s_pod_name, k8s_container_name)
-                (delta(k8s_container_restarts[30m]))
+                max by (namespace, pod, container)
+                (increase(kube_pod_container_status_restarts_total[30m]))
           - refId: B
             datasourceUid: __expr__
             model:

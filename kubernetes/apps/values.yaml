@@ -77,3 +77,9 @@ charts:
     repoURL: https://open-telemetry.github.io/opentelemetry-helm-charts
     chart: opentelemetry-collector
     version: 0.178.2
+  # Custo por namespace, pod e nó (docs/adr/013). Lê o Prometheus por HTTP; as imagens do
+  # exporter e da UI já vêm com digest no próprio chart.
+  opencost:
+    repoURL: https://opencost.github.io/opencost-helm-chart
+    chart: opencost
+    version: 2.5.34

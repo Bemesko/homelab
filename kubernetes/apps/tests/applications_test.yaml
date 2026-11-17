@@ -16,6 +16,7 @@ templates:
   - templates/otel-gateway.yaml
   - templates/otel-agent.yaml
   - templates/grafana.yaml
+  - templates/opencost.yaml
 tests:
   - it: toda Application tem sync automático com prune e selfHeal
     asserts:
@@ -97,6 +98,10 @@ tests:
           path: metadata.annotations["argocd.argoproj.io/sync-wave"]
           value: "3"
         template: templates/grafana.yaml
+      - equal:
+          path: metadata.annotations["argocd.argoproj.io/sync-wave"]
+          value: "3"
+        template: templates/opencost.yaml
 
   - it: Application do ArgoCD não tem finalizer (não se auto-apaga)
     template: templates/argocd.yaml
@@ -317,6 +322,39 @@ tests:
       - equal:
           path: spec.sources[0].helm.valuesObject.envFromSecrets[0].name
           value: grafana-public-url
+
+  - it: versão do chart do OpenCost vem do values (fonte única) e ele roda no próprio namespace
+    template: templates/opencost.yaml
+    set:
+      charts.opencost.version: 5.5.5
+    asserts:
+      - equal:
+          path: spec.sources[0].targetRevision
+          value: 5.5.5
+      - equal:
+          path: spec.sources[0].helm.releaseName
+          value: opencost
+      - equal:
+          path: spec.destination.namespace
+          value: opencost
+
+  - it: OpenCost com Tailscale expõe a UI como "opencost"
+    template: templates/opencost.yaml
+    asserts:
+      - equal:
+          path: spec.sources[0].helm.valuesObject.opencost.ui.ingress.ingressClassName
+          value: tailscale
+      - equal:
+          path: spec.sources[0].helm.valuesObject.opencost.ui.ingress.hosts[0].host
+          value: opencost
+
+  - it: sem Tailscale (CI) o OpenCost não expõe a UI
+    template: templates/opencost.yaml
+    set:
+      tailscaleOperator.enabled: false
+    asserts:
+      - notExists:
+          path: spec.sources[0].helm.valuesObject
 
   - it: sem Tailscale (CI) o Grafana não tem Ingress nem Secrets e o provisionamento usa base
     set:

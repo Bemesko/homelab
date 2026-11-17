@@ -168,7 +168,7 @@ O Home Assistant roda no cluster e abre em `https://casa.<sua-tailnet>`. O `conf
 
 ## Observabilidade (OpenTelemetry + Grafana)
 
-Logs, métricas e traces do cluster, do notebook e do NAS chegam por OTLP ao `otel-gateway` e seguem para Prometheus, Loki e Tempo, todos no namespace `observability`. Veja o [ADR 008](docs/adr/008-observability-otel-lgtm.md).
+Logs, métricas e traces do cluster, do notebook e do NAS chegam por OTLP ao `otel-gateway` e seguem para Prometheus, Loki e Tempo, todos no namespace `observability`. Veja o [ADR 008](docs/adr/008-observability-otel-lgtm.md). As métricas do Kubernetes seguem o formato Prometheus (kube-state-metrics e cAdvisor, raspados pelo `otel-agent`), o que alimenta o OpenCost: veja o [ADR 013](docs/adr/013-kubernetes-metrics-prometheus-semantics.md).
 
 - **Acesso:** `https://grafana.<sua-tailnet>`. O usuário e a senha do admin estão no SOPS:
   ```bash
@@ -185,7 +185,8 @@ Logs, métricas e traces do cluster, do notebook e do NAS chegam por OTLP ao `ot
   2. Em *Services → Compose → Files*, crie o stack `otel-collector` colando o conteúdo de [`hosts/nas/otel-collector/compose.yaml`](hosts/nas/otel-collector/compose.yaml) (a configuração vai embutida) e clique em *Up*. Se o NAS não usar o MagicDNS da tailnet, defina `OTEL_GATEWAY=otel.<sua-tailnet>:4317` no `.env` do stack. Para os alertas de capacidade (`base/alerts/nas.yaml`), defina também no `.env` `NAS_PRIMARY_MOUNT` (disco com os dados) e `NAS_REPLICA_MOUNT` (disco da réplica do backup), com o caminho de montagem de *Storage → File Systems* (ex.: `/srv/dev-disk-by-uuid-...`). O mesmo stack sobe o `smartctl-exporter` (SMART dos discos, inclusive o SSD no case USB) e lê o `/var/log/rsync.log` das tarefas Rsync do OMV: o histórico das réplicas fica 30 dias no Loki (`service_name="nas-rsync"`) e aparece no dashboard *Hosts → NAS - Replicação e discos*. O alerta "réplica sem execução bem-sucedida em 26h" dispara até a primeira tarefa rodar depois do deploy.
   3. Em *Diagnostics → System Logs → Remote* (o nome varia com a versão do OMV), envie o syslog para `127.0.0.1`, porta `5140`, TCP.
   4. O NAS aparece no Grafana com `job="nas-host"` (métricas) e `service_name="nas-host"` (logs). Depois disso, os gráficos do OMV (*System → Monitoring*) podem ser desligados: o collectd/rrd só gravaria no pendrive à toa.
-- **Dashboards e alertas da comunidade:** o Grafana já traz pastas prontas: *Hosts* (notebook e NAS), *Kubernetes* (pods e visão do cluster), *Apps* (ArgoCD, CloudNativePG e Immich), *Observabilidade* (coletores OTel, Loki, Tempo e Prometheus), *Rede* (CoreDNS) e *Logs*. Eles ficam versionados em `kubernetes/workloads/observability/base/dashboards/`, com versão e sha256 em `dashboards.lock`; os da comunidade são ajustados por patches jq às nossas métricas OTel. As regras de alerta (`base/alerts/`) derivam de regras da comunidade, com `severity` `critical`, `warning` ou `info`.
+- **Custos (OpenCost):** `https://opencost.<sua-tailnet>` mostra o custo por namespace, pod e nó, e o dashboard *Custos → OpenCost / Overview* do Grafana usa as mesmas métricas. A UI não tem login: só quem está na tailnet a acessa. Os preços são os padrões on-prem do OpenCost (referência de nuvem): vale a proporção entre os apps, não o valor em reais.
+- **Dashboards e alertas da comunidade:** o Grafana já traz pastas prontas: *Hosts* (notebook e NAS), *Kubernetes* (namespaces e pods), *Custos* (OpenCost), *Apps* (ArgoCD, CloudNativePG e Immich), *Observabilidade* (coletores OTel, Loki, Tempo e Prometheus), *Rede* (CoreDNS) e *Logs*. Eles ficam versionados em `kubernetes/workloads/observability/base/dashboards/`, com versão e sha256 em `dashboards.lock`; os da comunidade são ajustados por patches jq às nossas métricas OTel. As regras de alerta (`base/alerts/`) derivam de regras da comunidade, com `severity` `critical`, `warning` ou `info`.
   ```bash
   scripts/vendor-dashboards.sh --check        # offline: o que está versionado bate com o lock
   scripts/vendor-dashboards.sh --update       # sobe a versão de um dashboard (edite o lock antes)
@@ -296,7 +297,7 @@ O `validate-manifests` baixa os schemas na primeira execução e os guarda em ca
 ### CI ([.github/workflows/ci.yaml](.github/workflows/ci.yaml))
 
 - **lint**: roda o pre-commit em todos os arquivos.
-- **render**: roda `helm unittest` e renderiza os charts upstream (argo-cd, tailscale-operator, cloudnative-pg, immich, prometheus, loki, tempo, grafana, otel-agent/otel-gateway) com os nossos values, validando tudo com kubeconform.
+- **render**: roda `helm unittest` e renderiza os charts upstream (argo-cd, tailscale-operator, cloudnative-pg, immich, prometheus, loki, tempo, grafana, otel-agent/otel-gateway, opencost) com os nossos values, validando tudo com kubeconform.
 - **e2e**: no runner `ubuntu-26.04`:
   1. gera uma chave age efêmera com segredos dummy;
   2. roda o `site.yaml` completo com `tailscale_enabled=false`, sincronizando o próprio SHA do PR;

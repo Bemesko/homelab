@@ -7,7 +7,7 @@ kubectl() { sudo /usr/local/bin/k3s kubectl "$@"; }
 echo "==> node Ready"
 kubectl wait --for=condition=Ready node --all --timeout=300s
 
-for app in root argocd hello-world cloudnative-pg immich-database immich obsidian home-assistant-database home-assistant k8s-app-smoke grocery-ops prometheus loki tempo observability otel-gateway otel-agent grafana; do
+for app in root argocd hello-world cloudnative-pg immich-database immich obsidian home-assistant-database home-assistant k8s-app-smoke grocery-ops prometheus loki tempo observability otel-gateway otel-agent grafana opencost; do
   echo "==> Application ${app} Synced + Healthy"
   kubectl -n argocd wait "application/${app}" --for=create --timeout=300s
   kubectl -n argocd wait "application/${app}" --for=jsonpath='{.status.sync.status}'=Synced --timeout=600s
@@ -111,12 +111,17 @@ retry() {
   return 1
 }
 
-prom_has_kubelet_metrics() {
-  kubectl get --raw '/api/v1/namespaces/observability/services/prometheus-server:80/proxy/api/v1/query?query=count(%7B__name__%3D~%22k8s_pod_.%2A%22%7D)' |
+# prom_has <consulta>: o Prometheus devolve pelo menos uma série (consulta sem caracteres especiais).
+prom_has() {
+  kubectl get --raw "/api/v1/namespaces/observability/services/prometheus-server:80/proxy/api/v1/query?query=$1" |
     grep -q '"result":\[{'
 }
-echo "==> Observabilidade: métricas do kubelet chegaram ao Prometheus por OTLP"
-retry "métricas k8s_pod_* no Prometheus" prom_has_kubelet_metrics
+echo "==> Observabilidade: métricas do Kubernetes (ADR 013) chegaram ao Prometheus por OTLP"
+retry "kube_pod_info (kube-state-metrics) no Prometheus" prom_has 'count(kube_pod_info)'
+retry "container_cpu_usage_seconds_total (cAdvisor) no Prometheus" prom_has 'count(container_cpu_usage_seconds_total)'
+echo "==> OpenCost: o exporter sobe e calcula o custo do nó"
+kubectl -n opencost rollout status deployment/opencost --timeout=600s
+retry "node_total_hourly_cost (OpenCost) no Prometheus" prom_has 'count(node_total_hourly_cost)'
 
 loki_has_argocd_logs() {
   kubectl get --raw '/api/v1/namespaces/observability/services/loki:3100/proxy/loki/api/v1/query?query=count_over_time(%7Bk8s_namespace_name%3D%22argocd%22%7D%5B10m%5D)' |

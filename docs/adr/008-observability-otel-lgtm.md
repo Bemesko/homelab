@@ -1,6 +1,6 @@
 # 008 — Observabilidade: OpenTelemetry Collector + LGTM enxuto
 
-- **Status:** aceito
+- **Status:** aceito. A semântica das métricas do Kubernetes (só OTel nativo) foi trocada pelo formato Prometheus no [013](013-kubernetes-metrics-prometheus-semantics.md); o transporte por OTLP continua valendo.
 - **Data:** 2026-11-07
 
 ## Contexto
@@ -45,7 +45,7 @@ Queremos logs, métricas e traces do cluster, do próprio notebook, do NAS e, ma
 
 ## Dashboards e alertas da comunidade
 
-Os dashboards e as regras de alerta vêm de projetos da comunidade, **sem** instalar kube-state-metrics, node-exporter nem cAdvisor: o stack continua só com as métricas OTel nativas (`kubeletstats`, `k8s_cluster`, `hostmetrics`).
+Os dashboards e as regras de alerta vêm de projetos da comunidade, **sem** instalar kube-state-metrics, node-exporter nem cAdvisor: o stack continua só com as métricas OTel nativas (`kubeletstats`, `k8s_cluster`, `hostmetrics`). *(Revisto em 2026-11-17 pelo [013](013-kubernetes-metrics-prometheus-semantics.md): o kube-state-metrics e o cAdvisor entraram, para o OpenCost e para dashboards sem tradução; `kubeletstats` e `k8s_cluster` saíram. O node-exporter continua de fora.)*
 
 - **Dashboards vendorizados e fixados.** `scripts/vendor-dashboards.sh` baixa cada dashboard de uma versão fixa (grafana.com por ID e revisão; ArgoCD, Loki e Tempo por tag), confere o sha256 do upstream no `dashboards.lock` e aplica um filtro comum (datasources por uid) mais um patch jq por dashboard (`patches/<nome>.jq`). Um `kustomization.yaml` gerado cria um ConfigMap por dashboard, com a pasta do Grafana na annotation `grafana_folder`. O `gnetId` do chart ficou de fora: ele baixa na subida do pod, sem hash e sem patch.
 - **Patches típicos.** O `job` vem como `service.namespace/service.name`; contadores chegam com o sufixo `_total`; as recording rules dos mixins não existem; e os painéis que dependem de `kube_*`, de `kubelet_volume_stats_*` (o `local-path` não os reporta) ou do controller-runtime do operador do CNPG são removidos.
