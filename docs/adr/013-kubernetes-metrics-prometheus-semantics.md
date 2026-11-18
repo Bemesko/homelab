@@ -27,7 +27,7 @@ Essa escolha já custava caro:
 **OpenCost** (chart 2.5.34, app 1.121.4, imagens com digest do próprio chart):
 - **Local:** namespace `opencost`, sync-wave 3, lendo `prometheus-server.observability.svc`.
 - **UI:** na tailnet como `opencost`, sem login (só quem já está na tailnet), e não exposta no CI.
-- **Preços:** os padrões on-prem do OpenCost, sem `customPricing`. Os valores absolutos são uma referência de nuvem e não o custo real do notebook, mas a proporção entre apps vale.
+- **Preços:** `customPricing` ligado, com os valores do `default.json` do próprio OpenCost (referência GCP us-central1, em USD por hora). Sem isso o exporter só emite o custo de PV e nenhum `node_*_hourly_cost` (o log mostra `No pricing found for key=default`); o CI pegou isso no primeiro push. O chart traz outros valores de exemplo (CPU 1.25, storage 0.25), que não são os padrões do OpenCost. Os valores absolutos são uma referência de nuvem e não o custo real do notebook, mas a proporção entre apps vale.
 - **`emitKsmV1MetricsOnly`:** emite só as métricas v1 que o kube-state-metrics 2 não tem, para não duplicar `kube_*`.
 
 **Migração dos consumidores:**

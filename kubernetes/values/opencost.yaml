@@ -2,8 +2,8 @@
 # pod e nó a partir do Prometheus do cluster (cAdvisor + kube-state-metrics, ambos
 # raspados pelo otel-agent). Veja docs/adr/013.
 #
-# Preços: os padrões on-prem do OpenCost (sem customPricing). Os valores absolutos são
-# uma referência de nuvem, não o custo real do notebook; o que vale é a proporção entre
+# Preços: os do default.json do OpenCost (veja customPricing abaixo). Os valores absolutos
+# são uma referência de nuvem, não o custo real do notebook; o que vale é a proporção entre
 # os apps. As imagens do exporter e da UI vêm com digest no próprio chart.
 opencost:
   # Servidor MCP (porta 8081): não usamos agentes de IA contra o OpenCost.
@@ -24,6 +24,24 @@ opencost:
       allowPrivilegeEscalation: false
       capabilities:
         drop: [ALL]
+  # Sem customPricing o exporter só emite o custo de PV, nenhum node_*_hourly_cost (o log
+  # mostra "No pricing found for key=default"). Estes são os valores do default.json do
+  # próprio OpenCost (referência GCP us-central1, USD por hora). O chart traz outros
+  # exemplos (CPU 1.25, storage 0.25), que não são os padrões do OpenCost.
+  customPricing:
+    enabled: true
+    provider: custom
+    costModel:
+      description: Precos de referencia do OpenCost (GCP us-central1)
+      CPU: "0.031611"
+      spotCPU: "0.006655"
+      RAM: "0.004237"
+      spotRAM: "0.000892"
+      GPU: "0.95"
+      storage: "0.00005479452"
+      zoneNetworkEgress: "0.01"
+      regionNetworkEgress: "0.01"
+      internetNetworkEgress: "0.12"
   prometheus:
     internal:
       enabled: true
