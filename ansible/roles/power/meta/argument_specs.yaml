@@ -1,12 +1,17 @@
 argument_specs:
   main:
-    short_description: Notebook não suspende/desliga ao fechar a tampa quando ligado na energia
+    short_description: Notebook como servidor (ADR 012) — nunca suspende, desliga com bateria baixa e religa pelo RTC
     options:
-      power_lid_switch_external_power:
+      power_lid_switch:
         type: str
-        choices: [ignore, lock, suspend, poweroff, hibernate]
+        choices: [ignore, lock, poweroff]
         default: ignore
-      power_lid_switch_docked:
-        type: str
-        choices: [ignore, lock, suspend, poweroff, hibernate]
-        default: ignore
+        description: Ação do logind ao fechar a tampa (na tomada, na bateria e no dock).
+      power_shutdown_percent:
+        type: int
+        default: 10
+        description: Na bateria, desliga ao chegar neste percentual.
+      power_rtc_wake_interval:
+        type: int
+        default: 1800
+        description: Segundos até o RTC religar depois de um desligamento pela bateria (0 desliga).

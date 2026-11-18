@@ -12,6 +12,8 @@ groups:
     rules:
       # Origem: Watchdog / PrometheusNotIngestingSamples. absent_over_time devolve 1 só quando a
       # métrica some e vazio quando ela existe: "sem dados" é o estado saudável (noDataState OK).
+      # A sentinela é a telemetria do próprio otel-agent, que percorre o mesmo caminho
+      # (agent -> gateway -> Prometheus) e não depende das métricas do Kubernetes.
       - uid: pipeline-dead
         title: Nenhuma métrica do cluster chegando
         condition: B
@@ -29,7 +31,36 @@ groups:
               refId: A
               instant: true
               expr: >-
-                absent_over_time(k8s_node_cpu_usage[5m])
+                absent_over_time(otelcol_process_uptime_seconds_total{job="observability/otel-agent"}[5m])
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: {type: gt, params: [0]}
+
+      # O kube-state-metrics alimenta os alertas de kubernetes.yaml e o OpenCost: sem ele,
+      # essas regras ficam em "sem dados" (estado OK) e não avisam de nada.
+      - uid: kube-state-metrics-missing
+        title: kube-state-metrics sem dados
+        condition: B
+        for: 10m
+        noDataState: OK
+        execErrState: Error
+        labels: {severity: info}
+        annotations:
+          summary: "O kube-state-metrics não envia métricas há 10 min: os alertas de Kubernetes e o OpenCost ficaram cegos"
+        data:
+          - refId: A
+            relativeTimeRange: {from: 600, to: 0}
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              expr: >-
+                absent_over_time(kube_node_info[10m])
           - refId: B
             datasourceUid: __expr__
             model:

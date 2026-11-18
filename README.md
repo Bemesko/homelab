@@ -23,7 +23,12 @@ WSL (controle)  ──ssh via Tailscale──▶  notebook (Ubuntu 26.04)
 - **Sem lockout.** O playbook nunca mexe no Tailscale, no SSH, no firewall ou na rede do host. O role `tailscale_check` só lê o status, e o hook `no-lockout` barra qualquer task que tente alterar essas coisas.
 - **Nada identificável no repo.** O inventário real fica em `ansible/inventory/local.yaml` (ignorado pelo git e barrado por hook). O nome da tailnet (`*.ts.net`) é descoberto em runtime e barrado pelo gitleaks. Os kubeconfigs ficam em `~/.kube/`.
 - **Segredos com SOPS + age.** A chave privada fica só no WSL. O Ansible descriptografa no controller e cria os Secrets do bootstrap com `no_log` (veja [ADR 002](docs/adr/002-sops-age-secrets.md)). Os segredos dos apps são commitados criptografados ao lado do app, e o ArgoCD os descriptografa com KSOPS usando uma chave age própria do cluster (veja [ADR 004](docs/adr/004-ksops.md)).
-- **Tampa fechada na energia não suspende.** O role `power` configura o `systemd-logind` (`HandleLidSwitchExternalPower=ignore` e `HandleLidSwitchDocked=ignore`) e confere via D-Bus que o valor efetivo foi aplicado. Na bateria continua valendo o padrão do sistema (suspender).
+- **Notebooks nunca suspendem, e uma queda de energia não derruba nada sem aviso.** O role `power` (notebook do cluster e NAS; veja o [ADR 012](docs/adr/012-power-management.md)):
+  - ignora a tampa no `systemd-logind` e mascara os alvos de sono;
+  - trava o GNOME para não suspender por inatividade;
+  - roda um guardião que, sem energia externa, avisa (alerta `host-on-battery`) e desliga com 10% de bateria;
+  - religar é manual (abrir a tampa do Acer, botão do NAS): os dois BIOS ignoram o alarme do RTC. A automação por Wake-on-LAN está na issue #23.
+  - Limite de carga: nenhum dos dois firmwares tem (o ADR registra o que foi tentado).
 - **Atualizações do Ubuntu sem surpresa.** O role `os_updates` roda o unattended-upgrades às 05:15, com prioridade idle de CPU e I/O, e tira o kernel (`linux-*`) do automático: kernel só com `make kernel-upgrade`, que reinicia e valida o cluster. Veja o [ADR 010](docs/adr/010-notebook-os-updates.md).
 - **Versões fixadas com sha256** para k3s (instalador), helm, kubectl, sops, age, kubeconform, kube-linter e kustomize. A imagem do hello-world é fixada por digest.
 - **Uma fonte por versão.** As versões dos charts ficam só em [kubernetes/apps/values.yaml](kubernetes/apps/values.yaml), que o Ansible também lê no bootstrap.
@@ -82,7 +87,7 @@ O Immich exibe, **somente leitura**, as fotos e vídeos do NAS como External Lib
 
 ### 1. NAS: exports NFS no OMV (uma vez, pela UI do openmediavault)
 
-O playbook **nunca** altera o NAS; ele só confere o que você configurou aqui.
+O playbook não altera o NAS; ele só confere o que você configurou aqui. A única exceção é o Syncthing (veja [Syncthing no NAS](#syncthing-no-nas)).
 
 1. **Services → NFS → Settings**: marque *Enabled*, clique em *Save* e aplique as mudanças (banner amarelo).
 2. **Storage → Shared Folders**: crie a pasta `immich-data` no disco com espaço (o Immich vai gravar de ~12 a 70 GB nela). A pasta das fotos já deve existir. Se as fotos estão espalhadas pelo disco, ela pode ser a shared folder da raiz do disco; nesse caso, veja os import paths no passo 3.
@@ -135,6 +140,22 @@ O Obsidian desktop roda no cluster ([linuxserver/obsidian](https://docs.linuxser
 
 **Edição em vários lugares.** Por NFS, o Obsidian do cluster não é avisado de mudanças feitas por outros dispositivos (Syncthing, SMB), porque o inotify não atravessa NFS. Edite num lugar por vez. Ao voltar para o Obsidian do navegador, use *Reload app without saving* (paleta de comandos) antes de editar, para não sobrescrever a versão mais nova.
 
+### Syncthing no NAS
+
+O vault chega ao celular pelo Syncthing do NAS. Junto com a energia (role `power`, `nas_power_enabled`; veja o [ADR 012](docs/adr/012-power-management.md)), ele é o que o Ansible altera no NAS: o OMV não gerencia o Syncthing pela UI. Veja o [ADR 011](docs/adr/011-syncthing-nas-ansible.md).
+
+- **Inventário:** preencha o grupo `nas` de `inventory.example.yaml`. Ele leva `ansible_user: root`, `nas_syncthing_home` (um diretório no disco de dados, fora do pendrive do sistema), `nas_syncthing_devices` e `nas_syncthing_folders`.
+  - `nas_syncthing_devices` é a lista **completa**: um device que não estiver nela é removido.
+  - Uma pasta fora de `nas_syncthing_folders` não é apagada, só gera um aviso.
+- **SSH:** a chave do WSL precisa estar no `/root/.ssh/authorized_keys` do NAS, e a host key do NAS no `known_hosts` do WSL (rode `ssh root@<nas>` uma vez e aceite). O `host_key_checking` continua ligado.
+- **Aplicar:** `make plan` e `make apply`. O segundo play (`hosts: nas`) instala o `.deb` fixado em `group_vars/all` e habilita `syncthing@<usuário>` no boot. Depois aplica opções, devices e pastas pela REST API. Qualquer mudança feita pela GUI nesses itens volta ao que está no inventário no próximo apply.
+- **Parear um device novo:** adicione o ID em `nas_syncthing_devices` (e nos `devices` da pasta), rode `make apply` e aceite no outro lado.
+- **GUI:** só escuta em `127.0.0.1:8384`. Para abrir no navegador:
+  ```bash
+  ssh -L 8384:127.0.0.1:8384 root@<nas>
+  ```
+  Depois acesse `http://localhost:8384`.
+
 ## Home Assistant (ponte da lista de compras da Alexa)
 
 O Home Assistant roda no cluster e abre em `https://casa.<sua-tailnet>`. O `configuration.yaml` vem do Git ([kubernetes/workloads/home-assistant/base/configuration.yaml](kubernetes/workloads/home-assistant/base/configuration.yaml)); o resto do `/config` fica no NAS e o histórico no Postgres (CNPG). No notebook ele usa `hostNetwork` (descoberta na LAN; também responde em `<IP do notebook>:8123`) e o Bluetooth do host via D-Bus. Veja o [ADR 009](docs/adr/009-home-assistant.md).
@@ -147,7 +168,7 @@ O Home Assistant roda no cluster e abre em `https://casa.<sua-tailnet>`. O `conf
 
 ## Backup off-site do NAS (restic → Hetzner Storage Box)
 
-Todo dia às 04:00 o CronJob `restic-backup` (namespace `backup`) envia a raiz do SSD do NAS para um Storage Box BX11 da Hetzner. Ele lê pelo NFS em modo só leitura, envia por SFTP com criptografia do restic e mantém 7 snapshots diários, 4 semanais e 6 mensais. O Storage Box tira ainda 7 snapshots diários próprios. O box é criado pelo OpenTofu (`infra/hetzner/`), com o state criptografado no git. Veja o [ADR 011](docs/adr/011-offsite-backup-hetzner-restic.md).
+Todo dia às 04:00 o CronJob `restic-backup` (namespace `backup`) envia a raiz do SSD do NAS para um Storage Box BX11 da Hetzner. Ele lê pelo NFS em modo só leitura, envia por SFTP com criptografia do restic e mantém 7 snapshots diários, 4 semanais e 6 mensais. O Storage Box tira ainda 7 snapshots diários próprios. O box é criado pelo OpenTofu (`infra/hetzner/`), com o state criptografado no git. Veja o [ADR 014](docs/adr/014-offsite-backup-hetzner-restic.md).
 
 A chave SSH do restic (`infra/hetzner/restic_ed25519.pub` + Secret SOPS) e a senha do repositório já estão no repo. Para colocar no ar:
 
@@ -186,7 +207,7 @@ Com `/tmp/restic.yaml` em mãos, grave `id_ed25519` (modo 600), `known_hosts` e 
 
 ## Observabilidade (OpenTelemetry + Grafana)
 
-Logs, métricas e traces do cluster, do notebook e do NAS chegam por OTLP ao `otel-gateway` e seguem para Prometheus, Loki e Tempo, todos no namespace `observability`. Veja o [ADR 008](docs/adr/008-observability-otel-lgtm.md).
+Logs, métricas e traces do cluster, do notebook e do NAS chegam por OTLP ao `otel-gateway` e seguem para Prometheus, Loki e Tempo, todos no namespace `observability`. Veja o [ADR 008](docs/adr/008-observability-otel-lgtm.md). As métricas do Kubernetes seguem o formato Prometheus (kube-state-metrics e cAdvisor, raspados pelo `otel-agent`), o que alimenta o OpenCost: veja o [ADR 013](docs/adr/013-kubernetes-metrics-prometheus-semantics.md).
 
 - **Acesso:** `https://grafana.<sua-tailnet>`. O usuário e a senha do admin estão no SOPS:
   ```bash
@@ -203,7 +224,8 @@ Logs, métricas e traces do cluster, do notebook e do NAS chegam por OTLP ao `ot
   2. Em *Services → Compose → Files*, crie o stack `otel-collector` colando o conteúdo de [`hosts/nas/otel-collector/compose.yaml`](hosts/nas/otel-collector/compose.yaml) (a configuração vai embutida) e clique em *Up*. Se o NAS não usar o MagicDNS da tailnet, defina `OTEL_GATEWAY=otel.<sua-tailnet>:4317` no `.env` do stack. Para os alertas de capacidade (`base/alerts/nas.yaml`), defina também no `.env` `NAS_PRIMARY_MOUNT` (disco com os dados) e `NAS_REPLICA_MOUNT` (disco da réplica do backup), com o caminho de montagem de *Storage → File Systems* (ex.: `/srv/dev-disk-by-uuid-...`). O mesmo stack sobe o `smartctl-exporter` (SMART dos discos, inclusive o SSD no case USB) e lê o `/var/log/rsync.log` das tarefas Rsync do OMV: o histórico das réplicas fica 30 dias no Loki (`service_name="nas-rsync"`) e aparece no dashboard *Hosts → NAS - Replicação e discos*. O alerta "réplica sem execução bem-sucedida em 26h" dispara até a primeira tarefa rodar depois do deploy.
   3. Em *Diagnostics → System Logs → Remote* (o nome varia com a versão do OMV), envie o syslog para `127.0.0.1`, porta `5140`, TCP.
   4. O NAS aparece no Grafana com `job="nas-host"` (métricas) e `service_name="nas-host"` (logs). Depois disso, os gráficos do OMV (*System → Monitoring*) podem ser desligados: o collectd/rrd só gravaria no pendrive à toa.
-- **Dashboards e alertas da comunidade:** o Grafana já traz pastas prontas: *Hosts* (notebook e NAS), *Kubernetes* (pods e visão do cluster), *Apps* (ArgoCD, CloudNativePG e Immich), *Observabilidade* (coletores OTel, Loki, Tempo e Prometheus), *Rede* (CoreDNS) e *Logs*. Eles ficam versionados em `kubernetes/workloads/observability/base/dashboards/`, com versão e sha256 em `dashboards.lock`; os da comunidade são ajustados por patches jq às nossas métricas OTel. As regras de alerta (`base/alerts/`) derivam de regras da comunidade, com `severity` `critical`, `warning` ou `info`.
+- **Custos (OpenCost):** `https://opencost.<sua-tailnet>` mostra o custo por namespace, pod e nó, e o dashboard *Custos → OpenCost / Overview* do Grafana usa as mesmas métricas. A UI não tem login: só quem está na tailnet a acessa. Os preços são os padrões on-prem do OpenCost (referência de nuvem): vale a proporção entre os apps, não o valor em reais.
+- **Dashboards e alertas da comunidade:** o Grafana já traz pastas prontas: *Hosts* (notebook e NAS), *Kubernetes* (namespaces e pods), *Custos* (OpenCost), *Apps* (ArgoCD, CloudNativePG e Immich), *Observabilidade* (coletores OTel, Loki, Tempo e Prometheus), *Rede* (CoreDNS) e *Logs*. Eles ficam versionados em `kubernetes/workloads/observability/base/dashboards/`, com versão e sha256 em `dashboards.lock`; os da comunidade são ajustados por patches jq às nossas métricas OTel. As regras de alerta (`base/alerts/`) derivam de regras da comunidade, com `severity` `critical`, `warning` ou `info`.
   ```bash
   scripts/vendor-dashboards.sh --check        # offline: o que está versionado bate com o lock
   scripts/vendor-dashboards.sh --update       # sobe a versão de um dashboard (edite o lock antes)
@@ -314,7 +336,7 @@ O `validate-manifests` baixa os schemas na primeira execução e os guarda em ca
 ### CI ([.github/workflows/ci.yaml](.github/workflows/ci.yaml))
 
 - **lint**: roda o pre-commit em todos os arquivos.
-- **render**: roda `helm unittest` e renderiza os charts upstream (argo-cd, tailscale-operator, cloudnative-pg, immich, prometheus, loki, tempo, grafana, otel-agent/otel-gateway) com os nossos values, validando tudo com kubeconform.
+- **render**: roda `helm unittest` e renderiza os charts upstream (argo-cd, tailscale-operator, cloudnative-pg, immich, prometheus, loki, tempo, grafana, otel-agent/otel-gateway, opencost) com os nossos values, validando tudo com kubeconform.
 - **e2e**: no runner `ubuntu-26.04`:
   1. gera uma chave age efêmera com segredos dummy;
   2. roda o `site.yaml` completo com `tailscale_enabled=false`, sincronizando o próprio SHA do PR;

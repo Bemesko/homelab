@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Renderiza manifests para validação (stdout, multi-documento).
 #   render-manifests.sh local     -> chart app-of-apps (Tailscale/NAS on/off) + kustomize dos workloads (offline, KSOPS via stub)
-#   render-manifests.sh upstream  -> charts upstream (argo-cd, tailscale-operator, cloudnative-pg, immich, prometheus, loki, tempo, grafana, otel-agent/otel-gateway) com nossos values (precisa de rede)
+#   render-manifests.sh upstream  -> charts upstream (argo-cd, tailscale-operator, cloudnative-pg, immich, prometheus, loki, tempo, grafana, otel-agent/otel-gateway, opencost) com nossos values (precisa de rede)
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -65,6 +65,7 @@ render_upstream() {
     grafana:grafana:observability
     opentelemetryCollector:otel-agent:observability
     opentelemetryCollector:otel-gateway:observability
+    opencost:opencost:opencost
   )
   for entry in "${releases[@]}"; do
     IFS=: read -r key release namespace <<<"${entry}"

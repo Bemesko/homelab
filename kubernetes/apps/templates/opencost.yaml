@@ -1,0 +1,48 @@
+# Custo por namespace, pod e nó, calculado a partir das métricas do Prometheus
+# (cAdvisor + kube-state-metrics). Veja docs/adr/013.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: opencost
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  sources:
+    - repoURL: {{ .Values.charts.opencost.repoURL }}
+      chart: {{ .Values.charts.opencost.chart }}
+      targetRevision: {{ .Values.charts.opencost.version | quote }}
+      helm:
+        releaseName: opencost
+        valueFiles:
+          - $values/kubernetes/values/opencost.yaml
+        {{- if .Values.tailscaleOperator.enabled }}
+        # Notebook: a UI fica na tailnet como "opencost" (sem login: quem está na tailnet
+        # já foi autenticado). No CI a UI não é exposta.
+        valuesObject:
+          opencost:
+            ui:
+              ingress:
+                enabled: true
+                ingressClassName: tailscale
+                hosts:
+                  - host: opencost
+                    paths: [/]
+                tls:
+                  - hosts: [opencost]
+        {{- end }}
+    - repoURL: {{ .Values.repoURL }}
+      targetRevision: {{ .Values.targetRevision }}
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: opencost
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

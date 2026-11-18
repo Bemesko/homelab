@@ -1,4 +1,4 @@
-# restic diário: raiz do SSD do NAS -> Storage Box da Hetzner (ADR 011).
+# restic diário: raiz do SSD do NAS -> Storage Box da Hetzner (ADR 014).
 # No base (CI) o mesmo script roda contra um repositório local em /tmp, com uma senha
 # de teste; overlays/nas troca /config pelo Secret SOPS e /source pela PVC NFS.
 apiVersion: batch/v1
@@ -22,7 +22,7 @@ spec:
     spec:
       backoffLimit: 1
       # Job (com falha ou não) some em 20h: o alerta backup-offsite-failed, que olha
-      # k8s_job_failed_pods, se resolve sozinho antes da execução seguinte. Os logs
+      # kube_job_status_failed, se resolve sozinho antes da execução seguinte. Os logs
       # continuam no Loki.
       ttlSecondsAfterFinished: 72000
       # 22h: o envio inicial (dias) é interrompido antes do próximo agendamento e

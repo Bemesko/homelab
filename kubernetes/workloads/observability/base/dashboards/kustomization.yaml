@@ -28,6 +28,14 @@ configMapGenerator:
         grafana_dashboard: "1"
       annotations:
         grafana_folder: Apps
+  - name: grafana-dashboard-opencost
+    files:
+      - Custos/opencost.json
+    options:
+      labels:
+        grafana_dashboard: "1"
+      annotations:
+        grafana_folder: Custos
   - name: grafana-dashboard-host
     files:
       - Hosts/host.json
@@ -44,17 +52,17 @@ configMapGenerator:
         grafana_dashboard: "1"
       annotations:
         grafana_folder: Hosts
-  - name: grafana-dashboard-cluster
+  - name: grafana-dashboard-k8s-namespaces
     files:
-      - Kubernetes/cluster.json
+      - Kubernetes/k8s-namespaces.json
     options:
       labels:
         grafana_dashboard: "1"
       annotations:
         grafana_folder: Kubernetes
-  - name: grafana-dashboard-pods
+  - name: grafana-dashboard-k8s-pods
     files:
-      - Kubernetes/pods.json
+      - Kubernetes/k8s-pods.json
     options:
       labels:
         grafana_dashboard: "1"

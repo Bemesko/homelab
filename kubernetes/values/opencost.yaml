@@ -1,0 +1,52 @@
+# Values do chart opencost, versão em kubernetes/apps/values.yaml. Custo por namespace,
+# pod e nó a partir do Prometheus do cluster (cAdvisor + kube-state-metrics, ambos
+# raspados pelo otel-agent). Veja docs/adr/013.
+#
+# Preços: os padrões on-prem do OpenCost (sem customPricing). Os valores absolutos são
+# uma referência de nuvem, não o custo real do notebook; o que vale é a proporção entre
+# os apps. As imagens do exporter e da UI vêm com digest no próprio chart.
+opencost:
+  # Servidor MCP (porta 8081): não usamos agentes de IA contra o OpenCost.
+  mcp:
+    enabled: false
+  exporter:
+    defaultClusterId: homelab
+    resources:
+      requests:
+        cpu: 20m
+        memory: 128Mi
+      limits:
+        memory: 512Mi
+    # As duas imagens já rodam como 1001. Sem readOnlyRootFilesystem: o exporter e o nginx
+    # da UI gravam em caminhos que o chart não monta (cache e config).
+    securityContext:
+      runAsNonRoot: true
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop: [ALL]
+  prometheus:
+    internal:
+      enabled: true
+      serviceName: prometheus-server
+      namespaceName: observability
+      port: 80
+  metrics:
+    kubeStateMetrics:
+      # Só as métricas v1 que o kube-state-metrics 2 não tem (o resto já existe).
+      emitKsmV1Metrics: true
+      emitKsmV1MetricsOnly: true
+  ui:
+    enabled: true
+    # O cluster é IPv4 (o nginx da UI escutaria em [::] sem necessidade).
+    useIPv6: false
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        memory: 128Mi
+    securityContext:
+      runAsNonRoot: true
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop: [ALL]

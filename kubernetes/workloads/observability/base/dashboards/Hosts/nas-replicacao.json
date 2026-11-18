@@ -129,7 +129,7 @@
       "gridPos": {"h": 8, "w": 8, "x": 0, "y": 20},
       "datasource": {"type": "prometheus", "uid": "prometheus"},
       "targets": [
-        {"refId": "A", "datasource": {"type": "prometheus", "uid": "prometheus"}, "legendFormat": "{{device}}", "expr": "min by (device) (smartctl_device_attribute{job=\"nas-host\", attribute_value_type=\"value\", attribute_name=~\"SSD_Life_Left|Percent_Lifetime_Remain|Wear_Leveling_Count|Media_Wearout_Indicator|Remaining_Lifetime_Perc\"})"}
+        {"refId": "A", "datasource": {"type": "prometheus", "uid": "prometheus"}, "legendFormat": "{{model_name}} ({{serial_number}})", "expr": "min by (serial_number, model_name) (smartctl_device_attribute{job=\"nas-host\", attribute_value_type=\"value\", attribute_name=~\"SSD_Life_Left|Percent_Lifetime_Remain|Wear_Leveling_Count|Media_Wearout_Indicator|Remaining_Lifetime_Perc\"} * on (instance, device) group_left (serial_number, model_name) smartctl_device{job=\"nas-host\"})"}
       ],
       "fieldConfig": {"defaults": {"unit": "percent", "min": 0, "max": 100, "custom": {"drawStyle": "line", "lineWidth": 2, "thresholdsStyle": {"mode": "dashed"}}, "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "transparent", "value": 20}]}}, "overrides": []},
       "options": {"legend": {"displayMode": "list", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi"}}
@@ -138,11 +138,11 @@
       "id": 11,
       "type": "timeseries",
       "title": "SMART: erros de CRC e de mídia",
-      "description": "CRC = caminho (conector, cabo, ponte USB). Realocados, pendentes e falhas de gravação = mídia.",
+      "description": "CRC = caminho (conector, cabo, gaveta ou ponte USB). Realocados, pendentes e falhas de gravação = mídia. A série segue o serial do disco, não a letra (sda, sdb), que muda quando um disco troca de conexão.",
       "gridPos": {"h": 8, "w": 8, "x": 8, "y": 20},
       "datasource": {"type": "prometheus", "uid": "prometheus"},
       "targets": [
-        {"refId": "A", "datasource": {"type": "prometheus", "uid": "prometheus"}, "legendFormat": "{{device}} {{attribute_name}}", "expr": "max by (device, attribute_name) (smartctl_device_attribute{job=\"nas-host\", attribute_value_type=\"raw\", attribute_name=~\"SATA_CRC_Error_Count|UDMA_CRC_Error_Count|Reallocated_Sector_Ct|Reallocated_Event_Count|Current_Pending_Sector|Offline_Uncorrectable|Reported_Uncorrect|Program_Fail_Count|Erase_Fail_Count\"})"}
+        {"refId": "A", "datasource": {"type": "prometheus", "uid": "prometheus"}, "legendFormat": "{{model_name}} ({{serial_number}}) {{attribute_name}}", "expr": "max by (serial_number, model_name, attribute_name) (smartctl_device_attribute{job=\"nas-host\", attribute_value_type=\"raw\", attribute_name=~\"SATA_CRC_Error_Count|UDMA_CRC_Error_Count|Reallocated_Sector_Ct|Reallocated_Event_Count|Current_Pending_Sector|Offline_Uncorrectable|Reported_Uncorrect|Program_Fail_Count|Erase_Fail_Count\"} * on (instance, device) group_left (serial_number, model_name) smartctl_device{job=\"nas-host\"})"}
       ],
       "fieldConfig": {"defaults": {"unit": "none", "custom": {"drawStyle": "line", "lineWidth": 1}}, "overrides": []},
       "options": {"legend": {"displayMode": "table", "placement": "bottom", "showLegend": true, "calcs": ["lastNotNull"]}, "tooltip": {"mode": "multi"}}
@@ -154,7 +154,7 @@
       "gridPos": {"h": 8, "w": 8, "x": 16, "y": 20},
       "datasource": {"type": "prometheus", "uid": "prometheus"},
       "targets": [
-        {"refId": "A", "datasource": {"type": "prometheus", "uid": "prometheus"}, "legendFormat": "{{device}}", "expr": "max by (device) (smartctl_device_temperature{job=\"nas-host\", temperature_type=\"current\"})"}
+        {"refId": "A", "datasource": {"type": "prometheus", "uid": "prometheus"}, "legendFormat": "{{model_name}} ({{serial_number}})", "expr": "max by (serial_number, model_name) (smartctl_device_temperature{job=\"nas-host\", temperature_type=\"current\"} * on (instance, device) group_left (serial_number, model_name) smartctl_device{job=\"nas-host\"})"}
       ],
       "fieldConfig": {"defaults": {"unit": "celsius", "custom": {"drawStyle": "line", "lineWidth": 2, "thresholdsStyle": {"mode": "dashed"}}, "thresholds": {"mode": "absolute", "steps": [{"color": "transparent", "value": null}, {"color": "red", "value": 60}]}}, "overrides": []},
       "options": {"legend": {"displayMode": "list", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi"}}

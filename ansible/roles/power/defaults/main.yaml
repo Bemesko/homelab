@@ -1,4 +1,10 @@
-# Na tomada (ou dock) fechar a tampa não faz nada; na bateria vale o padrão do
-# sistema (HandleLidSwitch=suspend), para não drenar a bateria com a tampa fechada.
-power_lid_switch_external_power: ignore
-power_lid_switch_docked: ignore
+# Notebooks como servidores (ADR 012, issue #15): fechar a tampa nunca suspende,
+# nem na bateria. Quem decide desligar é o homelab-power-guard.
+power_lid_switch: ignore
+
+# Na bateria, desliga ao chegar neste percentual (sem energia externa).
+power_shutdown_percent: 10
+
+# Ao desligar pela bateria, arma o RTC para religar a cada N segundos e conferir se a
+# energia voltou (0 desliga). Depende do BIOS acordar de S5 pelo RTC.
+power_rtc_wake_interval: 1800

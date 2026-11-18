@@ -17,7 +17,8 @@ def drop_vars($names):
   .templating.list |= map(select(.name as $n | ($names | index($n)) == null));
 
 # Remove painéis (exceto rows) cujas queries casam com o regex: usam métricas que o
-# nosso stack, só com OTel nativo, não tem (kube-state-metrics, cAdvisor etc.).
+# nosso stack não tem (node-exporter, volume stats do kubelet, coletores do
+# kube-state-metrics que não ligamos etc.).
 def drop_panels($re):
   walk(
     if type == "object" and (.panels? | type) == "array" then
