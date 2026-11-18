@@ -30,6 +30,11 @@ spec:
       initContainers:
         # O configuration.yaml inclui estes arquivos, que a UI edita: cria vazios só
         # na primeira vez (nunca sobrescreve o que a UI salvou).
+        # Também apaga o .ha_run.lock: o HA o remove ao encerrar, mas uma queda de energia
+        # ou o NAS fora do ar mata o container sem limpar, e a próxima partida acha que há
+        # outra instância ("Another Home Assistant instance is already running!", em loop,
+        # porque o PID gravado coincide com outro processo do container novo). É seguro:
+        # a Recreate e o RWO garantem que não há outra instância usando este /config.
         - name: init-includes
           image: ghcr.io/home-assistant/home-assistant:2026.11.0@sha256:c6c1ca9931036bf3a2c4cc088d8db25dfea3b33935a5ecc83c40349462e2f69e
           command:
@@ -39,6 +44,7 @@ spec:
               [ -e /config/automations.yaml ] || echo '[]' > /config/automations.yaml
               [ -e /config/scenes.yaml ] || echo '[]' > /config/scenes.yaml
               [ -e /config/scripts.yaml ] || echo '{}' > /config/scripts.yaml
+              rm -f /config/.ha_run.lock
           resources:
             requests:
               cpu: 10m
