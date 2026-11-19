@@ -1,5 +1,5 @@
-# Host Metrics (grafana.com 24638): o seletor de host só oferecia k8s_node_name e
-# host. Nossos hosts se distinguem por service.name (job) e host_name.
+# Host Metrics (grafana.com 24638): the host selector only offered k8s_node_name and
+# host. Our hosts are told apart by service.name (job) and host_name.
 .templating.list |= map(
   if .name == "host_label" then
     .query = "job,host_name"
