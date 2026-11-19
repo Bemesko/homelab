@@ -1,12 +1,12 @@
-# Regras de capacidade do NAS: checkpoints de compra de disco, não só "disco cheio".
-# Setup: SSD primário (data-with-backup + data-without-backup) e SSD de réplica via
-# USB, que guarda só a cópia de data-with-backup. Logo, o uso da réplica é o tamanho
-# do backup. O label nas_role (primary/replica) vem do collector do NAS
-# (hosts/nas/otel-collector/compose.yaml), que casa o mountpoint com NAS_PRIMARY_MOUNT
-# e NAS_REPLICA_MOUNT do .env do stack: os paths do NAS não ficam no repo.
-# Uso = used / (used + free), como o df: o espaço reservado do ext4 não entra.
-# Faixas exclusivas (expr com "<" no topo): cada nível dispara sozinho, sem repetir
-# o de baixo.
+# NAS capacity rules: disk purchase checkpoints, not just "disk full".
+# Setup: primary SSD (data-with-backup + data-without-backup) and a replica SSD over
+# USB, which only holds the copy of data-with-backup. So the replica usage is the size
+# of the backup. The nas_role label (primary/replica) comes from the NAS collector
+# (hosts/nas/otel-collector/compose.yaml), which matches the mountpoint against NAS_PRIMARY_MOUNT
+# and NAS_REPLICA_MOUNT from the stack's .env: the NAS paths do not live in the repo.
+# Usage = used / (used + free), like df: the ext4 reserved space does not count.
+# Exclusive bands (expr with "<" at the top): each level fires on its own, without repeating
+# the one below.
 apiVersion: 1
 groups:
   - orgId: 1
@@ -15,7 +15,7 @@ groups:
     interval: 5m
     rules:
       - uid: nas-replica-plan
-        title: Réplica do backup acima de 70%
+        title: Backup replica above 70%
         condition: B
         for: 1h
         noDataState: OK
@@ -23,8 +23,8 @@ groups:
         labels: {severity: info}
         annotations:
           summary: >-
-            Réplica em {{ humanizePercentage $values.A.Value }}: comece a pesquisar o disco de backup
-            maior (HDD de 3,5" com fonte própria) ou reveja o que está em data-with-backup
+            Replica at {{ humanizePercentage $values.A.Value }}: start researching the larger backup
+            disk (3.5" HDD with its own power supply) or review what is in data-with-backup
         data:
           - refId: A
             relativeTimeRange: {from: 600, to: 0}
@@ -46,7 +46,7 @@ groups:
                 - evaluator: {type: gt, params: [0.7]}
 
       - uid: nas-replica-buy
-        title: Réplica do backup acima de 85%
+        title: Backup replica above 85%
         condition: B
         for: 1h
         noDataState: OK
@@ -54,7 +54,7 @@ groups:
         labels: {severity: warning}
         annotations:
           summary: >-
-            Réplica em {{ humanizePercentage $values.A.Value }}: hora de comprar o disco de backup maior
+            Replica at {{ humanizePercentage $values.A.Value }}: time to buy the larger backup disk
             (a entrega pode levar semanas)
         data:
           - refId: A
@@ -77,7 +77,7 @@ groups:
                 - evaluator: {type: gt, params: [0.85]}
 
       - uid: nas-replica-full
-        title: Réplica do backup acima de 95%
+        title: Backup replica above 95%
         condition: B
         for: 15m
         noDataState: OK
@@ -85,8 +85,8 @@ groups:
         labels: {severity: critical}
         annotations:
           summary: >-
-            Réplica em {{ humanizePercentage $values.A.Value }}: o próximo backup pode falhar; pare de
-            colocar coisas em data-with-backup até o disco novo chegar
+            Replica at {{ humanizePercentage $values.A.Value }}: the next backup may fail; stop
+            putting things in data-with-backup until the new disk arrives
         data:
           - refId: A
             relativeTimeRange: {from: 600, to: 0}
@@ -108,7 +108,7 @@ groups:
                 - evaluator: {type: gt, params: [0.95]}
 
       - uid: nas-primary-plan
-        title: Disco primário do NAS acima de 80%
+        title: NAS primary disk above 80%
         condition: B
         for: 1h
         noDataState: OK
@@ -116,8 +116,8 @@ groups:
         labels: {severity: info}
         annotations:
           summary: >-
-            Primário em {{ humanizePercentage $values.A.Value }}: planeje o HDD no caddy do UltraBay
-            para tirar data-without-backup do SSD
+            Primary at {{ humanizePercentage $values.A.Value }}: plan the HDD in the UltraBay caddy
+            to move data-without-backup off the SSD
         data:
           - refId: A
             relativeTimeRange: {from: 600, to: 0}
@@ -139,14 +139,14 @@ groups:
                 - evaluator: {type: gt, params: [0.8]}
 
       - uid: nas-primary-buy
-        title: Disco primário do NAS acima de 90%
+        title: NAS primary disk above 90%
         condition: B
         for: 1h
         noDataState: OK
         execErrState: Error
         labels: {severity: warning}
         annotations:
-          summary: "Primário em {{ humanizePercentage $values.A.Value }}: hora de comprar o HDD e o caddy do UltraBay"
+          summary: "Primary at {{ humanizePercentage $values.A.Value }}: time to buy the HDD and the UltraBay caddy"
         data:
           - refId: A
             relativeTimeRange: {from: 600, to: 0}
@@ -168,7 +168,7 @@ groups:
                 - evaluator: {type: gt, params: [0.9]}
 
       - uid: nas-primary-full
-        title: Disco primário do NAS acima de 95%
+        title: NAS primary disk above 95%
         condition: B
         for: 15m
         noDataState: OK
@@ -176,8 +176,8 @@ groups:
         labels: {severity: critical}
         annotations:
           summary: >-
-            Primário em {{ humanizePercentage $values.A.Value }}: o Immich e os uploads vão falhar em
-            breve; libere espaço em data-without-backup
+            Primary at {{ humanizePercentage $values.A.Value }}: Immich and the uploads will fail
+            soon; free up space in data-without-backup
         data:
           - refId: A
             relativeTimeRange: {from: 600, to: 0}
@@ -198,17 +198,17 @@ groups:
               conditions:
                 - evaluator: {type: gt, params: [0.95]}
 
-      # Compra com antecedência: uma importação grande enche rápido e a entrega leva
-      # semanas. Tendência dos últimos 7 dias (a retenção do Prometheus é 30d).
+      # Buy ahead of time: a large import fills it quickly and delivery takes
+      # weeks. Trend of the last 7 days (Prometheus retention is 30d).
       - uid: nas-disk-fill-90d
-        title: Disco do NAS enche em 3 meses
+        title: NAS disk fills up in 3 months
         condition: B
         for: 6h
         noDataState: OK
         execErrState: Error
         labels: {severity: warning}
         annotations:
-          summary: "{{ $labels.nas_role }}: no ritmo dos últimos 7 dias, o disco enche em menos de 3 meses"
+          summary: "{{ $labels.nas_role }}: at the rate of the last 7 days, the disk fills up in less than 3 months"
         data:
           - refId: A
             relativeTimeRange: {from: 600, to: 0}
@@ -228,11 +228,11 @@ groups:
               conditions:
                 - evaluator: {type: lt, params: [0]}
 
-      # O SSD de réplica já caiu uma vez com "error -71" no USB. Só alerta se o NAS
-      # está mandando métricas (o nas-silent cobre o NAS fora do ar). Também dispara
-      # se NAS_REPLICA_MOUNT não estiver no .env do stack.
+      # The replica SSD already dropped once with "error -71" on USB. It only alerts if the NAS
+      # is sending metrics (nas-silent covers the NAS being down). It also fires
+      # if NAS_REPLICA_MOUNT is not in the stack's .env.
       - uid: nas-replica-missing
-        title: Disco de réplica do NAS ausente
+        title: NAS replica disk missing
         condition: B
         for: 0s
         noDataState: OK
@@ -240,8 +240,8 @@ groups:
         labels: {severity: warning}
         annotations:
           summary: >-
-            O filesystem de réplica sumiu das métricas há 30 min (desconectado, não montado ou
-            NAS_REPLICA_MOUNT errado): os backups não estão acontecendo
+            The replica filesystem has been missing from the metrics for 30 min (disconnected, not mounted or
+            wrong NAS_REPLICA_MOUNT): the backups are not happening
         data:
           - refId: A
             relativeTimeRange: {from: 1800, to: 0}
@@ -261,11 +261,11 @@ groups:
               conditions:
                 - evaluator: {type: gt, params: [0]}
 
-      # Erro de protocolo USB (cabo, case ou energia): foi o que derrubou a réplica.
-      # O rsyslog do OMV encaminha *.* e as mensagens do kernel chegam com
-      # appname=kernel (conferido em 2026-11-08).
+      # USB protocol error (cable, case or power): it is what took the replica down.
+      # The OMV rsyslog forwards *.* and the kernel messages arrive with
+      # appname=kernel (checked on 2026-11-08).
       - uid: nas-usb-error
-        title: Erro de USB no NAS
+        title: USB error on the NAS
         condition: B
         for: 0s
         noDataState: OK
@@ -273,8 +273,8 @@ groups:
         labels: {severity: warning}
         annotations:
           summary: >-
-            {{ $values.A.Value }} erros de USB (error -71) no NAS nos últimos 10 min: troque o cabo ou o
-            case antes de suspeitar do disco
+            {{ $values.A.Value }} USB errors (error -71) on the NAS in the last 10 min: replace the cable or the
+            case before suspecting the disk
         data:
           - refId: A
             relativeTimeRange: {from: 600, to: 0}
@@ -292,11 +292,11 @@ groups:
               conditions:
                 - evaluator: {type: gt, params: [0]}
 
-      # --- Replicação (tarefas Rsync do OMV; log em service_name=nas-rsync) ---
-      # Toda execução que termina bem grava "total size is ..." (rsync_event=summary).
-      # As tarefas rodam todo dia às 03:00: 26h sem resumo = uma réplica perdida.
+      # --- Replication (OMV Rsync tasks; log in service_name=nas-rsync) ---
+      # Every run that ends well writes "total size is ..." (rsync_event=summary).
+      # The tasks run every day at 03:00: 26h without a summary = a missed replica.
       - uid: nas-rsync-stale
-        title: Réplica do NAS sem execução bem-sucedida em 26h
+        title: NAS replica without a successful run in 26h
         condition: B
         for: 0s
         noDataState: OK
@@ -304,8 +304,8 @@ groups:
         labels: {severity: warning}
         annotations:
           summary: >-
-            Nenhuma tarefa Rsync terminou com sucesso nas últimas 26h: o backup de data-with-backup
-            está desatualizado (veja os logs de service_name=nas-rsync e nas-host)
+            No Rsync task finished successfully in the last 26h: the data-with-backup backup
+            is out of date (see the logs of service_name=nas-rsync and nas-host)
         data:
           - refId: A
             relativeTimeRange: {from: 93600, to: 0}
@@ -324,7 +324,7 @@ groups:
                 - evaluator: {type: gt, params: [0]}
 
       - uid: nas-rsync-error
-        title: Tarefa Rsync do NAS terminou com erro
+        title: NAS Rsync task finished with an error
         condition: B
         for: 0s
         noDataState: OK
@@ -332,8 +332,8 @@ groups:
         labels: {severity: warning}
         annotations:
           summary: >-
-            O rsync da réplica registrou {{ $values.A.Value }} erro(s) na última hora (o código fica no
-            atributo rsync_exit_code; 23 = arquivos não copiados, 11/12 = disco ou conexão)
+            The replica rsync logged {{ $values.A.Value }} error(s) in the last hour (the code is in the
+            rsync_exit_code attribute; 23 = files not copied, 11/12 = disk or connection)
         data:
           - refId: A
             relativeTimeRange: {from: 3600, to: 0}
@@ -351,10 +351,10 @@ groups:
               conditions:
                 - evaluator: {type: gt, params: [0]}
 
-      # O script da tarefa (gerado pelo OMV) aborta antes do rsync se a origem ou o
-      # destino não estiver montado, e registra no syslog com a tag rsync-<uuid>.
+      # The task script (generated by OMV) aborts before rsync if the source or the
+      # destination is not mounted, and logs to syslog with the rsync-<uuid> tag.
       - uid: nas-rsync-skipped
-        title: Tarefa Rsync do NAS não rodou
+        title: NAS Rsync task did not run
         condition: B
         for: 0s
         noDataState: OK
@@ -362,8 +362,8 @@ groups:
         labels: {severity: warning}
         annotations:
           summary: >-
-            A tarefa Rsync do OMV abortou na última hora (em geral, disco de origem ou de réplica não
-            montado): veja os logs de service_name=nas-host com appname rsync-*
+            The OMV Rsync task aborted in the last hour (usually a source or replica disk not
+            mounted): see the logs of service_name=nas-host with appname rsync-*
         data:
           - refId: A
             relativeTimeRange: {from: 3600, to: 0}
@@ -381,21 +381,21 @@ groups:
               conditions:
                 - evaluator: {type: gt, params: [0]}
 
-      # --- SMART (smartctl-exporter no NAS, raspado pelo collector) ---
-      # O label `device` (sda, sdb) é a ordem de detecção do kernel e muda quando um disco troca
-      # de conexão (aconteceu em 2026-11-17, ao passar a réplica do USB para o UltraBay). Por isso
-      # as regras juntam o modelo e o serial do disco (série smartctl_device, valor 1) e agrupam
-      # por eles. Nas regras de delta, a junção fica dentro de uma subconsulta [1d:5m]: o serial
-      # é resolvido a cada passo, e o delta atravessa uma troca de letras sem quebrar.
+      # --- SMART (smartctl-exporter on the NAS, scraped by the collector) ---
+      # The `device` label (sda, sdb) is the kernel's detection order and changes when a disk switches
+      # connection (it happened on 2026-11-17, when the replica moved from USB to the UltraBay). So
+      # the rules join the disk model and serial (smartctl_device series, value 1) and group
+      # by them. In the delta rules, the join sits inside a [1d:5m] subquery: the serial
+      # is resolved at each step, and the delta survives a change of letters without breaking.
       - uid: nas-smart-failed
-        title: SMART do disco do NAS reprovado
+        title: NAS disk failed SMART
         condition: B
         for: 15m
         noDataState: OK
         execErrState: Error
         labels: {severity: critical}
         annotations:
-          summary: "{{ $labels.model_name }} ({{ $labels.serial_number }}): o próprio disco reporta falha no SMART; troque-o e confira a réplica"
+          summary: "{{ $labels.model_name }} ({{ $labels.serial_number }}): the disk itself reports a SMART failure; replace it and check the replica"
         data:
           - refId: A
             relativeTimeRange: {from: 900, to: 0}
@@ -415,9 +415,9 @@ groups:
               conditions:
                 - evaluator: {type: lt, params: [1]}
 
-      # Contadores que só sobem quando a mídia falha: qualquer aumento em 24h conta.
+      # Counters that only go up when the media fails: any increase in 24h counts.
       - uid: nas-smart-errors-growing
-        title: Erros de mídia aumentando em disco do NAS
+        title: Media errors increasing on a NAS disk
         condition: B
         for: 0s
         noDataState: OK
@@ -425,8 +425,8 @@ groups:
         labels: {severity: warning}
         annotations:
           summary: >-
-            {{ $labels.model_name }} ({{ $labels.serial_number }}): {{ $labels.attribute_name }} subiu {{ $values.A.Value }} em 24h;
-            planeje a troca do disco
+            {{ $labels.model_name }} ({{ $labels.serial_number }}): {{ $labels.attribute_name }} went up by {{ $values.A.Value }} in 24h;
+            plan the disk replacement
         data:
           - refId: A
             relativeTimeRange: {from: 900, to: 0}
@@ -448,9 +448,9 @@ groups:
               conditions:
                 - evaluator: {type: gt, params: [0]}
 
-      # CRC sobe por problema no caminho (conector SATA, cabo, ponte USB), não na mídia.
+      # CRC goes up because of a problem in the path (SATA connector, cable, USB bridge), not the media.
       - uid: nas-smart-crc-growing
-        title: Erros de CRC aumentando em disco do NAS
+        title: CRC errors increasing on a NAS disk
         condition: B
         for: 0s
         noDataState: OK
@@ -458,8 +458,8 @@ groups:
         labels: {severity: warning}
         annotations:
           summary: >-
-            {{ $labels.model_name }} ({{ $labels.serial_number }}): {{ $labels.attribute_name }} subiu {{ $values.A.Value }} em 24h;
-            confira o conector, o cabo ou o case antes de culpar o disco
+            {{ $labels.model_name }} ({{ $labels.serial_number }}): {{ $labels.attribute_name }} went up by {{ $values.A.Value }} in 24h;
+            check the connector, the cable or the case before blaming the disk
         data:
           - refId: A
             relativeTimeRange: {from: 900, to: 0}
@@ -481,16 +481,16 @@ groups:
               conditions:
                 - evaluator: {type: gt, params: [0]}
 
-      # Vida restante normalizada (100 = novo). 20% = 80% de desgaste: hora de trocar.
+      # Normalized remaining life (100 = new). 20% = 80% wear: time to replace it.
       - uid: nas-ssd-wear
-        title: SSD do NAS com menos de 20% de vida
+        title: NAS SSD with less than 20% life left
         condition: B
         for: 1h
         noDataState: OK
         execErrState: Error
         labels: {severity: warning}
         annotations:
-          summary: "{{ $labels.model_name }} ({{ $labels.serial_number }}): vida restante do SSD em {{ $values.A.Value }}%; compre o substituto"
+          summary: "{{ $labels.model_name }} ({{ $labels.serial_number }}): SSD remaining life at {{ $values.A.Value }}%; buy the replacement"
         data:
           - refId: A
             relativeTimeRange: {from: 900, to: 0}
@@ -512,14 +512,14 @@ groups:
                 - evaluator: {type: lt, params: [20]}
 
       - uid: nas-disk-temp
-        title: Disco do NAS acima de 60 °C
+        title: NAS disk above 60 °C
         condition: B
         for: 30m
         noDataState: OK
         execErrState: Error
         labels: {severity: warning}
         annotations:
-          summary: "{{ $labels.model_name }} ({{ $labels.serial_number }}): {{ $values.A.Value }} °C há 30 min"
+          summary: "{{ $labels.model_name }} ({{ $labels.serial_number }}): {{ $values.A.Value }} °C for 30 min"
         data:
           - refId: A
             relativeTimeRange: {from: 900, to: 0}
@@ -539,16 +539,16 @@ groups:
               conditions:
                 - evaluator: {type: gt, params: [60]}
 
-      # O NAS manda métricas, mas nenhum SMART: o smartctl-exporter parou ou não subiu.
+      # The NAS sends metrics, but no SMART: smartctl-exporter stopped or did not start.
       - uid: nas-smart-missing
-        title: SMART do NAS sem dados
+        title: NAS SMART without data
         condition: B
         for: 0s
         noDataState: OK
         execErrState: Error
         labels: {severity: info}
         annotations:
-          summary: "O NAS não envia SMART há 30 min: confira o container smartctl-exporter no stack do OMV"
+          summary: "The NAS has not sent SMART for 30 min: check the smartctl-exporter container in the OMV stack"
         data:
           - refId: A
             relativeTimeRange: {from: 1800, to: 0}

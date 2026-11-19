@@ -1,5 +1,5 @@
-# Logs / App v2 (grafana.com 24866): feito para logs do Promtail (label job, JSON).
-# Aqui os logs chegam por OTLP: service_name e detected_level (sem parse de JSON).
+# Logs / App v2 (grafana.com 24866): made for Promtail logs (job label, JSON).
+# Here the logs arrive over OTLP: service_name and detected_level (no JSON parsing).
 include "_lib";
 .templating.list |= map(
   if .name == "level" then .query.label = "detected_level" else . end)

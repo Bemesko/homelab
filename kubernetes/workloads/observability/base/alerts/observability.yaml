@@ -1,8 +1,8 @@
-# Regras do Grafana Alerting, carregadas pelo sidecar (label grafana_alert).
-# Derivadas de regras da comunidade (origem em cada comentário), reescritas para os
-# nomes OTel que chegam ao Prometheus por OTLP. Hosts se distinguem por host_name
-# (service.name vira o label job). Severidades: critical e warning chegam por e-mail;
-# info só aparece na UI (veja a política em overlays/tailscale/contact-points.yaml).
+# Grafana Alerting rules, loaded by the sidecar (grafana_alert label).
+# Derived from community rules (source in each comment), rewritten for the
+# OTel names that reach Prometheus over OTLP. Hosts are told apart by host_name
+# (service.name becomes the job label). Severities: critical and warning arrive by email;
+# info only shows up in the UI (see the policy in overlays/tailscale/contact-points.yaml).
 apiVersion: 1
 groups:
   - orgId: 1
@@ -10,19 +10,19 @@ groups:
     folder: Homelab
     interval: 1m
     rules:
-      # Origem: Watchdog / PrometheusNotIngestingSamples. absent_over_time devolve 1 só quando a
-      # métrica some e vazio quando ela existe: "sem dados" é o estado saudável (noDataState OK).
-      # A sentinela é a telemetria do próprio otel-agent, que percorre o mesmo caminho
-      # (agent -> gateway -> Prometheus) e não depende das métricas do Kubernetes.
+      # Source: Watchdog / PrometheusNotIngestingSamples. absent_over_time returns 1 only when the
+      # metric disappears and empty when it exists: "no data" is the healthy state (noDataState OK).
+      # The sentinel is the otel-agent's own telemetry, which takes the same path
+      # (agent -> gateway -> Prometheus) and does not depend on the Kubernetes metrics.
       - uid: pipeline-dead
-        title: Nenhuma métrica do cluster chegando
+        title: No cluster metrics arriving
         condition: B
         for: 5m
         noDataState: OK
         execErrState: Error
         labels: {severity: critical}
         annotations:
-          summary: "Nada chegou ao Prometheus nos últimos 5 min: o otel-agent, o otel-gateway ou o Prometheus pararam"
+          summary: "Nothing reached Prometheus in the last 5 min: the otel-agent, the otel-gateway or Prometheus stopped"
         data:
           - refId: A
             relativeTimeRange: {from: 600, to: 0}
@@ -41,17 +41,17 @@ groups:
               conditions:
                 - evaluator: {type: gt, params: [0]}
 
-      # O kube-state-metrics alimenta os alertas de kubernetes.yaml e o OpenCost: sem ele,
-      # essas regras ficam em "sem dados" (estado OK) e não avisam de nada.
+      # kube-state-metrics feeds the alerts in kubernetes.yaml and OpenCost: without it,
+      # those rules stay in "no data" (OK state) and warn about nothing.
       - uid: kube-state-metrics-missing
-        title: kube-state-metrics sem dados
+        title: kube-state-metrics without data
         condition: B
         for: 10m
         noDataState: OK
         execErrState: Error
         labels: {severity: info}
         annotations:
-          summary: "O kube-state-metrics não envia métricas há 10 min: os alertas de Kubernetes e o OpenCost ficaram cegos"
+          summary: "kube-state-metrics has not sent metrics for 10 min: the Kubernetes alerts and OpenCost are blind"
         data:
           - refId: A
             relativeTimeRange: {from: 600, to: 0}
@@ -70,16 +70,16 @@ groups:
               conditions:
                 - evaluator: {type: gt, params: [0]}
 
-      # Origem: awesome-prometheus-alerts (CC BY 4.0), PrometheusTargetMissing
+      # Source: awesome-prometheus-alerts (CC BY 4.0), PrometheusTargetMissing
       - uid: scrape-target-down
-        title: Alvo de scrape fora do ar
+        title: Scrape target down
         condition: B
         for: 10m
         noDataState: OK
         execErrState: Error
         labels: {severity: warning}
         annotations:
-          summary: "O alvo {{ $labels.job }} ({{ $labels.instance }}) não responde ao scrape do otel-agent"
+          summary: "Target {{ $labels.job }} ({{ $labels.instance }}) does not answer the otel-agent scrape"
         data:
           - refId: A
             relativeTimeRange: {from: 600, to: 0}
@@ -98,16 +98,16 @@ groups:
               conditions:
                 - evaluator: {type: gt, params: [0]}
 
-      # Origem: awesome-prometheus-alerts, OpenTelemetry Collector, ExporterFailed*
+      # Source: awesome-prometheus-alerts, OpenTelemetry Collector, ExporterFailed*
       - uid: otel-export-failed
-        title: Coletor falhando ao exportar
+        title: Collector failing to export
         condition: B
         for: 15m
         noDataState: OK
         execErrState: Error
         labels: {severity: warning}
         annotations:
-          summary: "{{ $labels.job }}: o exporter {{ $labels.exporter }} está falhando"
+          summary: "{{ $labels.job }}: exporter {{ $labels.exporter }} is failing"
         data:
           - refId: A
             relativeTimeRange: {from: 600, to: 0}
@@ -130,16 +130,16 @@ groups:
               conditions:
                 - evaluator: {type: gt, params: [0]}
 
-      # Origem: awesome-prometheus-alerts, OpenTelemetry Collector, ExporterEnqueueFailed*
+      # Source: awesome-prometheus-alerts, OpenTelemetry Collector, ExporterEnqueueFailed*
       - uid: otel-data-dropped
-        title: Coletor descartando dados
+        title: Collector dropping data
         condition: B
         for: 5m
         noDataState: OK
         execErrState: Error
         labels: {severity: critical}
         annotations:
-          summary: "{{ $labels.job }}: a fila do exporter {{ $labels.exporter }} está descartando dados"
+          summary: "{{ $labels.job }}: the queue of exporter {{ $labels.exporter }} is dropping data"
         data:
           - refId: A
             relativeTimeRange: {from: 600, to: 0}
@@ -162,16 +162,16 @@ groups:
               conditions:
                 - evaluator: {type: gt, params: [0]}
 
-      # Origem: awesome-prometheus-alerts, OpenTelemetry Collector, ExporterQueueNearlyFull
+      # Source: awesome-prometheus-alerts, OpenTelemetry Collector, ExporterQueueNearlyFull
       - uid: otel-queue-full
-        title: Fila do exporter quase cheia
+        title: Exporter queue nearly full
         condition: B
         for: 10m
         noDataState: OK
         execErrState: Error
         labels: {severity: warning}
         annotations:
-          summary: "{{ $labels.job }}: a fila do exporter {{ $labels.exporter }} está em {{ humanizePercentage $values.A.Value }}"
+          summary: "{{ $labels.job }}: the queue of exporter {{ $labels.exporter }} is at {{ humanizePercentage $values.A.Value }}"
         data:
           - refId: A
             relativeTimeRange: {from: 600, to: 0}
@@ -190,16 +190,16 @@ groups:
               conditions:
                 - evaluator: {type: gt, params: [0.8]}
 
-      # Origem: awesome-prometheus-alerts, OpenTelemetry Collector, ReceiverRefused*
+      # Source: awesome-prometheus-alerts, OpenTelemetry Collector, ReceiverRefused*
       - uid: otel-receiver-refused
-        title: Coletor recusando dados
+        title: Collector refusing data
         condition: B
         for: 15m
         noDataState: OK
         execErrState: Error
         labels: {severity: warning}
         annotations:
-          summary: "{{ $labels.job }}: o receiver {{ $labels.receiver }} recusa dados (memory_limiter?)"
+          summary: "{{ $labels.job }}: receiver {{ $labels.receiver }} refuses data (memory_limiter?)"
         data:
           - refId: A
             relativeTimeRange: {from: 600, to: 0}
@@ -222,16 +222,16 @@ groups:
               conditions:
                 - evaluator: {type: gt, params: [0]}
 
-      # Origem: awesome-prometheus-alerts (CC BY 4.0), Prometheus self-monitoring (4 regras)
+      # Source: awesome-prometheus-alerts (CC BY 4.0), Prometheus self-monitoring (4 rules)
       - uid: prometheus-tsdb-failing
-        title: TSDB do Prometheus com falhas
+        title: Prometheus TSDB failures
         condition: B
         for: 0s
         noDataState: OK
         execErrState: Error
         labels: {severity: critical}
         annotations:
-          summary: "O Prometheus registrou {{ $values.A.Value }} falha(s) de compactação, WAL ou truncamento na última hora"
+          summary: "Prometheus logged {{ $values.A.Value }} compaction, WAL or truncation failure(s) in the last hour"
         data:
           - refId: A
             relativeTimeRange: {from: 600, to: 0}
@@ -253,16 +253,16 @@ groups:
               conditions:
                 - evaluator: {type: gt, params: [0]}
 
-      # Origem: awesome-prometheus-alerts (CC BY 4.0), LokiRequestErrors
+      # Source: awesome-prometheus-alerts (CC BY 4.0), LokiRequestErrors
       - uid: loki-request-errors
-        title: Loki com erros 5xx
+        title: Loki returning 5xx errors
         condition: B
         for: 15m
         noDataState: OK
         execErrState: Error
         labels: {severity: warning}
         annotations:
-          summary: "{{ humanizePercentage $values.A.Value }} das requisições ao Loki dão 5xx"
+          summary: "{{ humanizePercentage $values.A.Value }} of the Loki requests return 5xx"
         data:
           - refId: A
             relativeTimeRange: {from: 600, to: 0}
@@ -282,16 +282,16 @@ groups:
               conditions:
                 - evaluator: {type: gt, params: [0.1]}
 
-      # Origem: awesome-prometheus-alerts (CC BY 4.0), LokiRequestPanic
+      # Source: awesome-prometheus-alerts (CC BY 4.0), LokiRequestPanic
       - uid: loki-panic
-        title: Loki entrou em panic
+        title: Loki panicked
         condition: B
         for: 0s
         noDataState: OK
         execErrState: Error
         labels: {severity: critical}
         annotations:
-          summary: "O Loki registrou {{ $values.A.Value }} panic(s) nos últimos 10 min"
+          summary: "Loki logged {{ $values.A.Value }} panic(s) in the last 10 min"
         data:
           - refId: A
             relativeTimeRange: {from: 600, to: 0}
@@ -310,16 +310,16 @@ groups:
               conditions:
                 - evaluator: {type: gt, params: [0]}
 
-      # Origem: awesome-prometheus-alerts (CC BY 4.0), TempoCompactionsFailing
+      # Source: awesome-prometheus-alerts (CC BY 4.0), TempoCompactionsFailing
       - uid: tempo-compaction-failing
-        title: Compactação do Tempo falhando
+        title: Tempo compaction failing
         condition: B
         for: 1h
         noDataState: OK
         execErrState: Error
         labels: {severity: warning}
         annotations:
-          summary: "O Tempo falhou {{ $values.A.Value }}x na compactação na última hora"
+          summary: "Tempo failed compaction {{ $values.A.Value }}x in the last hour"
         data:
           - refId: A
             relativeTimeRange: {from: 600, to: 0}

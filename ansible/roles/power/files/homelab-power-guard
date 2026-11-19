@@ -1,14 +1,14 @@
 #!/bin/sh
-# Gerenciado pelo Ansible (2026-kubernetes), role power. Veja o ADR 012.
+# Managed by Ansible (homelab), role power. See ADR 012.
 #
-# Guardião de energia dos notebooks-servidor:
-#   (padrão)      confere a energia a cada 30 s; na bateria com carga <= limite, arma o
-#                 RTC para religar e desliga a máquina.
-#   --once        uma conferência só (testes).
-#   --boot-gate   no boot, se o último desligamento foi pela bateria (marcador), decide
-#                 se o boot segue ou se desliga de novo antes do k3s/samba subirem.
-#   --dry-run     só imprime o que faria.
-# Variáveis HOMELAB_POWER_* trocam caminhos e limites (testes com sysfs falso).
+# Power guard of the laptop servers:
+#   (default)     checks the power every 30 s; on battery with charge <= limit, it arms the
+#                 RTC to power back on and shuts the machine down.
+#   --once        a single check (tests).
+#   --boot-gate   at boot, if the last shutdown was caused by the battery (marker), decides
+#                 whether the boot goes on or shuts down again before k3s/samba start.
+#   --dry-run     only prints what it would do.
+# HOMELAB_POWER_* variables override paths and limits (tests with a fake sysfs).
 set -eu
 
 SYSFS=${HOMELAB_POWER_SYSFS:-/sys/class/power_supply}
@@ -17,7 +17,7 @@ STATE_DIR=${HOMELAB_POWER_STATE:-/var/lib/homelab-power}
 SHUTDOWN_PERCENT=${HOMELAB_POWER_SHUTDOWN_PERCENT:-10}
 WAKE_INTERVAL=${HOMELAB_POWER_WAKE_INTERVAL:-1800}
 INTERVAL=${HOMELAB_POWER_INTERVAL:-30}
-# No boot, só segue na bateria quem tem folga acima do limite de desligamento.
+# At boot, only a battery with headroom above the shutdown limit lets the boot go on.
 GATE_MARGIN=5
 MARKER=$STATE_DIR/rtc-armed
 
@@ -29,7 +29,7 @@ for arg in "$@"; do
     --boot-gate) mode=gate ;;
     --dry-run) dry_run=1 ;;
     *)
-      echo "uso: $0 [--once|--boot-gate] [--dry-run]" >&2
+      echo "usage: $0 [--once|--boot-gate] [--dry-run]" >&2
       exit 2
       ;;
   esac
@@ -43,8 +43,8 @@ run() {
   if [ "$dry_run" = 1 ]; then echo "dry-run: $*"; else "$@"; fi
 }
 
-# ac_online: 1 (na tomada), 0 (na bateria) ou vazio (sem fonte Mains: CI, desktop).
-# capacity: menor carga entre as baterias, vazio se não há bateria.
+# ac_online: 1 (on AC), 0 (on battery) or empty (no Mains supply: CI, desktop).
+# capacity: lowest charge among the batteries, empty if there is no battery.
 read_power() {
   ac_online=""
   capacity=""
@@ -67,7 +67,7 @@ arm_rtc() {
     run sh -c "echo 0 > '$RTC' && echo +$WAKE_INTERVAL > '$RTC'"
     run mkdir -p "$STATE_DIR"
     run touch "$MARKER"
-    log "RTC armado: religa em ${WAKE_INTERVAL}s para conferir a energia"
+    log "RTC armed: powers back on in ${WAKE_INTERVAL}s to check the power"
   fi
 }
 
@@ -83,17 +83,17 @@ check_once() {
   fi
   if [ "$ac_online" = 1 ]; then
     if [ "$on_battery" = 1 ]; then
-      log "energia externa voltou: ${capacity}%"
+      log "external power restored: ${capacity}%"
       on_battery=0
     fi
     return 0
   fi
   if [ "$on_battery" = 0 ]; then
-    log "energia externa caiu: ${capacity}% (desliga com ${SHUTDOWN_PERCENT}%)"
+    log "external power lost: ${capacity}% (shuts down at ${SHUTDOWN_PERCENT}%)"
     on_battery=1
   fi
   if [ "$capacity" -le "$SHUTDOWN_PERCENT" ]; then
-    log "desligando com ${capacity}% de bateria"
+    log "shutting down at ${capacity}% battery"
     power_off
     return 1
   fi
@@ -101,7 +101,7 @@ check_once() {
 
 boot_gate() {
   [ -e "$MARKER" ] || return 0
-  # O driver da bateria pode aparecer depois do udev; espera até 20 s.
+  # The battery driver can show up after udev; wait up to 20 s.
   tries=0
   read_power
   while { [ -z "$ac_online" ] || [ -z "$capacity" ]; } && [ "$tries" -lt 20 ]; do
@@ -110,20 +110,20 @@ boot_gate() {
     read_power
   done
 
-  # Só desliga de novo com leitura certa de bateria baixa. Sem leitura (driver quebrado,
-  # kernel novo), segue: um ciclo infinito de boots deixaria a máquina inacessível.
+  # Only shut down again on a reliable low-battery reading. Without a reading (broken driver,
+  # new kernel), go on: an endless boot loop would leave the machine unreachable.
   if [ "$ac_online" = 0 ] && [ -n "$capacity" ] &&
     [ "$capacity" -le $((SHUTDOWN_PERCENT + GATE_MARGIN)) ]; then
-    log "boot pelo RTC ainda na bateria com ${capacity}%: desligando de novo"
+    log "RTC boot still on battery at ${capacity}%: shutting down again"
     power_off
     return 0
   fi
   if [ "$ac_online" = 1 ]; then
-    log "boot pelo RTC com a energia de volta (${capacity:-?}%): seguindo"
+    log "RTC boot with the power back (${capacity:-?}%): going on"
   elif [ "$ac_online" = 0 ] && [ -n "$capacity" ]; then
-    log "boot pelo RTC na bateria com ${capacity}%, acima da margem: seguindo, o guardião assume"
+    log "RTC boot on battery at ${capacity}%, above the margin: going on, the guard takes over"
   else
-    log "boot pelo RTC sem decisão segura (energia=${ac_online:-?}, bateria=${capacity:-?}%): seguindo, o guardião assume"
+    log "RTC boot without a safe decision (power=${ac_online:-?}, battery=${capacity:-?}%): going on, the guard takes over"
   fi
   run rm -f "$MARKER"
 }
@@ -141,5 +141,5 @@ fi
 while check_once; do
   sleep "$INTERVAL"
 done
-# Desligamento pedido: espera o systemd parar o serviço.
+# Shutdown requested: wait for systemd to stop the service.
 sleep infinity

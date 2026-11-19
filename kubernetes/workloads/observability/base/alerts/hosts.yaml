@@ -1,8 +1,8 @@
-# Regras do Grafana Alerting, carregadas pelo sidecar (label grafana_alert).
-# Derivadas de regras da comunidade (origem em cada comentário), reescritas para os
-# nomes OTel que chegam ao Prometheus por OTLP. Hosts se distinguem por host_name
-# (service.name vira o label job). Severidades: critical e warning chegam por e-mail;
-# info só aparece na UI (veja a política em overlays/tailscale/contact-points.yaml).
+# Grafana Alerting rules, loaded by the sidecar (grafana_alert label).
+# Derived from community rules (source in each comment), rewritten for the
+# OTel names that reach Prometheus over OTLP. Hosts are told apart by host_name
+# (service.name becomes the job label). Severities: critical and warning arrive by email;
+# info only shows up in the UI (see the policy in overlays/tailscale/contact-points.yaml).
 apiVersion: 1
 groups:
   - orgId: 1
@@ -10,16 +10,16 @@ groups:
     folder: Homelab
     interval: 1m
     rules:
-      # Origem: awesome-prometheus-alerts (CC BY 4.0), HostOutOfDiskSpace
+      # Source: awesome-prometheus-alerts (CC BY 4.0), HostOutOfDiskSpace
       - uid: host-disk-critical
-        title: Disco raiz acima de 95%
+        title: Root disk above 95%
         condition: B
         for: 5m
         noDataState: OK
         execErrState: Error
         labels: {severity: critical}
         annotations:
-          summary: "{{ $labels.host_name }}: disco / com {{ humanizePercentage $values.A.Value }} em uso"
+          summary: "{{ $labels.host_name }}: disk / at {{ humanizePercentage $values.A.Value }} used"
         data:
           - refId: A
             relativeTimeRange: {from: 600, to: 0}
@@ -39,18 +39,18 @@ groups:
               conditions:
                 - evaluator: {type: gt, params: [0.95]}
 
-      # Origem: awesome-prometheus-alerts (CC BY 4.0), HostUnusualDiskIo. Só o notebook:
-      # o pendrive do NAS vive ocupado. Incidente de 2026-11-11 (ADR 010): o
-      # unattended-upgrades deixou o SSD 84% ocupado e travou os SQLite do cluster.
+      # Source: awesome-prometheus-alerts (CC BY 4.0), HostUnusualDiskIo. Laptop only:
+      # the NAS USB stick is always busy. Incident of 2026-11-11 (ADR 010):
+      # unattended-upgrades kept the SSD 84% busy and stalled the cluster's SQLite databases.
       - uid: host-disk-saturated
-        title: Disco do notebook saturado
+        title: Laptop disk saturated
         condition: B
         for: 5m
         noDataState: OK
         execErrState: Error
         labels: {severity: warning}
         annotations:
-          summary: "{{ $labels.host_name }}: {{ $labels.device }} ocupado {{ humanizePercentage $values.A.Value }} do tempo"
+          summary: "{{ $labels.host_name }}: {{ $labels.device }} busy {{ humanizePercentage $values.A.Value }} of the time"
         data:
           - refId: A
             relativeTimeRange: {from: 600, to: 0}
@@ -70,16 +70,16 @@ groups:
               conditions:
                 - evaluator: {type: gt, params: [0.7]}
 
-      # Origem: awesome-prometheus-alerts (CC BY 4.0), HostDiskWillFillIn24Hours
+      # Source: awesome-prometheus-alerts (CC BY 4.0), HostDiskWillFillIn24Hours
       - uid: host-disk-fill-24h
-        title: Disco raiz enche em 24h
+        title: Root disk fills up in 24h
         condition: B
         for: 1h
         noDataState: OK
         execErrState: Error
         labels: {severity: warning}
         annotations:
-          summary: "{{ $labels.host_name }}: no ritmo das últimas 6h o disco / enche em 24h"
+          summary: "{{ $labels.host_name }}: at the rate of the last 6h, disk / fills up in 24h"
         data:
           - refId: A
             relativeTimeRange: {from: 600, to: 0}
@@ -99,16 +99,16 @@ groups:
               conditions:
                 - evaluator: {type: lt, params: [0]}
 
-      # Origem: awesome-prometheus-alerts (CC BY 4.0), HostOutOfInodes
+      # Source: awesome-prometheus-alerts (CC BY 4.0), HostOutOfInodes
       - uid: host-inodes-low
-        title: Inodes abaixo de 10%
+        title: Inodes below 10%
         condition: B
         for: 30m
         noDataState: OK
         execErrState: Error
         labels: {severity: warning}
         annotations:
-          summary: "{{ $labels.host_name }} {{ $labels.mountpoint }}: só {{ humanizePercentage $values.A.Value }} de inodes livres"
+          summary: "{{ $labels.host_name }} {{ $labels.mountpoint }}: only {{ humanizePercentage $values.A.Value }} of inodes free"
         data:
           - refId: A
             relativeTimeRange: {from: 600, to: 0}
@@ -128,16 +128,16 @@ groups:
               conditions:
                 - evaluator: {type: lt, params: [0.1]}
 
-      # Origem: awesome-prometheus-alerts (CC BY 4.0), HostHighCpuLoad
+      # Source: awesome-prometheus-alerts (CC BY 4.0), HostHighCpuLoad
       - uid: host-cpu-high
-        title: CPU acima de 90%
+        title: CPU above 90%
         condition: B
         for: 30m
         noDataState: OK
         execErrState: Error
         labels: {severity: warning}
         annotations:
-          summary: "{{ $labels.host_name }}: CPU em {{ humanizePercentage $values.A.Value }} há 30 min"
+          summary: "{{ $labels.host_name }}: CPU at {{ humanizePercentage $values.A.Value }} for 30 min"
         data:
           - refId: A
             relativeTimeRange: {from: 600, to: 0}
@@ -157,16 +157,16 @@ groups:
               conditions:
                 - evaluator: {type: gt, params: [0.9]}
 
-      # Origem: awesome-prometheus-alerts (CC BY 4.0), HostSwapIsFillingUp
+      # Source: awesome-prometheus-alerts (CC BY 4.0), HostSwapIsFillingUp
       - uid: host-swap-high
-        title: Swap acima de 80%
+        title: Swap above 80%
         condition: B
         for: 30m
         noDataState: OK
         execErrState: Error
         labels: {severity: warning}
         annotations:
-          summary: "{{ $labels.host_name }}: swap em {{ humanizePercentage $values.A.Value }}"
+          summary: "{{ $labels.host_name }}: swap at {{ humanizePercentage $values.A.Value }}"
         data:
           - refId: A
             relativeTimeRange: {from: 600, to: 0}
@@ -186,16 +186,16 @@ groups:
               conditions:
                 - evaluator: {type: gt, params: [0.8]}
 
-      # Origem: mesmo desenho do alerta nas-silent
+      # Source: same design as the nas-silent alert
       - uid: host-silent
-        title: Notebook sem métricas
+        title: Laptop without metrics
         condition: B
         for: 0s
         noDataState: OK
         execErrState: Error
         labels: {severity: warning}
         annotations:
-          summary: "O notebook não envia métricas há 10 minutos (o coletor do host parou ou o gateway não responde)"
+          summary: "The laptop has not sent metrics for 10 minutes (the host collector stopped or the gateway does not answer)"
         data:
           - refId: A
             relativeTimeRange: {from: 600, to: 0}
@@ -214,17 +214,17 @@ groups:
               conditions:
                 - evaluator: {type: gt, params: [0]}
 
-      # Próprio (ADR 012): o homelab-power-guard registra a troca para a bateria. Sem
-      # energia o notebook desliga sozinho com 10%; o aviso dá tempo de agir antes.
+      # Own (ADR 012): homelab-power-guard logs the switch to battery (the PT phrase stays until
+      # make apply updates the guard on every host). Without power the laptop shuts down at 10%.
       - uid: host-on-battery
-        title: Notebook na bateria (sem energia externa)
+        title: Laptop on battery (no external power)
         condition: B
         for: 0s
         noDataState: OK
         execErrState: Error
         labels: {severity: warning}
         annotations:
-          summary: "{{ $labels.service_name }}: energia externa caiu nos últimos 10 min; desliga sozinho com bateria baixa"
+          summary: "{{ $labels.service_name }}: external power lost in the last 10 min; it shuts down by itself on low battery"
         data:
           - refId: A
             relativeTimeRange: {from: 600, to: 0}
@@ -233,8 +233,8 @@ groups:
               refId: A
               queryType: instant
               expr: >-
-                sum by (service_name) (count_over_time({service_name=~"homelab-host|nas-host"} |= "homelab-power" |=
-                "energia externa caiu" [10m]))
+                sum by (service_name) (count_over_time({service_name=~"homelab-host|nas-host"} |= "homelab-power" |~
+                "energia externa caiu|external power lost" [10m]))
           - refId: B
             datasourceUid: __expr__
             model:
@@ -244,16 +244,16 @@ groups:
               conditions:
                 - evaluator: {type: gt, params: [0]}
 
-      # Origem: awesome-prometheus-alerts (CC BY 4.0), HostOomKillDetected (via logs)
+      # Source: awesome-prometheus-alerts (CC BY 4.0), HostOomKillDetected (via logs)
       - uid: host-oom-kill
-        title: OOM kill no host
+        title: OOM kill on the host
         condition: B
         for: 0s
         noDataState: OK
         execErrState: Error
         labels: {severity: warning}
         annotations:
-          summary: "{{ $labels.service_name }}: o kernel matou processos por falta de memória nos últimos 10 min"
+          summary: "{{ $labels.service_name }}: the kernel killed processes for lack of memory in the last 10 min"
         data:
           - refId: A
             relativeTimeRange: {from: 600, to: 0}

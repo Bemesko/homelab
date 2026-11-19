@@ -1,7 +1,7 @@
-# CloudNativePG (grafana.com 20417): sem volume stats (local-path não reporta), sem as
-# recording rules do kubernetes-mixin (node_namespace_*) e sem as métricas do
-# controller-runtime do operador. O resto (kube_* e cAdvisor) vem do kube-state-metrics
-# e do cAdvisor (docs/adr/013). Contadores chegam por OTLP com o sufixo _total.
+# CloudNativePG (grafana.com 20417): no volume stats (local-path does not report them), no
+# kubernetes-mixin recording rules (node_namespace_*) and no operator
+# controller-runtime metrics. The rest (kube_* and cAdvisor) comes from kube-state-metrics
+# and cAdvisor (docs/adr/013). Counters arrive over OTLP with the _total suffix.
 include "_lib";
 drop_vars(["operatorNamespace"])
 | drop_panels("kubelet_volume_stats|controller_runtime|node_namespace")

@@ -1,8 +1,8 @@
-# Regras do Grafana Alerting, carregadas pelo sidecar (label grafana_alert).
-# Derivadas de regras da comunidade (origem em cada comentário). As métricas do Kubernetes
-# seguem os nomes do kube-state-metrics (kube_*) e do cAdvisor (container_*), raspados pelo
-# otel-agent (docs/adr/013). Severidades: critical e warning chegam por e-mail; info só
-# aparece na UI (veja a política em overlays/tailscale/contact-points.yaml).
+# Grafana Alerting rules, loaded by the sidecar (grafana_alert label).
+# Derived from community rules (source in each comment). The Kubernetes metrics
+# follow the kube-state-metrics (kube_*) and cAdvisor (container_*) names, scraped by the
+# otel-agent (docs/adr/013). Severities: critical and warning arrive by email; info only
+# shows up in the UI (see the policy in overlays/tailscale/contact-points.yaml).
 apiVersion: 1
 groups:
   - orgId: 1
@@ -10,16 +10,16 @@ groups:
     folder: Homelab
     interval: 1m
     rules:
-      # Origem: kubernetes-mixin, KubeNodeNotReady
+      # Source: kubernetes-mixin, KubeNodeNotReady
       - uid: k8s-node-notready
-        title: Nó do Kubernetes NotReady
+        title: Kubernetes node NotReady
         condition: B
         for: 5m
         noDataState: OK
         execErrState: Error
         labels: {severity: critical}
         annotations:
-          summary: "O nó {{ $labels.node }} está NotReady"
+          summary: "Node {{ $labels.node }} is NotReady"
         data:
           - refId: A
             relativeTimeRange: {from: 600, to: 0}
@@ -38,16 +38,16 @@ groups:
               conditions:
                 - evaluator: {type: lt, params: [1]}
 
-      # Origem: kubernetes-mixin, KubePodNotReady
+      # Source: kubernetes-mixin, KubePodNotReady
       - uid: k8s-pod-stuck
-        title: Pod Pending ou Unknown
+        title: Pod Pending or Unknown
         condition: B
         for: 15m
         noDataState: OK
         execErrState: Error
         labels: {severity: warning}
         annotations:
-          summary: "{{ $labels.namespace }}/{{ $labels.pod }} está Pending/Unknown há 15 min"
+          summary: "{{ $labels.namespace }}/{{ $labels.pod }} has been Pending/Unknown for 15 min"
         data:
           - refId: A
             relativeTimeRange: {from: 600, to: 0}
@@ -66,16 +66,16 @@ groups:
               conditions:
                 - evaluator: {type: gt, params: [0]}
 
-      # Origem: kubernetes-mixin, KubeContainerWaiting
+      # Source: kubernetes-mixin, KubeContainerWaiting
       - uid: k8s-container-notready
-        title: Container não pronto
+        title: Container not ready
         condition: B
         for: 15m
         noDataState: OK
         execErrState: Error
         labels: {severity: warning}
         annotations:
-          summary: "{{ $labels.namespace }}/{{ $labels.pod }} ({{ $labels.container }}) está esperando há 15 min: {{ $labels.reason }}"
+          summary: "{{ $labels.namespace }}/{{ $labels.pod }} ({{ $labels.container }}) has been waiting for 15 min: {{ $labels.reason }}"
         data:
           - refId: A
             relativeTimeRange: {from: 600, to: 0}
@@ -94,16 +94,16 @@ groups:
               conditions:
                 - evaluator: {type: gt, params: [0]}
 
-      # Origem: kubernetes-mixin, KubeDeploymentReplicasMismatch
+      # Source: kubernetes-mixin, KubeDeploymentReplicasMismatch
       - uid: k8s-deployment-mismatch
-        title: Deployment com réplicas faltando
+        title: Deployment with missing replicas
         condition: B
         for: 15m
         noDataState: OK
         execErrState: Error
         labels: {severity: warning}
         annotations:
-          summary: "{{ $labels.namespace }}/{{ $labels.deployment }}: {{ $values.A.Value }} réplica(s) indisponível(is)"
+          summary: "{{ $labels.namespace }}/{{ $labels.deployment }}: {{ $values.A.Value }} replica(s) unavailable"
         data:
           - refId: A
             relativeTimeRange: {from: 600, to: 0}
@@ -123,16 +123,16 @@ groups:
               conditions:
                 - evaluator: {type: gt, params: [0]}
 
-      # Origem: kubernetes-mixin, KubeStatefulSetReplicasMismatch
+      # Source: kubernetes-mixin, KubeStatefulSetReplicasMismatch
       - uid: k8s-statefulset-mismatch
-        title: StatefulSet com réplicas faltando
+        title: StatefulSet with missing replicas
         condition: B
         for: 15m
         noDataState: OK
         execErrState: Error
         labels: {severity: warning}
         annotations:
-          summary: "{{ $labels.namespace }}/{{ $labels.statefulset }}: {{ $values.A.Value }} réplica(s) não pronta(s)"
+          summary: "{{ $labels.namespace }}/{{ $labels.statefulset }}: {{ $values.A.Value }} replica(s) not ready"
         data:
           - refId: A
             relativeTimeRange: {from: 600, to: 0}
@@ -152,16 +152,16 @@ groups:
               conditions:
                 - evaluator: {type: gt, params: [0]}
 
-      # Origem: kubernetes-mixin, KubeDaemonSetRolloutStuck
+      # Source: kubernetes-mixin, KubeDaemonSetRolloutStuck
       - uid: k8s-daemonset-mismatch
-        title: DaemonSet incompleto
+        title: Incomplete DaemonSet
         condition: B
         for: 15m
         noDataState: OK
         execErrState: Error
         labels: {severity: warning}
         annotations:
-          summary: "{{ $labels.namespace }}/{{ $labels.daemonset }}: {{ $values.A.Value }} nó(s) sem pod pronto"
+          summary: "{{ $labels.namespace }}/{{ $labels.daemonset }}: {{ $values.A.Value }} node(s) without a ready pod"
         data:
           - refId: A
             relativeTimeRange: {from: 600, to: 0}
@@ -181,16 +181,16 @@ groups:
               conditions:
                 - evaluator: {type: gt, params: [0]}
 
-      # Origem: kubernetes-mixin, KubeJobFailed
+      # Source: kubernetes-mixin, KubeJobFailed
       - uid: k8s-job-failed
-        title: Job com pods falhados
+        title: Job with failed pods
         condition: B
         for: 15m
         noDataState: OK
         execErrState: Error
         labels: {severity: info}
         annotations:
-          summary: "{{ $labels.namespace }}/{{ $labels.job_name }}: {{ $values.A.Value }} pod(s) falharam"
+          summary: "{{ $labels.namespace }}/{{ $labels.job_name }}: {{ $values.A.Value }} pod(s) failed"
         data:
           - refId: A
             relativeTimeRange: {from: 600, to: 0}
@@ -209,16 +209,16 @@ groups:
               conditions:
                 - evaluator: {type: gt, params: [0]}
 
-      # Origem: awesome-prometheus-alerts (CC BY 4.0), ContainerHighMemoryUsage
+      # Source: awesome-prometheus-alerts (CC BY 4.0), ContainerHighMemoryUsage
       - uid: k8s-memory-near-limit
-        title: Container perto do limite de memória
+        title: Container near its memory limit
         condition: B
         for: 15m
         noDataState: OK
         execErrState: Error
         labels: {severity: warning}
         annotations:
-          summary: "{{ $labels.pod }} ({{ $labels.container }}) usa {{ humanizePercentage $values.A.Value }} do limite"
+          summary: "{{ $labels.pod }} ({{ $labels.container }}) uses {{ humanizePercentage $values.A.Value }} of its limit"
         data:
           - refId: A
             relativeTimeRange: {from: 600, to: 0}

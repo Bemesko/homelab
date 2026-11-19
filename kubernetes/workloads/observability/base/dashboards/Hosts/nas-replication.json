@@ -1,6 +1,6 @@
 {
   "annotations": {"list": []},
-  "description": "Histórico das réplicas (tarefas Rsync do OMV, service_name=nas-rsync no Loki, 30 dias), capacidade dos discos e SMART do NAS. Escrito à mão: fora do dashboards.lock.",
+  "description": "Replica history (OMV Rsync tasks, service_name=nas-rsync in Loki, 30 days), disk capacity and SMART of the NAS. Written by hand: outside dashboards.lock.",
   "editable": true,
   "graphTooltip": 1,
   "id": null,
@@ -9,7 +9,7 @@
     {
       "id": 1,
       "type": "stat",
-      "title": "Réplicas concluídas no período",
+      "title": "Replicas completed in the period",
       "gridPos": {"h": 4, "w": 4, "x": 0, "y": 0},
       "datasource": {"type": "loki", "uid": "loki"},
       "targets": [
@@ -21,7 +21,7 @@
     {
       "id": 2,
       "type": "stat",
-      "title": "Erros do rsync no período",
+      "title": "rsync errors in the period",
       "gridPos": {"h": 4, "w": 4, "x": 4, "y": 0},
       "datasource": {"type": "loki", "uid": "loki"},
       "targets": [
@@ -33,7 +33,7 @@
     {
       "id": 3,
       "type": "stat",
-      "title": "Tamanho do backup (última réplica)",
+      "title": "Backup size (last replica)",
       "gridPos": {"h": 4, "w": 4, "x": 8, "y": 0},
       "datasource": {"type": "loki", "uid": "loki"},
       "targets": [
@@ -45,8 +45,8 @@
     {
       "id": 4,
       "type": "bargauge",
-      "title": "Uso dos discos de dados",
-      "description": "used / (used + free), como o df. Alertas: réplica 70/85/95%, primário 80/90/95%.",
+      "title": "Data disk usage",
+      "description": "used / (used + free), like df. Alerts: replica 70/85/95%, primary 80/90/95%.",
       "gridPos": {"h": 4, "w": 12, "x": 12, "y": 0},
       "datasource": {"type": "prometheus", "uid": "prometheus"},
       "targets": [
@@ -58,8 +58,8 @@
     {
       "id": 5,
       "type": "timeseries",
-      "title": "Tamanho do backup por dia",
-      "description": "\"total size is\" de cada réplica (o tamanho de data-with-backup).",
+      "title": "Backup size per day",
+      "description": "\"total size is\" of each replica (the size of data-with-backup).",
       "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4},
       "interval": "1d",
       "datasource": {"type": "loki", "uid": "loki"},
@@ -72,7 +72,7 @@
     {
       "id": 6,
       "type": "timeseries",
-      "title": "Uso dos discos (histórico)",
+      "title": "Disk usage (history)",
       "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4},
       "datasource": {"type": "prometheus", "uid": "prometheus"},
       "targets": [
@@ -84,12 +84,12 @@
     {
       "id": 7,
       "type": "timeseries",
-      "title": "Dados enviados por dia",
+      "title": "Data sent per day",
       "gridPos": {"h": 8, "w": 8, "x": 0, "y": 12},
       "interval": "1d",
       "datasource": {"type": "loki", "uid": "loki"},
       "targets": [
-        {"refId": "A", "datasource": {"type": "loki", "uid": "loki"}, "queryType": "range", "legendFormat": "enviado", "expr": "sum(sum_over_time({service_name=\"nas-rsync\"} | rsync_event=\"stats\" | unwrap rsync_sent_bytes [$__interval]))"}
+        {"refId": "A", "datasource": {"type": "loki", "uid": "loki"}, "queryType": "range", "legendFormat": "sent", "expr": "sum(sum_over_time({service_name=\"nas-rsync\"} | rsync_event=\"stats\" | unwrap rsync_sent_bytes [$__interval]))"}
       ],
       "fieldConfig": {"defaults": {"unit": "bytes", "custom": {"drawStyle": "bars", "fillOpacity": 70, "lineWidth": 1}}, "overrides": []},
       "options": {"legend": {"displayMode": "list", "placement": "bottom", "showLegend": false}, "tooltip": {"mode": "single"}}
@@ -97,13 +97,13 @@
     {
       "id": 8,
       "type": "timeseries",
-      "title": "Duração da réplica",
-      "description": "Estimada pelo próprio rsync: (enviados + recebidos) / bytes/sec.",
+      "title": "Replica duration",
+      "description": "Estimated by rsync itself: (sent + received) / bytes/sec.",
       "gridPos": {"h": 8, "w": 8, "x": 8, "y": 12},
       "interval": "1d",
       "datasource": {"type": "loki", "uid": "loki"},
       "targets": [
-        {"refId": "A", "datasource": {"type": "loki", "uid": "loki"}, "queryType": "range", "legendFormat": "duração", "expr": "max(max_over_time({service_name=\"nas-rsync\"} | rsync_event=\"stats\" | unwrap rsync_duration_seconds [$__interval]))"}
+        {"refId": "A", "datasource": {"type": "loki", "uid": "loki"}, "queryType": "range", "legendFormat": "duration", "expr": "max(max_over_time({service_name=\"nas-rsync\"} | rsync_event=\"stats\" | unwrap rsync_duration_seconds [$__interval]))"}
       ],
       "fieldConfig": {"defaults": {"unit": "s", "custom": {"drawStyle": "bars", "fillOpacity": 70, "lineWidth": 1}}, "overrides": []},
       "options": {"legend": {"displayMode": "list", "placement": "bottom", "showLegend": false}, "tooltip": {"mode": "single"}}
@@ -111,8 +111,8 @@
     {
       "id": 9,
       "type": "timeseries",
-      "title": "Arquivos copiados e apagados por dia",
-      "description": "Apagados só aparecem na tarefa de domingo (com --delete).",
+      "title": "Files copied and deleted per day",
+      "description": "Deletions only show up in the Sunday task (with --delete).",
       "gridPos": {"h": 8, "w": 8, "x": 16, "y": 12},
       "interval": "1d",
       "datasource": {"type": "loki", "uid": "loki"},
@@ -125,7 +125,7 @@
     {
       "id": 10,
       "type": "timeseries",
-      "title": "SSD: vida restante",
+      "title": "SSD: remaining life",
       "gridPos": {"h": 8, "w": 8, "x": 0, "y": 20},
       "datasource": {"type": "prometheus", "uid": "prometheus"},
       "targets": [
@@ -137,8 +137,8 @@
     {
       "id": 11,
       "type": "timeseries",
-      "title": "SMART: erros de CRC e de mídia",
-      "description": "CRC = caminho (conector, cabo, gaveta ou ponte USB). Realocados, pendentes e falhas de gravação = mídia. A série segue o serial do disco, não a letra (sda, sdb), que muda quando um disco troca de conexão.",
+      "title": "SMART: CRC and media errors",
+      "description": "CRC = path (connector, cable, caddy or USB bridge). Reallocated, pending and write failures = media. The series follows the disk serial, not the letter (sda, sdb), which changes when a disk switches connection.",
       "gridPos": {"h": 8, "w": 8, "x": 8, "y": 20},
       "datasource": {"type": "prometheus", "uid": "prometheus"},
       "targets": [
@@ -150,7 +150,7 @@
     {
       "id": 12,
       "type": "timeseries",
-      "title": "Temperatura dos discos",
+      "title": "Disk temperature",
       "gridPos": {"h": 8, "w": 8, "x": 16, "y": 20},
       "datasource": {"type": "prometheus", "uid": "prometheus"},
       "targets": [
@@ -162,8 +162,8 @@
     {
       "id": 13,
       "type": "logs",
-      "title": "Execuções do rsync",
-      "description": "Início, resumo, erros e avisos de cada tarefa (sem a lista de arquivos).",
+      "title": "rsync runs",
+      "description": "Start, summary, errors and warnings of each task (without the file list).",
       "gridPos": {"h": 10, "w": 24, "x": 0, "y": 28},
       "datasource": {"type": "loki", "uid": "loki"},
       "targets": [
@@ -174,7 +174,7 @@
     {
       "id": 14,
       "type": "logs",
-      "title": "Tarefas abortadas pelo OMV e erros de USB",
+      "title": "Tasks aborted by OMV and USB errors",
       "gridPos": {"h": 8, "w": 24, "x": 0, "y": 38},
       "datasource": {"type": "loki", "uid": "loki"},
       "targets": [
@@ -190,7 +190,7 @@
   "time": {"from": "now-30d", "to": "now"},
   "timepicker": {},
   "timezone": "browser",
-  "title": "NAS - Replicação e discos",
+  "title": "NAS - Replication and disks",
   "uid": "nas-replicacao",
   "version": 1
 }
