@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Substituto do KSOPS para validação offline (pre-commit e CI, sem chave age).
+"""KSOPS stand-in for offline validation (pre-commit and CI, without an age key).
 
-Recebe o ResourceList do kustomize (exec KRM function), lê cada arquivo de
-`files` do generator e devolve o recurso com os valores trocados por um
-placeholder. Valida estrutura (kubeconform/kube-linter), nunca os valores.
-Falha se algum arquivo não estiver criptografado pelo SOPS.
+Receives the kustomize ResourceList (exec KRM function), reads each file in the
+generator's `files` and returns the resource with the values replaced by a
+placeholder. It validates the structure (kubeconform/kube-linter), never the values.
+Fails if any file is not encrypted by SOPS.
 """
 
 import base64
@@ -27,7 +27,7 @@ def main():
         with open(path, encoding="utf-8") as handle:
             doc = yaml.safe_load(handle)
         if not isinstance(doc, dict) or "sops" not in doc:
-            sys.exit(f"ksops-stub: {path} não está criptografado pelo SOPS")
+            sys.exit(f"ksops-stub: {path} is not encrypted by SOPS")
         del doc["sops"]
         if "data" in doc:
             doc["data"] = stub_values(doc["data"], encode=True)

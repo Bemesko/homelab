@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Lista, por dashboard, as métricas usadas nas queries que o Prometheus não tem.
+"""Lists, per dashboard, the metrics used in the queries that Prometheus does not have.
 
-Uso manual (não roda no CI: lá não há NAS, Tailscale nem dados do Immich):
-  scripts/check-dashboard-metrics.py DIR_OU_JSON... --names nomes.txt
-  scripts/check-dashboard-metrics.py DIR_OU_JSON... --prometheus http://localhost:9090
-Rode também a cada upgrade do coletor: os nomes OTel mudam entre versões.
+Manual use (it does not run in CI: there is no NAS, Tailscale or Immich data there):
+  scripts/check-dashboard-metrics.py DIR_OR_JSON... --names names.txt
+  scripts/check-dashboard-metrics.py DIR_OR_JSON... --prometheus http://localhost:9090
+Also run it on every collector upgrade: the OTel names change between versions.
 """
 import argparse
 import json
@@ -29,7 +29,7 @@ NAME_MATCH = re.compile(r"__name__\s*=~?\s*\"([^\"]+)\"")
 
 
 def exprs(node):
-    """Percorre o JSON e devolve as expressões PromQL (targets e variáveis)."""
+    """Walks the JSON and returns the PromQL expressions (targets and variables)."""
     if isinstance(node, dict):
         for key, val in node.items():
             if key == "expr" and isinstance(val, str):
@@ -91,7 +91,7 @@ def main():
                     regex_miss.add(pat)
         miss |= {f"__name__=~{p}" for p in regex_miss}
         missing_total += len(miss)
-        print(f"{f.name}: {'ok' if not miss else str(len(miss)) + ' faltando'}")
+        print(f"{f.name}: {'ok' if not miss else str(len(miss)) + ' missing'}")
         for m in sorted(miss):
             print(f"    {m}")
     return 1 if missing_total else 0
