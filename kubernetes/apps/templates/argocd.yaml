@@ -5,7 +5,7 @@ metadata:
   namespace: argocd
   annotations:
     argocd.argoproj.io/sync-wave: "1"
-  # Sem finalizer de propósito: apagar esta Application não pode apagar o próprio ArgoCD.
+  # No finalizer on purpose: deleting this Application must not delete ArgoCD itself.
 spec:
   project: default
   sources:

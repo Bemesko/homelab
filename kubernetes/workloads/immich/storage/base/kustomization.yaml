@@ -1,6 +1,6 @@
-# PVCs do Immich, sincronizadas pela mesma Application que as monta (o local-path
-# só vincula a PVC quando um pod a usa: WaitForFirstConsumer).
-# base = CI (local-path); overlays/nas = PVs NFS do NAS.
+# Immich PVCs, synced by the same Application that mounts them (local-path
+# only binds the PVC when a pod uses it: WaitForFirstConsumer).
+# base = CI (local-path); overlays/nas = NFS PVs on the NAS.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: immich

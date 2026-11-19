@@ -1,6 +1,6 @@
-# Vincula as PVCs aos PVs NFS criados pelo Ansible (role nas_storage), que
-# guardam hostname e paths do NAS fora do repo. PVC é imutável: troque de
-# base para nas antes do primeiro sync (veja o README).
+# Binds the PVCs to the NFS PVs created by Ansible (nas_storage role), which
+# keep the NAS hostname and paths out of the repo. PVCs are immutable: switch from
+# base to nas before the first sync (see the README).
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: immich

@@ -1,9 +1,9 @@
-# Values do chart opentelemetry-collector (release otel-gateway), versão em
-# kubernetes/apps/values.yaml. Ponto único de saída para os backends: recebe OTLP
-# do otel-agent, dos hosts (otel_host_agent) e do NAS (via Service "otel" na
-# tailnet), coleta os eventos do cluster e exporta por OTLP para Prometheus, Loki e
-# Tempo. Trocar de backend = trocar os exporters aqui. As métricas do Kubernetes
-# (kube_*) vêm do kube-state-metrics raspado pelo otel-agent (ADR 013).
+# Values for the opentelemetry-collector chart (otel-gateway release), version in
+# kubernetes/apps/values.yaml. Single exit point to the backends: receives OTLP
+# from the otel-agent, the hosts (otel_host_agent) and the NAS (through the "otel" Service
+# on the tailnet), collects the cluster events and exports over OTLP to Prometheus, Loki and
+# Tempo. Switching backends = switching the exporters here. The Kubernetes metrics
+# (kube_*) come from kube-state-metrics, scraped by the otel-agent (ADR 013).
 mode: deployment
 replicaCount: 1
 fullnameOverride: otel-gateway
@@ -13,7 +13,7 @@ image:
   tag: 0.163.2
   digest: sha256:7f22d2a6748110ffb6a59bc0df448bccbf501cdb667d610ede4c61d3863d5849
 
-# Sem o preset clusterMetrics (receiver k8s_cluster): substituído pelo kube-state-metrics.
+# No clusterMetrics preset (k8s_cluster receiver): replaced by kube-state-metrics.
 presets:
   kubernetesEvents:
     enabled: true
@@ -65,7 +65,7 @@ config:
     telemetry:
       resource:
         service.name: otel-gateway
-      # Telemetria do próprio coletor por OTLP (receiver no IP do pod, não em localhost).
+      # The collector's own telemetry over OTLP (receiver on the pod IP, not on localhost).
       metrics:
         level: normal
         readers:

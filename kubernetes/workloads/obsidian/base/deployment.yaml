@@ -1,18 +1,18 @@
-# Obsidian desktop no navegador (linuxserver/obsidian, Selkies na porta 3000).
-# O vault vem da PVC obsidian-vault (NFS do NAS; local-path no CI) e o estado do
-# app (vault aberto, perfil do Electron) fica em /config, no disco do notebook.
+# Obsidian desktop in the browser (linuxserver/obsidian, Selkies on port 3000).
+# The vault comes from the obsidian-vault PVC (NFS on the NAS; local-path in CI) and the app
+# state (open vault, Electron profile) lives in /config, on the laptop disk.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: obsidian
   annotations:
-    # A imagem inicia como root (s6-overlay ajusta /config e troca para o PUID) e
-    # escreve no rootfs; allowPrivilegeEscalation=false segue valendo (sem sudo).
-    ignore-check.kube-linter.io/run-as-non-root: "s6-overlay da linuxserver inicia como root e troca para o PUID"
-    ignore-check.kube-linter.io/no-read-only-root-fs: "s6-overlay e Selkies escrevem no rootfs"
+    # The image starts as root (s6-overlay fixes /config and switches to the PUID) and
+    # writes to the rootfs; allowPrivilegeEscalation=false still applies (no sudo).
+    ignore-check.kube-linter.io/run-as-non-root: "the linuxserver s6-overlay starts as root and switches to the PUID"
+    ignore-check.kube-linter.io/no-read-only-root-fs: "s6-overlay and Selkies write to the rootfs"
 spec:
   replicas: 1
-  # Volumes RWO: o pod novo só sobe depois que o antigo solta o vault.
+  # RWO volumes: the new pod only starts after the old one releases the vault.
   strategy:
     type: Recreate
   selector:
@@ -24,7 +24,7 @@ spec:
         - name: obsidian
           image: lscr.io/linuxserver/obsidian:v1.14.5-ls151@sha256:37716e2370ec8e3c6d0aa30f758bd0646916c64cd07d157c15ed8db856398eb1
           env:
-            # Mesmo dono que o all_squash do export NFS (Bernardo:users).
+            # Same owner as the NFS export all_squash (Bernardo:users).
             - name: PUID
               value: "1000"
             - name: PGID
@@ -36,10 +36,10 @@ spec:
           ports:
             - name: http
               containerPort: 3000
-          # TCP e não HTTP: com basic auth (overlay tailscale) o / responde 401.
-          # A subida faz chown -R de /opt/obsidian (PUID != 911 da imagem), que no
-          # overlayfs copia a app inteira para a camada do container: no disco do
-          # notebook passa de 1 min. A startupProbe segura a liveness até 10 min.
+          # TCP, not HTTP: with basic auth (tailscale overlay) / answers 401.
+          # Startup runs chown -R on /opt/obsidian (PUID != the image's 911), which on
+          # overlayfs copies the whole app into the container layer: on the laptop
+          # disk it takes over 1 min. The startupProbe holds the liveness off for up to 10 min.
           startupProbe:
             tcpSocket:
               port: http
@@ -66,7 +66,7 @@ spec:
               mountPath: /config
             - name: vault
               mountPath: /vaults/borbsidian
-            # Electron precisa de /dev/shm maior que os 64Mi padrão (--shm-size=1gb).
+            # Electron needs a /dev/shm bigger than the default 64Mi (--shm-size=1gb).
             - name: shm
               mountPath: /dev/shm
       volumes:

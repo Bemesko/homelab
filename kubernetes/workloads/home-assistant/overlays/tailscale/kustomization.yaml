@@ -1,5 +1,5 @@
-# Notebook: https://casa.<sua-tailnet>, com hostNetwork (descoberta mDNS/SSDP na LAN)
-# e o D-Bus do host (Bluetooth via BlueZ do notebook). O CI usa base.
+# Laptop: https://casa.<your-tailnet>, with hostNetwork (mDNS/SSDP discovery on the LAN)
+# and the host's D-Bus (Bluetooth through the laptop's BlueZ). CI uses base.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: home-assistant

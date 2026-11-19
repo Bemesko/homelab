@@ -1,4 +1,4 @@
-# Exposto na tailnet como https://hello.<sua-tailnet> com TLS automático do Tailscale.
+# Exposed on the tailnet as https://hello.<your-tailnet> with automatic Tailscale TLS.
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:

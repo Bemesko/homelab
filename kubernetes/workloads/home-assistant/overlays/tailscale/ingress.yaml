@@ -1,5 +1,5 @@
-# https://casa.<sua-tailnet>, com TLS automático do Tailscale. O proxy chega pela
-# rede de pods (10.42.0.0/16), listada em http.trusted_proxies do configuration.yaml.
+# https://casa.<your-tailnet>, with automatic Tailscale TLS. The proxy comes through the
+# pod network (10.42.0.0/16), trusted in HA's HTTP settings (see configuration.yaml).
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:

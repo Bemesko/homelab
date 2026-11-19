@@ -1,4 +1,4 @@
-# /config do Home Assistant (.storage, integrações, tokens). Em base fica em local-path (CI).
+# Home Assistant /config (.storage, integrations, tokens). In base it lives on local-path (CI).
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:

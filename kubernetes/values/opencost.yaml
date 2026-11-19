@@ -1,12 +1,12 @@
-# Values do chart opencost, versão em kubernetes/apps/values.yaml. Custo por namespace,
-# pod e nó a partir do Prometheus do cluster (cAdvisor + kube-state-metrics, ambos
-# raspados pelo otel-agent). Veja docs/adr/013.
+# Values for the opencost chart, version in kubernetes/apps/values.yaml. Cost per namespace,
+# pod and node from the cluster's Prometheus (cAdvisor + kube-state-metrics, both
+# scraped by the otel-agent). See docs/adr/013.
 #
-# Preços: os do default.json do OpenCost (veja customPricing abaixo). Os valores absolutos
-# são uma referência de nuvem, não o custo real do notebook; o que vale é a proporção entre
-# os apps. As imagens do exporter e da UI vêm com digest no próprio chart.
+# Prices: those from OpenCost's default.json (see customPricing below). The absolute values
+# are a cloud reference, not the laptop's real cost; what matters is the proportion between
+# apps. The exporter and UI images come with digests in the chart itself.
 opencost:
-  # Servidor MCP (porta 8081): não usamos agentes de IA contra o OpenCost.
+  # MCP server (port 8081): we do not run AI agents against OpenCost.
   mcp:
     enabled: false
   exporter:
@@ -17,22 +17,22 @@ opencost:
         memory: 128Mi
       limits:
         memory: 512Mi
-    # As duas imagens já rodam como 1001. Sem readOnlyRootFilesystem: o exporter e o nginx
-    # da UI gravam em caminhos que o chart não monta (cache e config).
+    # Both images already run as 1001. No readOnlyRootFilesystem: the exporter and the UI
+    # nginx write to paths the chart does not mount (cache and config).
     securityContext:
       runAsNonRoot: true
       allowPrivilegeEscalation: false
       capabilities:
         drop: [ALL]
-  # Sem customPricing o exporter só emite o custo de PV, nenhum node_*_hourly_cost (o log
-  # mostra "No pricing found for key=default"). Estes são os valores do default.json do
-  # próprio OpenCost (referência GCP us-central1, USD por hora). O chart traz outros
-  # exemplos (CPU 1.25, storage 0.25), que não são os padrões do OpenCost.
+  # Without customPricing the exporter only emits the PV cost, no node_*_hourly_cost (the log
+  # says "No pricing found for key=default"). These are the values from OpenCost's own
+  # default.json (GCP us-central1 reference, USD per hour). The chart ships other
+  # examples (CPU 1.25, storage 0.25), which are not the OpenCost defaults.
   customPricing:
     enabled: true
     provider: custom
     costModel:
-      description: Precos de referencia do OpenCost (GCP us-central1)
+      description: OpenCost reference prices (GCP us-central1)
       CPU: "0.031611"
       spotCPU: "0.006655"
       RAM: "0.004237"
@@ -50,12 +50,12 @@ opencost:
       port: 80
   metrics:
     kubeStateMetrics:
-      # Só as métricas v1 que o kube-state-metrics 2 não tem (o resto já existe).
+      # Only the v1 metrics that kube-state-metrics 2 does not have (the rest already exists).
       emitKsmV1Metrics: true
       emitKsmV1MetricsOnly: true
   ui:
     enabled: true
-    # O cluster é IPv4 (o nginx da UI escutaria em [::] sem necessidade).
+    # The cluster is IPv4 (the UI nginx would listen on [::] for no reason).
     useIPv6: false
     resources:
       requests:

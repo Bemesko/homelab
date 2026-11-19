@@ -1,4 +1,4 @@
-# Logs (recebe OTLP do otel-gateway). Veja docs/adr/008.
+# Logs (receives OTLP from the otel-gateway). See docs/adr/008.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
