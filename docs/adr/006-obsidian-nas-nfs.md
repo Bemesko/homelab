@@ -1,36 +1,36 @@
-# 006 — Obsidian no navegador com o vault do NAS via NFS
+# 006 — Obsidian in the browser with the NAS vault over NFS
 
-- **Status:** aceito
-- **Data:** 2026-11-05
+- **Status:** accepted
+- **Date:** 2026-11-05
 
-## Contexto
+## Context
 
-Queremos o Obsidian desktop acessível de qualquer dispositivo da tailnet pelo navegador. O vault (`borbsidian`, ~9.600 arquivos, ~530 MB) já vive no NAS, dentro da área com backup, e é editado por outros dispositivos via Syncthing/SMB.
+We want the Obsidian desktop app reachable from any tailnet device through a browser. The vault (`borbsidian`, ~9,600 files, ~530 MB) already lives on the NAS, inside the backed-up area, and is edited from other devices through Syncthing/SMB.
 
-## Decisão
+## Decision
 
-- **Imagem `linuxserver/obsidian`**, e não a `sytone/obsidian-remote` citada em tutoriais.
-  - A da linuxserver é mantida e tem tags versionadas, o que permite fixar versão e digest, como o resto do repo.
-  - A da sytone só publica `latest`.
-- **O vault é montado do NAS por NFS (rw), sem cópia nem sincronização no cluster.**
-  - Usa o mesmo caminho do Immich (ADR 005): o OMV é configurado pela UI, o role `nas_storage` verifica o export e cria o PV, e a PVC vem do git.
-  - O role passou a receber uma lista de volumes (`nas_storage_volumes`) em vez de ser específico do Immich.
-  - O `all_squash` para `1000:100` faz os arquivos criados pelo Obsidian ficarem com o mesmo dono dos já existentes.
-- **O estado do app (`/config`) fica em local-path, no notebook.** É estado reconstruível: o vault aberto, o perfil do Electron.
-- **Acesso só pela tailnet e com basic auth.**
-  - O container tem terminal web. Por isso, além do ACL da tailnet, há usuário e senha (`CUSTOM_USER`/`PASSWORD`, num Secret SOPS no overlay `tailscale`).
-  - `allowPrivilegeEscalation: false` desliga o sudo dentro do container.
-  - O CI usa o `base`, que não tem segredo, Ingress nem auth.
+- **The `linuxserver/obsidian` image**, not the `sytone/obsidian-remote` one that tutorials mention.
+  - The linuxserver one is maintained and has versioned tags, so the version and digest can be pinned like the rest of the repo.
+  - The sytone one only publishes `latest`.
+- **The vault is mounted from the NAS over NFS (rw), with no copy and no sync in the cluster.**
+  - It follows the same path as Immich (ADR 005): OMV is configured through its UI, the `nas_storage` role checks the export and creates the PV, and the PVC comes from git.
+  - The role now takes a list of volumes (`nas_storage_volumes`) instead of being Immich-specific.
+  - `all_squash` to `1000:100` gives the files Obsidian creates the same owner as the existing ones.
+- **The app state (`/config`) lives on local-path, on the laptop.** It is rebuildable state: the open vault, the Electron profile.
+- **Access only through the tailnet, with basic auth.**
+  - The container has a web terminal. So besides the tailnet ACL there is a user and password (`CUSTOM_USER`/`PASSWORD`, in a SOPS Secret in the `tailscale` overlay).
+  - `allowPrivilegeEscalation: false` turns off sudo inside the container.
+  - CI uses `base`, which has no secret, Ingress or auth.
 
-## Alternativa descartada: Syncthing dentro do cluster
+## Rejected alternative: Syncthing inside the cluster
 
-O vault ficaria em local-path, com um Syncthing no cluster como mais um peer. O Obsidian veria as mudanças em tempo real, e os conflitos virariam `.sync-conflict`.
+The vault would live on local-path, with a Syncthing in the cluster as one more peer. Obsidian would see changes in real time, and conflicts would become `.sync-conflict` files.
 
-Ficou de fora por agora porque traz mais peças (outro app, chaves do Syncthing em SOPS, pareamento manual) e uma segunda cópia do vault fora do backup do NAS.
+It was left out for now because it brings more moving parts (another app, Syncthing keys in SOPS, manual pairing) and a second copy of the vault outside the NAS backup.
 
-## Consequências
+## Consequences
 
-- **O inotify não atravessa NFS.** O Obsidian do cluster não vê mudanças feitas por outros dispositivos até recarregar (*Reload app without saving*), e pode sobrescrever uma edição mais nova. A regra é editar num lugar por vez. Se isso incomodar, a alternativa acima é o próximo passo.
-- **A imagem inicia como root e escreve no rootfs**, por causa do s6-overlay que troca para o PUID. São exceções explícitas no kube-linter, nas anotações do Deployment.
-- **O s6-overlay é multiprocesso e sinaliza os próprios filhos.** Em Ubuntu 26.04 isso depende do perfil AppArmor corrigido no role `base` (containerd#14485).
-- **A montagem de teste do `nas_storage` grava e apaga um arquivo na raiz do vault.** Se outro dispositivo sincronizar nesse instante, o arquivo pode aparecer por um momento lá também.
+- **inotify does not cross NFS.** The cluster's Obsidian does not see changes made from other devices until it reloads (*Reload app without saving*), and it can overwrite a newer edit. The rule is to edit in one place at a time. If that becomes annoying, the alternative above is the next step.
+- **The image starts as root and writes to the rootfs**, because of the s6-overlay that switches to the PUID. These are explicit kube-linter exceptions, in the Deployment annotations.
+- **s6-overlay is multi-process and signals its own children.** On Ubuntu 26.04 that depends on the fixed AppArmor profile in the `base` role (containerd#14485).
+- **The `nas_storage` test mount writes and deletes a file at the vault root.** If another device syncs at that moment, the file may briefly show up there too.

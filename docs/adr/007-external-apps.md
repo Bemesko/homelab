@@ -1,39 +1,39 @@
-# 007 — Apps de outros repos da org
+# 007 — Apps from other repos
 
-- **Status:** aceito
-- **Data:** 2026-11-02
+- **Status:** accepted
+- **Date:** 2026-11-02
 
-## Contexto
+## Context
 
-Até aqui todo workload morava neste repo (`kubernetes/workloads/`). Para apps próprias isso mistura o ciclo de vida da app (código, imagem, versão) com o da plataforma. A ideia é cada app ter seu repo na org `bernats-homelab`, inclusive privado, e o cluster publicar uma versão escolhida aqui, como já fazemos com os charts de terceiros.
+Until now every workload lived in this repo (`kubernetes/workloads/`). For our own apps that mixes the app lifecycle (code, image, version) with the platform's. The idea is for each app to have its own repo in the `bernats-homelab` org, private included, and for the cluster to publish a version chosen here, the same way we already do with third-party charts.
 
-## Decisão
+## Decision
 
-- **Template `bernats-homelab/repotpl-k8s-app`.** Traz o formato que este repo espera:
-  - `deploy/base`, sem Ingress, usado no CI;
-  - `deploy/overlays/tailscale`, usado no notebook;
-  - workflow de release (imagem no GHCR → digest gravado em `deploy/base` → tag `vX.Y.Z`);
-  - CI com as mesmas validações daqui (kubeconform, kube-linter, sops, gitleaks) e um e2e em k3s.
-- **Aqui fica só a Application.** Cada entrada de `apps:` em `kubernetes/apps/values.yaml` vira uma Application (`templates/external-apps.yaml`) que sincroniza `deploy/` do repo da app.
-  - O `values.schema.json` exige repo `bernats-homelab/*` ou `Bemesko/*` e tag semver: promover uma versão é um PR aqui, revisável como a troca de versão de um chart.
-- **AppProject `homelab-apps`.** Só aceita repos da org e da conta pessoal `Bemesko`, nenhum recurso cluster-scoped além de `Namespace`, e nega os namespaces do sistema e da plataforma.
-  - *Adendo (2026-11-07):* a conta pessoal entrou para o `grocery-ops`. Repos dela precisam ser públicos, porque a credencial (GitHub App) só cobre a org.
-  - Um repo de app com problema não consegue mexer no ArgoCD, no Tailscale, no CNPG ou nos dados do Immich.
-- **Credenciais (opcionais), criadas pelo Ansible a partir de `ansible/secrets/` (rota do ADR 002):**
+- **The `bernats-homelab/repotpl-k8s-app` template.** It brings the layout this repo expects:
+  - `deploy/base`, without Ingress, used in CI;
+  - `deploy/overlays/tailscale`, used on the laptop;
+  - a release workflow (image on GHCR → digest written to `deploy/base` → `vX.Y.Z` tag);
+  - CI with the same checks as here (kubeconform, kube-linter, sops, gitleaks) and an e2e on k3s.
+- **Only the Application lives here.** Each entry under `apps:` in `kubernetes/apps/values.yaml` becomes an Application (`templates/external-apps.yaml`) that syncs the app repo's `deploy/`.
+  - `values.schema.json` requires a `bernats-homelab/*` or `Bemesko/*` repo and a semver tag: promoting a version is a PR here, reviewable like a chart version bump.
+- **The `homelab-apps` AppProject.** It only accepts repos from the org and the personal `Bemesko` account, no cluster-scoped resource other than `Namespace`, and denies the system and platform namespaces.
+  - *Addendum (2026-11-07):* the personal account was added for `grocery-ops`. Its repos must be public, because the credential (GitHub App) only covers the org.
+  - A misbehaving app repo cannot touch ArgoCD, Tailscale, CNPG or the Immich data.
+- **Credentials (optional), created by Ansible from `ansible/secrets/` (the ADR 002 path):**
 
-  | Para | Credencial | Por quê |
+  | For | Credential | Why |
   |---|---|---|
-  | Git | GitHub App com *Contents: read-only*, num template `repo-creds` com o prefixo da org | sem expiração, revogável, suporte nativo no ArgoCD |
-  | Imagens | PAT classic `read:packages` no `registries.yaml` do k3s | o GHCR não aceita App nem fine-grained; no nó, nenhuma app precisa de `imagePullSecret` |
+  | Git | GitHub App with *Contents: read-only*, in a `repo-creds` template with the org prefix | no expiry, revocable, native ArgoCD support |
+  | Images | Classic PAT with `read:packages` in the k3s `registries.yaml` | GHCR accepts neither an App nor a fine-grained token; on the node, no app needs an `imagePullSecret` |
 
-- **Segredos das apps** com KSOPS, como os daqui: o `.sops.yaml` do template usa as mesmas chaves públicas (WSL + cluster).
-- **Smoke test no e2e.** Com `external_apps_smoke_enabled=true` (só no CI), o chart sincroniza o próprio template (`smokeApp`, numa tag publicada) e o `e2e-assert.sh` confere o `/healthz`.
+- **App secrets** with KSOPS, like the ones here: the template's `.sops.yaml` uses the same public keys (WSL + cluster).
+- **Smoke test in the e2e.** With `external_apps_smoke_enabled=true` (CI only), the chart syncs the template itself (`smokeApp`, at a published tag) and `e2e-assert.sh` checks `/healthz`.
 
-## Consequências
+## Consequences
 
-- **Nova versão de app = release no repo dela + PR aqui.** Nada sobe no cluster sem passar por este repo, e o e2e daqui não quebra por causa da `main` de uma app.
-- **O e2e depende de um repo externo:** a tag do template em `smokeApp` e o pacote GHCR público dele. Trocar essa tag é um PR como qualquer outro.
-- **Credenciais privadas não são testadas no CI.** O CI não tem GitHub App nem PAT, então repos e imagens privados só são exercitados no notebook.
-- **A credencial da GitHub App vale para o prefixo da org inteira**, incluindo este repo. Se a App não estiver instalada num repo, o ArgoCD não consegue ler esse repo.
-- **Quem tem push num repo de app consegue fazer o ArgoCD descriptografar segredos dele** (chave do cluster), mas só dentro do namespace da app, por causa do AppProject.
-- **A chave de uma app em `apps:` é o nome da Application e, por padrão, do namespace.** O schema barra os nomes das Applications da plataforma.
+- **A new app version = a release in its repo + a PR here.** Nothing reaches the cluster without going through this repo, and the e2e here does not break because of an app's `main`.
+- **The e2e depends on an external repo:** the template tag in `smokeApp` and its public GHCR package. Changing that tag is a PR like any other.
+- **Private credentials are not tested in CI.** CI has neither the GitHub App nor the PAT, so private repos and images are only exercised on the laptop.
+- **The GitHub App credential covers the whole org prefix.** If the App is not installed on a repo, ArgoCD cannot read that repo. Since 2026-11-19 this repo lives in the personal account (`Bemesko/homelab`, public) and no longer needs it.
+- **Anyone with push access to an app repo can make ArgoCD decrypt that app's secrets** (cluster key), but only inside the app's namespace, because of the AppProject.
+- **An app's key under `apps:` is the name of the Application and, by default, of the namespace.** The schema blocks the names of the platform Applications.

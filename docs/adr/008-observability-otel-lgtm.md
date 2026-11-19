@@ -1,56 +1,56 @@
-# 008 — Observabilidade: OpenTelemetry Collector + LGTM enxuto
+# 008 — Observability: OpenTelemetry Collector + a lean LGTM stack
 
-- **Status:** aceito. A semântica das métricas do Kubernetes (só OTel nativo) foi trocada pelo formato Prometheus no [013](013-kubernetes-metrics-prometheus-semantics.md); o transporte por OTLP continua valendo.
-- **Data:** 2026-11-07
+- **Status:** accepted. The semantics of the Kubernetes metrics (native OTel only) were replaced by the Prometheus format in [013](013-kubernetes-metrics-prometheus-semantics.md); the OTLP transport still stands.
+- **Date:** 2026-11-07
 
-## Contexto
+## Context
 
-Queremos logs, métricas e traces do cluster, do próprio notebook, do NAS e, mais tarde, de outros bare metal. Há quatro requisitos:
+We want logs, metrics and traces from the cluster, the laptop itself, the NAS and, later, other bare-metal hosts. There are four requirements:
 
-- **Tudo em OpenTelemetry (OTLP).** Assim dá para experimentar outros backends sem reinstrumentar nada.
-- **Projetos CNCF ou open source.**
-- **Leveza e poucas peças.** O notebook tem 4 threads, 18 GB de RAM e ~37 GB de disco livre.
-- **Alertas por e-mail.**
+- **Everything in OpenTelemetry (OTLP).** That way other backends can be tried without re-instrumenting anything.
+- **CNCF or open-source projects.**
+- **Lightweight, with few moving parts.** The laptop has 4 threads, 18 GB of RAM and ~37 GB of free disk.
+- **Email alerts.**
 
-## Decisão
+## Decision
 
-- **Coleta: OpenTelemetry Collector upstream (CNCF), imagem `otelcol-contrib`.**
-  - `otel-agent` (DaemonSet): logs dos pods, kubelet, OTLP dos apps e scrape dos `/metrics` que já existem (ArgoCD, CNPG).
-  - `otel-gateway` (Deployment): recebe tudo, coleta métricas e eventos do cluster e é o **único** lugar que conhece os backends. Fica exposto na tailnet como `otel`, que é a porta de entrada dos hosts e do NAS.
-  - Hosts (notebook, bare metal): o role `otel_host_agent` instala o `.deb` (journald + métricas do host). A imagem do Collector não tem `journalctl`, então de dentro do cluster não se vê o journald.
-  - NAS: um container pelo compose do OMV (`hosts/nas/otel-collector`), com fila só em memória por causa do pendrive. O Ansible não toca no NAS.
-- **Backends: Prometheus (OTLP nativo), Loki, Tempo e Grafana**, cada um como binário único, em disco local (local-path).
-  - O Mimir não compensa num nó só, e o Prometheus 3 já aceita OTLP.
-  - Os backends não fazem scrape. Toda métrica entra por OTLP. A única exceção é o metrics-generator do Tempo, que só sabe fazer remote write.
-- **Alertas pelo Grafana Alerting**, com SMTP do Gmail. As regras ficam versionadas e são carregadas por ConfigMap pelo sidecar. As credenciais e o destinatário ficam num Secret SOPS, só no overlay do notebook.
-- **Retenção pelo disco:** métricas 30 d (ou 6 GB), logs 14 d e traces 7 d. São ~18 GiB de PVCs, e um alerta dispara se o disco raiz passar de 85%.
+- **Collection: upstream OpenTelemetry Collector (CNCF), `otelcol-contrib` image.**
+  - `otel-agent` (DaemonSet): pod logs, kubelet, OTLP from apps and scraping of the `/metrics` endpoints that already exist (ArgoCD, CNPG).
+  - `otel-gateway` (Deployment): receives everything, collects cluster metrics and events, and is the **only** place that knows the backends. It is exposed on the tailnet as `otel`, the entry point for the hosts and the NAS.
+  - Hosts (laptop, bare metal): the `otel_host_agent` role installs the `.deb` (journald + host metrics). The Collector image has no `journalctl`, so journald is not visible from inside the cluster.
+  - NAS: a container through the OMV compose plugin (`hosts/nas/otel-collector`), with an in-memory queue only, because of the USB stick. Ansible does not touch the NAS.
+- **Backends: Prometheus (native OTLP), Loki, Tempo and Grafana**, each as a single binary, on local disk (local-path).
+  - Mimir is not worth it on a single node, and Prometheus 3 already accepts OTLP.
+  - The backends do not scrape. Every metric comes in over OTLP. The only exception is the Tempo metrics-generator, which can only remote-write.
+- **Alerts through Grafana Alerting**, with Gmail SMTP. The rules are versioned and loaded from ConfigMaps by the sidecar. The credentials and the recipient live in a SOPS Secret, only in the laptop overlay.
+- **Retention sized by disk:** metrics 30 d (or 6 GB), logs 14 d and traces 7 d. That is ~18 GiB of PVCs, and an alert fires if the root disk goes above 85%.
 
-## Alternativas consideradas
+## Alternatives considered
 
-| | Por que não (por ora) |
+| | Why not (for now) |
 |---|---|
-| **Victoria** (VictoriaMetrics + VictoriaLogs + VictoriaTraces) | É o mais leve e todo Apache-2.0, mas o VictoriaTraces ainda está em v0.x, com breaking changes recentes. Também concentra tudo num vendor só. |
-| **OpenObserve** | Um binário só para tudo, mas fica fora do ecossistema Grafana, com consultas em SQL e licença AGPL. |
-| **SigNoz / ClickStack** | O ClickHouse é pesado demais para o notebook. |
-| **Stack 100% CNCF** (Prometheus + Jaeger v2 + Perses) | Não há armazenamento de logs na CNCF, e a correlação entre os sinais fica fragmentada. |
-| **Grafana Alloy** | Ele roda o mesmo YAML do Collector (*OTel engine*), mas esse modo ainda está em Public Preview, e a sintaxe nativa (River) amarra a configuração ao Alloy. O Collector upstream mantém a troca barata. |
+| **Victoria** (VictoriaMetrics + VictoriaLogs + VictoriaTraces) | The lightest option and all Apache-2.0, but VictoriaTraces is still v0.x, with recent breaking changes. It also puts everything on a single vendor. |
+| **OpenObserve** | A single binary for everything, but outside the Grafana ecosystem, with SQL queries and an AGPL license. |
+| **SigNoz / ClickStack** | ClickHouse is too heavy for the laptop. |
+| **100% CNCF stack** (Prometheus + Jaeger v2 + Perses) | The CNCF has no log storage, and correlating the signals gets fragmented. |
+| **Grafana Alloy** | It runs the same YAML as the Collector (*OTel engine*), but that mode is still in Public Preview, and the native syntax (River) ties the config to Alloy. The upstream Collector keeps switching cheap. |
 
-## Consequências
+## Consequences
 
-- **Trocar de backend = trocar os exporters do `otel-gateway`.** Agentes, hosts e NAS não mudam.
-- **Disco local:** os dados morrem junto com o notebook, e a retenção é curta. Object storage (S3) fica para uma fase seguinte.
-- **Nomes de métricas seguem a tradução OTLP→Prometheus** (`system.filesystem.usage` → `system_filesystem_usage_bytes`). `service.name` vira o label `job` no Prometheus e `service_name` no Loki. Os hosts usam `homelab-host` e o NAS usa `nas-host`, para não versionar hostnames.
-- **No CI**, o Grafana sobe sem segredos (sem SMTP nem Ingress), e o e2e confere o fluxo completo: métricas, logs e um trace sintético (`telemetrygen`).
-- **Os charts da Grafana migraram para `grafana-community`.** Os de `grafana/` estão deprecados.
+- **Switching backends = switching the `otel-gateway` exporters.** Agents, hosts and the NAS do not change.
+- **Local disk:** the data dies with the laptop, and retention is short. Object storage (S3) is left for a later phase.
+- **Metric names follow the OTLP→Prometheus translation** (`system.filesystem.usage` → `system_filesystem_usage_bytes`). `service.name` becomes the `job` label in Prometheus and `service_name` in Loki. The hosts use `homelab-host` and the NAS uses `nas-host`, so no hostnames are versioned.
+- **In CI**, Grafana comes up without secrets (no SMTP and no Ingress), and the e2e checks the whole flow: metrics, logs and a synthetic trace (`telemetrygen`).
+- **The Grafana charts moved to `grafana-community`.** The ones under `grafana/` are deprecated.
 
-## Dashboards e alertas da comunidade
+## Community dashboards and alerts
 
-Os dashboards e as regras de alerta vêm de projetos da comunidade, **sem** instalar kube-state-metrics, node-exporter nem cAdvisor: o stack continua só com as métricas OTel nativas (`kubeletstats`, `k8s_cluster`, `hostmetrics`). *(Revisto em 2026-11-17 pelo [013](013-kubernetes-metrics-prometheus-semantics.md): o kube-state-metrics e o cAdvisor entraram, para o OpenCost e para dashboards sem tradução; `kubeletstats` e `k8s_cluster` saíram. O node-exporter continua de fora.)*
+Dashboards and alert rules come from community projects, **without** installing kube-state-metrics, node-exporter or cAdvisor: the stack keeps to native OTel metrics only (`kubeletstats`, `k8s_cluster`, `hostmetrics`). *(Revisited on 2026-11-17 by [013](013-kubernetes-metrics-prometheus-semantics.md): kube-state-metrics and cAdvisor came in, for OpenCost and for dashboards without translation; `kubeletstats` and `k8s_cluster` went out. node-exporter is still left out.)*
 
-- **Dashboards vendorizados e fixados.** `scripts/vendor-dashboards.sh` baixa cada dashboard de uma versão fixa (grafana.com por ID e revisão; ArgoCD, Loki e Tempo por tag), confere o sha256 do upstream no `dashboards.lock` e aplica um filtro comum (datasources por uid) mais um patch jq por dashboard (`patches/<nome>.jq`). Um `kustomization.yaml` gerado cria um ConfigMap por dashboard, com a pasta do Grafana na annotation `grafana_folder`. O `gnetId` do chart ficou de fora: ele baixa na subida do pod, sem hash e sem patch.
-- **Patches típicos.** O `job` vem como `service.namespace/service.name`; contadores chegam com o sufixo `_total`; as recording rules dos mixins não existem; e os painéis que dependem de `kube_*`, de `kubelet_volume_stats_*` (o `local-path` não os reporta) ou do controller-runtime do operador do CNPG são removidos.
-- **Dois dashboards próprios** (cluster e Immich), porque nenhum da comunidade usa as métricas `k8s_cluster` nem as do Immich atual.
-- **Alertas convertidos para o Grafana**, não para o Prometheus: um caminho só até o e-mail, sem Alertmanager. Cada regra cita a origem (kubernetes-mixin, awesome-prometheus-alerts, regras do CloudNativePG) e foi reescrita para nossos nomes. O conjunto é curado para um nó único: ficaram de fora HA, réplicas, lag, disco de PVC e backups.
-- **Scrapes novos, todos por OTLP.** O `otel-agent` passou a raspar Loki, Tempo, Prometheus e CoreDNS (com allowlist de séries e `cluster=homelab`) e a mandar a própria telemetria dos coletores. Isso deixa de fora, por ora, o Grafana e o Tailscale: os proxies precisam de um `ProxyClass` com métricas, e fica para uma próxima etapa.
-- **Rotas por `severity`:** `critical` e `warning` chegam por e-mail; `info` só aparece na UI.
-- **Verificação.** `make test` confere o lock (`--check`) e as regras (`scripts/check-alert-rules.py`); o e2e confere que o sidecar do Grafana carregou todos os arquivos. `scripts/check-dashboard-metrics.py` roda à mão contra o Prometheus do notebook e lista as métricas que faltam.
+- **Vendored, pinned dashboards.** `scripts/vendor-dashboards.sh` downloads each dashboard at a pinned version (grafana.com by ID and revision; ArgoCD, Loki and Tempo by tag), checks the upstream sha256 in `dashboards.lock` and applies a common filter (datasources by uid) plus one jq patch per dashboard (`patches/<name>.jq`). A generated `kustomization.yaml` creates one ConfigMap per dashboard, with the Grafana folder in the `grafana_folder` annotation. The chart's `gnetId` was left out: it downloads when the pod starts, with no hash and no patch.
+- **Typical patches.** `job` comes as `service.namespace/service.name`; counters arrive with the `_total` suffix; the mixins' recording rules do not exist; and panels that depend on `kube_*`, on `kubelet_volume_stats_*` (`local-path` does not report them) or on the CNPG operator's controller-runtime are removed.
+- **Two dashboards of our own** (cluster and Immich), because none from the community used the `k8s_cluster` metrics or the current Immich ones.
+- **Alerts converted to Grafana**, not to Prometheus: a single path to email, with no Alertmanager. Each rule cites its origin (kubernetes-mixin, awesome-prometheus-alerts, CloudNativePG rules) and was rewritten for our names. The set is curated for a single node: HA, replicas, lag, PVC disk and backups were left out.
+- **New scrapes, all over OTLP.** The `otel-agent` now scrapes Loki, Tempo, Prometheus and CoreDNS (with a series allowlist and `cluster=homelab`) and sends the collectors' own telemetry. That leaves out, for now, Grafana and Tailscale: the proxies need a `ProxyClass` with metrics, which is left for a later step.
+- **Routing by `severity`:** `critical` and `warning` arrive by email; `info` only shows in the UI.
+- **Verification.** `make test` checks the lock (`--check`) and the rules (`scripts/check-alert-rules.py`); the e2e checks that the Grafana sidecar loaded every file. `scripts/check-dashboard-metrics.py` runs by hand against the laptop's Prometheus and lists the missing metrics.
