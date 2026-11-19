@@ -1,39 +1,39 @@
-# 009 — Home Assistant no cluster, ponte da lista de compras da Alexa
+# 009 — Home Assistant in the cluster, bridge for the Alexa shopping list
 
-- **Status:** aceito
-- **Data:** 2026-11-08
+- **Status:** accepted
+- **Date:** 2026-11-08
 
-## Contexto
+## Context
 
-Queremos que itens falados para a Alexa ("Alexa, coloca leite na lista de compras") cheguem ao grocery-ops (`Bemesko/grocery-ops`). A Amazon não tem API pública de listas para terceiros. Desde o Home Assistant 2026.7, a integração nativa **Alexa Devices** expõe as listas da Alexa como entidades `todo`, atualizadas por eventos push da Amazon (IoT class *Cloud Polling*). O HA vira a ponte, sem precisar ser exposto à internet.
+We want items spoken to Alexa ("Alexa, add milk to the shopping list") to reach grocery-ops (`Bemesko/grocery-ops`). Amazon has no public lists API for third parties. Since Home Assistant 2026.7, the native **Alexa Devices** integration exposes the Alexa lists as `todo` entities, updated by push events from Amazon (IoT class *Cloud Polling*). HA becomes the bridge, without being exposed to the internet.
 
-## Decisão
+## Decision
 
-- **Kustomize próprio** em `kubernetes/workloads/home-assistant`, como o Obsidian (ADR 006). Não existe chart oficial, e os da comunidade economizariam só uns 5 manifestos.
-- **Imagem oficial** `ghcr.io/home-assistant/home-assistant` fixada por tag + digest.
-- **`configuration.yaml` no Git** (ConfigMap montado por `subPath`), sem o bloco `http:` (veja os riscos). O resto do `/config` (`.storage`: integrações, usuários, tokens) fica numa PVC no **NAS por NFS**, via role `nas_storage`, e entra na réplica do NAS.
-- **Recorder no Postgres** (CloudNativePG, Application `home-assistant-database`, wave 2). O HA lê a URI do Secret gerado pelo CNPG com `!env_var DB_URL`.
-- **Só no notebook (overlay `tailscale`)**:
-  - `hostNetwork`, para a descoberta mDNS/SSDP na LAN. O pod só escuta na rede do host, sem alterar rede, firewall ou SSH. Efeito colateral: o HA também responde em `<IP do notebook>:8123` na LAN.
-  - `/run/dbus` do host, somente leitura, e as capabilities `NET_ADMIN`/`NET_RAW`, para usar o Bluetooth do notebook pelo BlueZ do host. Sem `privileged`.
-  - Ingress `https://casa.<sua-tailnet>`.
-- O CI usa o `base`: rede normal de pod, sem Bluetooth e sem Ingress.
+- **Our own kustomize** in `kubernetes/workloads/home-assistant`, like Obsidian (ADR 006). There is no official chart, and the community ones would only save about 5 manifests.
+- **The official image** `ghcr.io/home-assistant/home-assistant`, pinned by tag + digest.
+- **`configuration.yaml` in Git** (a ConfigMap mounted with `subPath`), without the `http:` block (see the risks). The rest of `/config` (`.storage`: integrations, users, tokens) lives in a PVC on the **NAS over NFS**, through the `nas_storage` role, and is included in the NAS replica.
+- **Recorder on Postgres** (CloudNativePG, Application `home-assistant-database`, wave 2). HA reads the URI from the CNPG-generated Secret with `!env_var DB_URL`.
+- **Only on the laptop (`tailscale` overlay)**:
+  - `hostNetwork`, for mDNS/SSDP discovery on the LAN. The pod only listens on the host network, without changing the network, firewall or SSH. Side effect: HA also answers on `<laptop IP>:8123` on the LAN.
+  - The host's `/run/dbus`, read-only, and the `NET_ADMIN`/`NET_RAW` capabilities, to use the laptop's Bluetooth through the host's BlueZ. No `privileged`.
+  - Ingress `https://casa.<your-tailnet>`.
+- CI uses `base`: normal pod network, no Bluetooth and no Ingress.
 
-## Contrato com o grocery-ops
+## Contract with grocery-ops
 
-O grocery-ops ainda não implementa a integração. A infra deixa pronto:
+grocery-ops does not implement the integration yet. The infrastructure leaves this ready:
 
-- **Rota interna:** `http://home-assistant.home-assistant.svc:8123`. Não há NetworkPolicy no cluster. Com `hostNetwork`, o endpoint do Service vira `<IP do nó>:8123` e continua funcionando.
-- **Autenticação:** um usuário `grocery-ops` no HA com um *long-lived access token*. O token fica num `*.sops.yaml` no `deploy/` do repo do grocery-ops, não aqui.
-- **Leitura:** `POST /api/services/todo/get_items?return_response` com `{"entity_id": "todo.<lista>", "status": "needs_action"}`, ou o comando de websocket equivalente.
-- **Escrita:** `todo.add_item`, `todo.update_item` (marcar como comprado) e `todo.remove_item`.
-- **Push HA → app (quando houver endpoint):** automação com os gatilhos `todo.item_added`, `todo.item_completed` e `todo.item_removed` chamando um `rest_command` para `http://grocery-ops.grocery-ops.svc.cluster.local/...` (FQDN: o pod do HA usa `ndots:2`).
+- **Internal route:** `http://home-assistant.home-assistant.svc:8123`. There is no NetworkPolicy in the cluster. With `hostNetwork`, the Service endpoint becomes `<node IP>:8123` and keeps working.
+- **Authentication:** a `grocery-ops` user in HA with a *long-lived access token*. The token lives in a `*.sops.yaml` in the grocery-ops repo's `deploy/`, not here.
+- **Read:** `POST /api/services/todo/get_items?return_response` with `{"entity_id": "todo.<list>", "status": "needs_action"}`, or the equivalent websocket command.
+- **Write:** `todo.add_item`, `todo.update_item` (mark as bought) and `todo.remove_item`.
+- **Push HA → app (once there is an endpoint):** an automation with the `todo.item_added`, `todo.item_completed` and `todo.item_removed` triggers calling a `rest_command` to `http://grocery-ops.grocery-ops.svc.cluster.local/...` (FQDN: the HA pod uses `ndots:2`).
 
-## Consequências e riscos
+## Consequences and risks
 
-- A integração Alexa Devices exige 2FA por app autenticador na conta Amazon (SMS não serve). A amazon.com.br funciona (testado em 2026-11-10).
-- **Polling da Alexa Devices desligado (só pela UI, em *System options*).** Com o polling a cada 5 min, as chamadas por Echo estouram o limite da Amazon: metade dos ciclos recebia 429 e todas as entidades ficavam `unavailable`. As listas de compras e de tarefas chegam por eventos push, então a sincronização nos dois sentidos continua; perdem-se só os sensores e o estado dos Echos. Ao recriar a integração, desligue de novo.
-- O perfil AppArmor customizado do containerd (role `base`) negava o D-Bus (`Hello`, `AddMatch`). Ganhou a regra `dbus (send,receive) bus=system peer=(label=unconfined)`: só alcança o barramento quem monta `/run/dbus` do host, hoje apenas o HA.
-- **A config HTTP (proxy confiável) não é declarativa.** Desde o 2026.8 o HA guarda `use_x_forwarded_for`/`trusted_proxies` em `/config/.storage/http`, ignora o bloco `http:` do YAML e só promove uma mudança se um admin confirmar na UI em até 5 minutos após o restart. Ela é feita uma vez pela UI (README) e persiste no NAS. Até lá o Ingress responde 400; o primeiro acesso é direto em `<IP do notebook>:8123`.
-- Métricas do HA (`/api/prometheus`) ficam para depois: exigem um token criado na UI e montado no otel-agent. Os logs já chegam ao Loki pelo coletor.
-- Não há backup do Postgres do HA além do disco do notebook. O histórico é descartável; o que importa (integrações, automações) fica no `/config` do NAS.
+- The Alexa Devices integration requires authenticator-app 2FA on the Amazon account (SMS does not work). amazon.com.br works (tested on 2026-11-10).
+- **Alexa Devices polling turned off (UI only, under *System options*).** With polling every 5 min, the per-Echo calls exceed Amazon's limit: half of the cycles got a 429 and every entity went `unavailable`. The shopping and to-do lists arrive through push events, so two-way sync keeps working; only the sensors and the Echo state are lost. When recreating the integration, turn it off again.
+- The containerd custom AppArmor profile (`base` role) denied D-Bus (`Hello`, `AddMatch`). It gained the rule `dbus (send,receive) bus=system peer=(label=unconfined)`: only containers that mount the host's `/run/dbus` reach the bus, today just HA.
+- **The HTTP config (trusted proxy) is not declarative.** Since 2026.8, HA stores `use_x_forwarded_for`/`trusted_proxies` in `/config/.storage/http`, ignores the `http:` block in YAML, and only promotes a change if an admin confirms it in the UI within 5 minutes of the restart. It is done once through the UI (README) and persists on the NAS. Until then the Ingress answers 400; the first access is direct on `<laptop IP>:8123`.
+- HA metrics (`/api/prometheus`) are left for later: they need a token created in the UI and mounted in the otel-agent. The logs already reach Loki through the collector.
+- There is no backup of the HA Postgres beyond the laptop disk. The history is disposable; what matters (integrations, automations) lives in `/config` on the NAS.

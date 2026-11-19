@@ -1,35 +1,36 @@
-# Linguagem e Toolchain
+# Language and Toolchain
 
-- Ansible (ansible-core 2.21, coleções fixadas em `ansible/requirements.yml`) para o bootstrap do host
-- k3s single-node; ArgoCD (app-of-apps em Helm) para tudo dentro do cluster; kustomize para workloads
-- SOPS + age para segredos; chave privada só na máquina de controle (WSL)
-- Ferramentas da máquina de controle com versão + sha256 fixados em `scripts/setup-control-node.sh`
+- Ansible (ansible-core 2.21, collections pinned in `ansible/requirements.yml`) for the host bootstrap
+- Single-node k3s; ArgoCD (app-of-apps in Helm) for everything inside the cluster; kustomize for workloads
+- SOPS + age for secrets; the private key lives only on the control machine (WSL)
+- Control-machine tools with version + sha256 pinned in `scripts/setup-control-node.sh`
 
-# Estrutura do Repositório
+# Repository Layout
 
-- `ansible/`: `site.yaml` (preflight → base → power → tailscale_check → k3s → cluster_bootstrap → otel_host_agent → nas_storage → kubeconfig; depois um play `hosts: nas` com `power` e `nas_syncthing`) e `reset.yaml`
-- `kubernetes/apps/`: chart app-of-apps; `values.yaml` é a FONTE ÚNICA das versões de charts (o Ansible também lê)
-- `kubernetes/workloads/<app>/{base,overlays/tailscale}`: `base` é usado no CI (sem Tailscale)
-- Apps de outros repos da org ou da conta pessoal `Bemesko`, só públicos (template `bernats-homelab/repotpl-k8s-app`): só a entrada em `apps:` de `kubernetes/apps/values.yaml`; os kustomize ficam no `deploy/` do repo da app
-- `docs/adr/NNN-*.md`: decisões de arquitetura
+- `ansible/`: `site.yaml` (preflight → base → power → tailscale_check → k3s → cluster_bootstrap → otel_host_agent → nas_storage → kubeconfig; then a `hosts: nas` play with `power` and `nas_syncthing`) and `reset.yaml`
+- `kubernetes/apps/`: app-of-apps chart; `values.yaml` is the SINGLE SOURCE of chart versions (Ansible reads it too)
+- `kubernetes/workloads/<app>/{base,overlays/tailscale}`: `base` is what CI uses (no Tailscale)
+- Apps from other repos in the org or the personal `Bemesko` account, public only (template `bernats-homelab/repotpl-k8s-app`): only the entry under `apps:` in `kubernetes/apps/values.yaml`; the kustomize lives in the app repo's `deploy/`
+- `docs/adr/NNN-*.md`: architecture decisions
 
-# Restrições
+# Constraints
 
-- O notebook é acessado por SSH pela tailnet: NUNCA criar tasks que alterem Tailscale, SSH, firewall ou rede do host (hook `no-lockout`)
-- Nunca versionar hostname, usuário, nome da tailnet (`*.ts.net`) ou kubeconfig; o inventário real é `ansible/inventory/local.yaml` (gitignored)
-- Toda versão nova vem com sha256 (binários) ou digest (imagens)
-- Variáveis registradas/definidas em roles levam o prefixo do role (ansible-lint `production`)
-- Todo `command`/`shell` tem `changed_when`/`creates`; o e2e exige changed=0 na segunda execução
-- Mudança de versão de chart: só em `kubernetes/apps/values.yaml`
-- Dashboards do Grafana: só pelo `scripts/vendor-dashboards.sh` (versão + sha256 no `dashboards.lock`, ajustes em `patches/*.jq`); nunca cole JSON de dashboard na mão (os próprios ficam em `dashboards/<pasta>/` fora do lock). Regras de alerta: `base/alerts/*.yaml`, com `severity` critical, warning ou info
-- Apps externas sempre por tag `vX.Y.Z` (nunca branch) e no AppProject `homelab-apps`; credencial da GitHub App e do GHCR só em `ansible/secrets/` (opcionais)
-- Segredos de apps: `*.sops.yaml` ao lado do app + generator KSOPS; criptografe no caminho final (o `.sops.yaml` escolhe os destinatários). Nunca use a chave de teste do CI (`tests/ci-age.key`, pública) fora de `kubernetes/workloads/hello-world/`
-- Segredos do bootstrap (`ansible/secrets/`) são só da chave do WSL
-- O NAS (openmediavault) é configurado pela UI dele: NUNCA criar tasks que alterem o NAS, com duas exceções: o Syncthing pelo role `nas_syncthing` (ADR 011) e a energia pelo role `power` (ADR 012). O role `nas_storage` só verifica os exports e cria os PVs; hostname, paths e IDs do Syncthing ficam no `local.yaml`
-- Imagens do Immich/Postgres por digest; a versão do Immich fica em `kubernetes/values/immich.yaml` (o chart não acompanha as releases)
+- The laptop is reached over SSH through the tailnet: NEVER create tasks that change Tailscale, SSH, the firewall or the host network (hook `no-lockout`)
+- Never version the hostname, user, tailnet name (`*.ts.net`) or kubeconfig; the real inventory is `ansible/inventory/local.yaml` (gitignored)
+- Every new version comes with a sha256 (binaries) or digest (images)
+- Variables registered/defined in roles carry the role prefix (ansible-lint `production`)
+- Every `command`/`shell` has `changed_when`/`creates`; the e2e requires changed=0 on the second run
+- Chart version changes: only in `kubernetes/apps/values.yaml`
+- Grafana dashboards: only through `scripts/vendor-dashboards.sh` (version + sha256 in `dashboards.lock`, tweaks in `patches/*.jq`); never paste dashboard JSON by hand (our own dashboards live in `dashboards/<folder>/`, outside the lock). Alert rules: `base/alerts/*.yaml`, with `severity` critical, warning or info
+- External apps always by `vX.Y.Z` tag (never a branch) and in the `homelab-apps` AppProject; the GitHub App and GHCR credentials only in `ansible/secrets/` (optional)
+- App secrets: `*.sops.yaml` next to the app + a KSOPS generator; encrypt at the final path (`.sops.yaml` picks the recipients). Never use the CI test key (`tests/ci-age.key`, public) outside `kubernetes/workloads/hello-world/`
+- Bootstrap secrets (`ansible/secrets/`) use only the WSL key
+- The NAS (openmediavault) is configured through its own UI: NEVER create tasks that change the NAS, with two exceptions: Syncthing through the `nas_syncthing` role (ADR 011) and power management through the `power` role (ADR 012). The `nas_storage` role only checks the exports and creates the PVs; the hostname, paths and Syncthing IDs live in `local.yaml`
+- Immich/Postgres images by digest; the Immich version lives in `kubernetes/values/immich.yaml` (the chart does not follow the releases)
+- Everything in the repo is written in English (docs, comments, task names, alerts, log messages)
 
-# Testes
+# Tests
 
 - `make test`: pre-commit + helm unittest + render/kubeconform/kube-linter
-- CI `e2e`: sobe k3s + ArgoCD no runner, confere idempotência, Applications Healthy e reset
-- Contra o notebook: `make plan` (check/diff) antes de `make apply`
+- CI `e2e`: brings up k3s + ArgoCD on the runner, checks idempotency, Applications Healthy and the reset
+- Against the laptop: `make plan` (check/diff) before `make apply`
