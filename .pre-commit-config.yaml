@@ -1,6 +1,6 @@
-# Instale e rode no WSL (máquina de controle): `make deps && pre-commit install`.
-# Os hooks `language: system` dependem das ferramentas instaladas por scripts/setup-control-node.sh.
-# O job `lint` do CI roda exatamente esta configuração.
+# Install and run in WSL (control machine): `make deps && pre-commit install`.
+# The `language: system` hooks depend on the tools installed by scripts/setup-control-node.sh.
+# The CI `lint` job runs exactly this configuration.
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
@@ -13,7 +13,7 @@ repos:
       - id: check-executables-have-shebangs
       - id: check-yaml
         args: [--allow-multiple-documents]
-        # configuration.yaml do Home Assistant usa tags próprias (!include, !env_var); o yamllint ainda o valida.
+        # The Home Assistant configuration.yaml uses its own tags (!include, !env_var); yamllint still validates it.
         exclude: ^kubernetes/apps/templates/|\.j2$|^kubernetes/workloads/home-assistant/base/configuration\.yaml$
       - id: check-json
       - id: detect-private-key
@@ -48,27 +48,27 @@ repos:
   - repo: local
     hooks:
       - id: no-local-inventory
-        name: inventário real (hostname/usuário) não pode ser commitado
+        name: real inventory (hostname/user) must not be committed
         language: fail
         entry: "Apenas inventory.example.yaml e ci.yaml podem ser versionados em ansible/inventory/"
         files: ^ansible/inventory/
         exclude: ^ansible/inventory/(inventory\.example|ci)\.yaml$
 
       - id: no-kubeconfig
-        name: kubeconfig não pode ser commitado
+        name: kubeconfig must not be committed
         language: fail
         entry: "kubeconfigs vivem em ~/.kube/, fora do repo"
         files: (^|/)(kubeconfig[^/]*|[^/]*\.kubeconfig)$
 
       - id: sops-encrypted
-        name: arquivos *.sops.yaml estão criptografados
+        name: "*.sops.yaml files are encrypted"
         language: script
         entry: scripts/check-sops-encrypted.sh
-        # exclui o arquivo de configuração `.sops.yaml`
+        # excludes the `.sops.yaml` configuration file
         files: (^|/)[^/.][^/]*\.sops\.yaml$
 
       - id: no-lockout
-        name: playbook não mexe em Tailscale/SSH/firewall/rede do host
+        name: playbook does not touch the host's Tailscale/SSH/firewall/network
         language: script
         entry: scripts/check-no-lockout.sh
         files: ^ansible/
@@ -82,7 +82,7 @@ repos:
         files: ^ansible/
 
       - id: vendor-dashboards-check
-        name: dashboards do Grafana batem com o lock (sha256, uids, tamanho)
+        name: Grafana dashboards match the lock (sha256, uids, size)
         language: script
         entry: scripts/vendor-dashboards.sh
         args: [--check]
@@ -90,7 +90,7 @@ repos:
         files: ^(kubernetes/workloads/observability/base/dashboards/|scripts/vendor-dashboards\.sh)
 
       - id: alert-rules-check
-        name: regras de alerta do Grafana (uid único, severity, datasource)
+        name: Grafana alert rules (unique uid, severity, datasource)
         language: system
         entry: python3 scripts/check-alert-rules.py
         pass_filenames: false
