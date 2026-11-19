@@ -4,23 +4,23 @@ metadata:
   name: homelab-apps
   namespace: argocd
   annotations:
-    # Antes das Applications que o usam (templates/external-apps.yaml).
+    # Before the Applications that use it (templates/external-apps.yaml).
     argocd.argoproj.io/sync-wave: "-1"
 spec:
-  description: Apps de outros repos (repotpl-k8s-app); só recursos namespaced
+  description: Apps from other repos (repotpl-k8s-app); namespaced resources only
   sourceRepos:
     - https://github.com/bernats-homelab/*
-    # Conta pessoal: só repos públicos (a credencial GitHub App cobre só a org).
+    # Personal account: public repos only (the GitHub App credential only covers the org).
     - https://github.com/Bemesko/*
   destinations:
-    # Qualquer namespace, exceto os do sistema e da plataforma (negação do ArgoCD).
+    # Any namespace, except the system and platform ones (ArgoCD negation).
     - server: https://kubernetes.default.svc
       namespace: "*"
     {{- range list "argocd" "kube-system" "kube-public" "kube-node-lease" "default" "tailscale" "cnpg-system" "immich" "obsidian" "home-assistant" "hello-world" }}
     - server: https://kubernetes.default.svc
       namespace: "!{{ . }}"
     {{- end }}
-  # Nada cluster-scoped (ClusterRole, CRD, webhook...), só o Namespace do CreateNamespace.
+  # Nothing cluster-scoped (ClusterRole, CRD, webhook...), only the CreateNamespace Namespace.
   clusterResourceWhitelist:
     - group: ""
       kind: Namespace

@@ -1,5 +1,5 @@
-# Notebook: exposto na tailnet como https://borbsidian.<sua-tailnet>, com basic auth.
-# O segredo fica só aqui porque o CI não descriptografa segredos fora do hello-world.
+# Laptop: exposed on the tailnet as https://borbsidian.<your-tailnet>, with basic auth.
+# The secret lives only here because CI does not decrypt secrets outside hello-world.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: obsidian

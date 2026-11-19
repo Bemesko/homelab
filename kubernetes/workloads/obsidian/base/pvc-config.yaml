@@ -1,5 +1,5 @@
-# Estado do app (configuração do Obsidian, perfil do Electron), no disco do notebook.
-# O vault em si fica na PVC obsidian-vault (kubernetes/workloads/obsidian/storage).
+# App state (Obsidian configuration, Electron profile), on the laptop disk.
+# The vault itself lives in the obsidian-vault PVC (kubernetes/workloads/obsidian/storage).
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:

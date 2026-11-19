@@ -12,7 +12,7 @@ spec:
   source:
     repoURL: {{ .Values.repoURL }}
     targetRevision: {{ .Values.targetRevision }}
-    # Só o Postgres (CNPG) do recorder: fica Healthy sozinho, antes do HA (wave 3).
+    # Only the recorder's Postgres (CNPG): it becomes Healthy on its own, before HA (wave 3).
     path: kubernetes/workloads/home-assistant/database
   destination:
     server: https://kubernetes.default.svc

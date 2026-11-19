@@ -3,8 +3,8 @@ templates:
   - templates/external-apps.yaml
   - templates/appproject-homelab-apps.yaml
 tests:
-  # `set` mescla com o values.yaml: `grocery-ops: null` remove a app real nos testes isolados.
-  - it: sem apps e sem smoke não gera Application
+  # `set` merges with values.yaml: `grocery-ops: null` removes the real app in isolated tests.
+  - it: no apps and no smoke produce no Application
     template: templates/external-apps.yaml
     set:
       apps.grocery-ops: null
@@ -12,7 +12,7 @@ tests:
       - hasDocuments:
           count: 0
 
-  - it: grocery-ops (conta pessoal Bemesko, pública) sai do values.yaml fixado numa tag
+  - it: grocery-ops (personal Bemesko account, public) comes from values.yaml pinned to a tag
     template: templates/external-apps.yaml
     asserts:
       - hasDocuments:
@@ -33,7 +33,7 @@ tests:
           path: spec.project
           value: homelab-apps
 
-  - it: cada entrada de apps vira uma Application no AppProject homelab-apps, fixada na tag
+  - it: each apps entry becomes an Application in the homelab-apps AppProject, pinned to the tag
     template: templates/external-apps.yaml
     set:
       apps:
@@ -99,7 +99,7 @@ tests:
           value: "4"
         documentIndex: 1
 
-  - it: sem Tailscale (CI) apps externas usam deploy/base
+  - it: without Tailscale (CI) external apps use deploy/base
     template: templates/external-apps.yaml
     set:
       tailscaleOperator.enabled: false
@@ -112,7 +112,7 @@ tests:
           path: spec.source.path
           value: deploy/base
 
-  - it: smoke app (CI) sincroniza o template na tag do values
+  - it: the smoke app (CI) syncs the template at the tag from values
     template: templates/external-apps.yaml
     set:
       smokeApp.enabled: true
@@ -134,7 +134,7 @@ tests:
           path: spec.project
           value: homelab-apps
 
-  - it: AppProject só aceita repos da org e da conta Bemesko, nada cluster-scoped além de Namespace
+  - it: the AppProject only accepts repos from the org and the Bemesko account, nothing cluster-scoped besides Namespace
     template: templates/appproject-homelab-apps.yaml
     asserts:
       - isKind:

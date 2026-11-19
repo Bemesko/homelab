@@ -1,8 +1,8 @@
-# Values do chart opentelemetry-collector (release otel-agent), versão em
-# kubernetes/apps/values.yaml. DaemonSet: logs dos pods, métricas do Kubernetes (cAdvisor
-# do kubelet e kube-state-metrics, no formato Prometheus), OTLP dos apps e scrape dos
-# /metrics que já existem; tudo enriquecido com metadados do k8s e enviado por OTLP ao
-# otel-gateway. Veja docs/adr/008 (transporte) e 013 (métricas do Kubernetes).
+# Values for the opentelemetry-collector chart (otel-agent release), version in
+# kubernetes/apps/values.yaml. DaemonSet: pod logs, Kubernetes metrics (kubelet cAdvisor
+# and kube-state-metrics, in the Prometheus format), OTLP from apps and scraping of the
+# /metrics endpoints that already exist; everything enriched with k8s metadata and sent over OTLP to
+# the otel-gateway. See docs/adr/008 (transport) and 013 (Kubernetes metrics).
 mode: daemonset
 fullnameOverride: otel-agent
 
@@ -11,23 +11,23 @@ image:
   tag: 0.163.2
   digest: sha256:7f22d2a6748110ffb6a59bc0df448bccbf501cdb667d610ede4c61d3863d5849
 
-# Sem o preset kubeletMetrics: o kubeletstats emitia container_memory_working_set_bytes e
-# outros nomes do cAdvisor com labels k8s_*, e duplicaria as séries do cAdvisor de verdade.
+# No kubeletMetrics preset: kubeletstats emitted container_memory_working_set_bytes and
+# other cAdvisor names with k8s_* labels, and would duplicate the real cAdvisor series.
 presets:
   logsCollection:
     enabled: true
   kubernetesAttributes:
     enabled: true
 
-# O job kubernetes-nodes-cadvisor lê /metrics/cadvisor do kubelet com o token do
-# ServiceAccount, o que exige nodes/metrics (os presets só concedem o que usam).
+# The kubernetes-nodes-cadvisor job reads the kubelet's /metrics/cadvisor with the
+# ServiceAccount token, which needs nodes/metrics (the presets only grant what they use).
 clusterRole:
   rules:
     - apiGroups: [""]
       resources: [nodes/metrics]
       verbs: [get]
 
-# filelog lê /var/log/pods (root:root 0640 no host).
+# filelog reads /var/log/pods (root:root 0640 on the host).
 securityContext:
   runAsUser: 0
   runAsGroup: 0
@@ -37,7 +37,7 @@ securityContext:
     drop: [ALL]
     add: [DAC_READ_SEARCH]
 
-# Apps falam OTLP com o Service otel-agent; nada de hostPort no notebook.
+# Apps speak OTLP to the otel-agent Service; no hostPort on the laptop.
 ports:
   otlp:
     hostPort: 0
@@ -62,9 +62,9 @@ config:
     prometheus:
       config:
         scrape_configs:
-          # Métricas do Kubernetes no formato Prometheus (ADR 013). Uso real de CPU e memória
-          # por container: cAdvisor do kubelet do próprio nó (o agent roda em todo nó).
-          # O k3s usa certificado próprio no :10250, então sem verificação do servidor.
+          # Kubernetes metrics in the Prometheus format (ADR 013). Real CPU and memory usage
+          # per container: cAdvisor from the node's own kubelet (the agent runs on every node).
+          # k3s uses its own certificate on :10250, so the server is not verified.
           - job_name: kubernetes-nodes-cadvisor
             scrape_interval: 60s
             scheme: https
@@ -81,22 +81,22 @@ config:
                 # yamllint disable-line rule:line-length
                 regex: (container_(cpu_(usage_seconds_total|cfs_(periods_total|throttled_periods_total|throttled_seconds_total))|memory_(working_set_bytes|rss|usage_bytes|cache)|network_(receive|transmit)_(bytes|packets|packets_dropped|errors)_total|fs_(usage_bytes|limit_bytes|reads_bytes_total|writes_bytes_total)|oom_events_total|spec_memory_limit_bytes)|machine_(cpu_cores|memory_bytes))
                 action: keep
-          # Estado dos objetos (kube_*): Deployments, Pods, Nodes, PVCs, labels.
+          # Object state (kube_*): Deployments, Pods, Nodes, PVCs, labels.
           - job_name: kube-state-metrics
             scrape_interval: 60s
             static_configs:
               - targets: [kube-state-metrics.observability.svc:8080]
                 labels: {cluster: homelab}
-          # Custos por pod, nó e namespace. honor_labels: as métricas do OpenCost trazem
-          # instance e namespace próprios, que o scrape trocaria por exported_*.
+          # Costs per pod, node and namespace. honor_labels: the OpenCost metrics carry their
+          # own instance and namespace, which the scrape would rename to exported_*.
           - job_name: opencost
             scrape_interval: 60s
             honor_labels: true
             static_configs:
               - targets: [opencost.opencost.svc:9003]
                 labels: {cluster: homelab}
-          # Substitui o scrape do próprio coletor (default do chart).
-          # Nomes dos jobs iguais aos do dashboard oficial do ArgoCD.
+          # Replaces the collector's own scrape (chart default).
+          # Job names match the ones in the official ArgoCD dashboard.
           - job_name: argocd-application-controller-metrics
             scrape_interval: 60s
             static_configs:
@@ -109,7 +109,7 @@ config:
             scrape_interval: 60s
             static_configs:
               - targets: [argocd-repo-server-metrics.argocd.svc:8084]
-          # Backends e DNS: só as séries que os dashboards e alertas usam (allowlist).
+          # Backends and DNS: only the series that the dashboards and alerts use (allowlist).
           - job_name: loki
             scrape_interval: 60s
             static_configs:
@@ -148,7 +148,7 @@ config:
               - source_labels: [__name__]
                 regex: (coredns_(dns_.*|forward_.*|cache_.*|panics_total|health_.*|build_info)|process_.*|go_goroutines)
                 action: keep
-          # Postgres do CloudNativePG (cnpg_backends_total, max_connections...).
+          # CloudNativePG Postgres (cnpg_backends_total, max_connections...).
           - job_name: cnpg
             scrape_interval: 60s
             kubernetes_sd_configs:
@@ -164,8 +164,8 @@ config:
                 target_label: namespace
               - source_labels: [__meta_kubernetes_pod_name]
                 target_label: pod
-          # Immich (IMMICH_TELEMETRY_INCLUDE=all): API em :8081 e workers em :8082.
-          # "$$" é o "$" literal (o coletor expande ${...} na config).
+          # Immich (IMMICH_TELEMETRY_INCLUDE=all): API on :8081 and workers on :8082.
+          # "$$" is a literal "$" (the collector expands ${...} in the config).
           - job_name: immich
             scrape_interval: 60s
             kubernetes_sd_configs:
@@ -217,8 +217,8 @@ config:
     telemetry:
       resource:
         service.name: otel-agent
-      # Telemetria do próprio coletor por OTLP (receiver local): alimenta o
-      # dashboard e os alertas de exportação do coletor.
+      # The collector's own telemetry over OTLP (local receiver): feeds the
+      # collector dashboard and export alerts.
       metrics:
         level: normal
         readers:
@@ -227,7 +227,7 @@ config:
                 otlp:
                   protocol: http/protobuf
                   endpoint: http://${env:MY_POD_IP}:4318
-    # Os presets acrescentam filelog, kubeletstats e k8sattributes aos pipelines.
+    # The presets add filelog and k8sattributes to the pipelines.
     pipelines:
       logs:
         receivers: [otlp]

@@ -1,6 +1,6 @@
-# Provisionamento do Grafana (regras de alerta) e, no notebook, os Secrets do
-# Grafana, o contact point de e-mail e o otel-gateway na tailnet ("otel").
-# Wave 2: os Secrets existem antes do Grafana (wave 3). Veja docs/adr/008.
+# Grafana provisioning (alert rules) and, on the laptop, the Grafana Secrets,
+# the email contact point and the otel-gateway on the tailnet ("otel").
+# Wave 2: the Secrets exist before Grafana (wave 3). See docs/adr/008.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -25,5 +25,5 @@ spec:
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
-      # Dashboards grandes: o last-applied do client-side apply estoura 256 KB.
+      # Large dashboards: the client-side apply last-applied annotation exceeds 256 KB.
       - ServerSideApply=true

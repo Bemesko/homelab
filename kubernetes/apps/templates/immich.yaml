@@ -4,14 +4,14 @@ metadata:
   name: immich
   namespace: argocd
   annotations:
-    # Depois do banco e das PVCs (immich-database, wave 2).
+    # After the database and the PVCs (immich-database, wave 2).
     argocd.argoproj.io/sync-wave: "3"
   finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:
   project: default
   sources:
-    # Chart OCI: o ArgoCD quer o registry sem o prefixo oci:// (repositório em kubernetes/values/argocd.yaml).
+    # OCI chart: ArgoCD wants the registry without the oci:// prefix (repository in kubernetes/values/argocd.yaml).
     - repoURL: {{ trimPrefix "oci://" .Values.charts.immich.repoURL }}
       chart: {{ .Values.charts.immich.chart }}
       targetRevision: {{ .Values.charts.immich.version | quote }}
@@ -38,8 +38,8 @@ spec:
     - repoURL: {{ .Values.repoURL }}
       targetRevision: {{ .Values.targetRevision }}
       ref: values
-    # PVCs na mesma Application do Deployment que as monta: em local-path (CI) elas
-    # só vinculam quando o pod existe. overlays/nas usa os PVs NFS criados pelo Ansible.
+    # PVCs in the same Application as the Deployment that mounts them: on local-path (CI) they
+    # only bind once the pod exists. overlays/nas uses the NFS PVs created by Ansible.
     - repoURL: {{ .Values.repoURL }}
       targetRevision: {{ .Values.targetRevision }}
       path: kubernetes/workloads/immich/storage/{{ ternary "overlays/nas" "base" .Values.nasStorage.enabled }}

@@ -1,5 +1,5 @@
-# Contact point de e-mail e política padrão (sidecar, label grafana_alert).
-# O destinatário vem do Secret grafana-smtp (env ALERT_EMAIL_TO): nada de e-mail no repo.
+# Email contact point and default policy (sidecar, label grafana_alert).
+# The recipient comes from the grafana-smtp Secret (env ALERT_EMAIL_TO): no email address in the repo.
 apiVersion: 1
 contactPoints:
   - orgId: 1
@@ -10,8 +10,8 @@ contactPoints:
         settings:
           addresses: $ALERT_EMAIL_TO
           singleEmail: true
-# Intervalo que cobre o dia inteiro: uma rota com mute_time_intervals: [always]
-# nunca notifica (o alerta continua visível na UI do Grafana).
+# Interval covering the whole day: a route with mute_time_intervals: [always]
+# never notifies (the alert stays visible in the Grafana UI).
 muteTimes:
   - orgId: 1
     name: always
@@ -26,7 +26,7 @@ policies:
     group_wait: 1m
     group_interval: 10m
     repeat_interval: 12h
-    # critical e warning chegam por e-mail em ritmos diferentes; info só aparece na UI.
+    # critical and warning arrive by email at different paces; info only shows in the UI.
     routes:
       - receiver: email
         object_matchers:

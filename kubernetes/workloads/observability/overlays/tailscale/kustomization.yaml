@@ -1,5 +1,5 @@
-# Notebook: segredos do Grafana (admin e SMTP), contact point de e-mail e o
-# otel-gateway na tailnet. O Ingress do Grafana vem do chart (template da Application).
+# Laptop: Grafana secrets (admin and SMTP), the email contact point and the
+# otel-gateway on the tailnet. The Grafana Ingress comes from the chart (Application template).
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: observability

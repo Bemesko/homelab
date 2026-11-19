@@ -1,10 +1,10 @@
-# Values do chart tempo (grafana-community, binário único), versão em
-# kubernetes/apps/values.yaml. Traces entram por OTLP do otel-gateway e ficam no
-# disco do notebook. Veja docs/adr/008.
+# Values for the tempo chart (grafana-community, single binary), version in
+# kubernetes/apps/values.yaml. Traces arrive over OTLP from the otel-gateway and live on the
+# laptop disk. See docs/adr/008.
 tempo:
   tag: 3.1.1@sha256:64e2fbd56d9c2b3412a4b430a58ea59e91a670b1e75f920a0c702213ad145044
   reportingEnabled: false
-  # Só OTLP: o coletor converte o que vier em outros formatos.
+  # OTLP only: the collector converts whatever arrives in other formats.
   receivers:
     otlp:
       protocols:
@@ -13,8 +13,8 @@ tempo:
         http:
           endpoint: 0.0.0.0:4318
   retention: 168h
-  # Service graphs e span metrics (RED) a partir dos traces. É a única escrita
-  # fora do OTLP: o Tempo só sabe enviar essas métricas por remote write.
+  # Service graphs and span metrics (RED) from the traces. It is the only write
+  # outside OTLP: Tempo can only send these metrics by remote write.
   metricsGenerator:
     enabled: true
     remoteWriteUrl: http://prometheus-server.observability.svc/api/v1/write

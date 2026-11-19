@@ -1,4 +1,4 @@
-# Concentra o OTLP (cluster, hosts, NAS) e exporta para os backends. Veja docs/adr/008.
+# Gathers the OTLP (cluster, hosts, NAS) and exports it to the backends. See docs/adr/008.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:

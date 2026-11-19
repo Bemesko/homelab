@@ -1,6 +1,6 @@
-# configuration.yaml do Home Assistant, versionado no Git (ConfigMap montado por
-# subPath: editar pela UI não funciona, mude aqui e faça push). Integrações
-# configuradas pela UI (Alexa Devices, Bluetooth...) ficam em /config/.storage.
+# Home Assistant configuration.yaml, versioned in Git (a ConfigMap mounted with
+# subPath: editing through the UI does not work, change it here and push). Integrations
+# configured through the UI (Alexa Devices, Bluetooth...) live in /config/.storage.
 default_config:
 
 homeassistant:
@@ -15,13 +15,13 @@ automation: !include automations.yaml
 script: !include scripts.yaml
 scene: !include scenes.yaml
 
-# Sem bloco http: desde o 2026.8 o HA guarda essa config em /config/.storage/http e
-# ignora o YAML; mudanças só valem depois de confirmadas na UI em até 5 min após o
-# restart. O proxy do Tailscale (Ingress "casa") chega pela rede de pods, então em
-# Settings > System > Network > HTTP server: "Trust X-Forwarded-For" ligado e
-# "Trusted proxies" = 10.42.0.0/16 (passo a passo no README).
+# No http block: since 2026.8 HA keeps that config in /config/.storage/http and
+# ignores the YAML; changes only take effect after being confirmed in the UI within 5 min of
+# the restart. The Tailscale proxy ("casa" Ingress) comes through the pod network, so in
+# Settings > System > Network > HTTP server: "Trust X-Forwarded-For" on and
+# "Trusted proxies" = 10.42.0.0/16 (step by step in the README).
 
-# Histórico no Postgres (CNPG); DB_URL vem do Secret home-assistant-database-app.
+# History in Postgres (CNPG); DB_URL comes from the home-assistant-database-app Secret.
 recorder:
   db_url: !env_var DB_URL
   purge_keep_days: 30

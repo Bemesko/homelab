@@ -1,17 +1,17 @@
-# Values do chart argo-cd, usados no helm install do bootstrap e no self-manage.
-# O Ingress via Tailscale é adicionado em kubernetes/apps/templates/argocd.yaml.
+# Values for the argo-cd chart, used by the bootstrap helm install and by the self-managed release.
+# The Tailscale Ingress is added in kubernetes/apps/templates/argocd.yaml.
 configs:
   params:
-    # TLS termina no proxy do Tailscale Operator
+    # TLS terminates at the Tailscale Operator proxy
     server.insecure: true
-    # Traces de sync/render/API por OTLP para o otel-agent (docs/adr/008).
+    # Sync/render/API traces over OTLP to the otel-agent (docs/adr/008).
     otlp.address: otel-agent.observability.svc:4317
     otlp.insecure: true
   cm:
-    # Habilita o generator KSOPS (exec KRM function) nas Applications kustomize.
+    # Enables the KSOPS generator (exec KRM function) in kustomize Applications.
     kustomize.buildOptions: --enable-alpha-plugins --enable-exec
-    # Health real das Applications filhas: sem isso as sync-waves do app-of-apps
-    # não esperam (p. ex.) o operator do CNPG ficar Healthy antes do Cluster.
+    # Real health for the child Applications: without it the app-of-apps sync-waves
+    # do not wait for (e.g.) the CNPG operator to become Healthy before the Cluster.
     resource.customizations.health.argoproj.io_Application: |
       hs = {}
       hs.status = "Progressing"
@@ -24,7 +24,7 @@ configs:
       end
       return hs
   repositories:
-    # Charts Helm via OCI (sem credenciais: repositório público).
+    # Helm charts over OCI (no credentials: public repository).
     immich-charts:
       name: immich-charts
       type: helm
@@ -35,8 +35,8 @@ dex:
 notifications:
   enabled: false
 
-# KSOPS: descriptografa *.sops.yaml no render, com a chave age do cluster
-# (Secret argocd/sops-age, criado pelo Ansible antes do ArgoCD). Veja docs/adr/004-ksops.md.
+# KSOPS: decrypts *.sops.yaml while rendering, with the cluster's age key
+# (Secret argocd/sops-age, created by Ansible before ArgoCD). See docs/adr/004-ksops.md.
 repoServer:
   env:
     - name: SOPS_AGE_KEY_FILE
@@ -62,7 +62,7 @@ repoServer:
       secret:
         secretName: sops-age
   volumeMounts:
-    # Só o ksops: o kustomize continua o que vem na imagem do ArgoCD.
+    # Only ksops: kustomize stays the one shipped in the ArgoCD image.
     - name: custom-tools
       mountPath: /usr/local/bin/ksops
       subPath: ksops
@@ -72,8 +72,8 @@ repoServer:
   metrics:
     enabled: true
 
-# Services de métricas lidos pelo otel-agent (receiver prometheus), que os envia por
-# OTLP ao Prometheus. argocd_app_info alimenta o alerta de Application fora de Healthy.
+# Metrics Services read by the otel-agent (prometheus receiver), which sends them over
+# OTLP to Prometheus. argocd_app_info feeds the alert for Applications out of Healthy.
 controller:
   metrics:
     enabled: true

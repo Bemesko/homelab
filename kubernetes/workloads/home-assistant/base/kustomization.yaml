@@ -1,5 +1,5 @@
-# base = CI (rede normal de pod, sem Bluetooth, sem Ingress).
-# overlays/tailscale = notebook (hostNetwork, D-Bus do host, https://casa.<sua-tailnet>).
+# base = CI (normal pod network, no Bluetooth, no Ingress).
+# overlays/tailscale = laptop (hostNetwork, the host's D-Bus, https://casa.<your-tailnet>).
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: home-assistant
