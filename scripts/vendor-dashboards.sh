@@ -85,7 +85,7 @@ YAML
 check() {
   local fail=0 uids f
   uids="$(mktemp)"
-  trap 'rm -f "$uids"' RETURN
+  trap 'rm -f "$uids"; trap - RETURN' RETURN
   while read -r name folder _url _up out; do
     [[ -z "$name" || "$name" == \#* ]] && continue
     f="${DIR}/${folder}/${name}.json"
@@ -128,7 +128,7 @@ vendor() {
   local update="$1" tmp new_lock name folder url up got
   tmp="$(mktemp -d)"
   new_lock="${tmp}/lock"
-  trap 'rm -rf "$tmp"' RETURN
+  trap 'rm -rf "$tmp"; trap - RETURN' RETURN
   while IFS= read -r line; do
     if [[ -z "$line" || "$line" == \#* ]]; then
       echo "$line" >>"$new_lock"
@@ -153,7 +153,7 @@ vendor() {
         echo "ERROR: output differs from the lock (patch changed? run --update)" >&2
         return 1
       }
-    check
+    (check)
   fi
 }
 
