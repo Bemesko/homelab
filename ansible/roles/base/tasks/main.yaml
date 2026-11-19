@@ -1,30 +1,30 @@
-- name: Instalar pacotes base
+- name: Install the base packages
   ansible.builtin.apt:
     name: "{{ base_packages }}"
     state: present
     update_cache: true
     cache_valid_time: 3600
 
-- name: Configurar sysctl para k3s
+- name: Configure sysctl for k3s
   ansible.builtin.copy:
     dest: /etc/sysctl.d/90-k3s.conf
     owner: root
     group: root
     mode: "0644"
     content: |
-      # Gerenciado pelo Ansible (2026-kubernetes)
+      # Managed by Ansible (homelab)
       fs.inotify.max_user_instances = 8192
       fs.inotify.max_user_watches = 524288
-  notify: Recarregar sysctl
+  notify: Reload sysctl
 
-- name: Verificar se o AppArmor está ativo no kernel
+- name: Check whether AppArmor is enabled in the kernel
   ansible.builtin.stat:
     path: /sys/kernel/security/apparmor/profiles
   register: base_apparmor
 
-# Antes do k3s: o containerd usa este perfil em vez de gerar o dele (veja o
-# comentário no arquivo; workaround de containerd#14485).
-- name: Instalar perfil AppArmor padrão dos containers
+# Before k3s: containerd uses this profile instead of generating its own (see the
+# comment in the file; workaround for containerd#14485).
+- name: Install the containers' default AppArmor profile
   ansible.builtin.copy:
     src: cri-containerd.apparmor.d
     dest: /etc/apparmor.d/cri-containerd.apparmor.d
@@ -33,9 +33,9 @@
     mode: "0644"
     validate: apparmor_parser --skip-kernel-load --quiet %s
   when: base_apparmor.stat.exists
-  notify: Recarregar perfil AppArmor dos containers
+  notify: Reload the containers' AppArmor profile
 
-- name: Baixar helm
+- name: Download helm
   ansible.builtin.get_url:
     url: "https://get.helm.sh/helm-{{ helm_version }}-linux-amd64.tar.gz"
     dest: "/var/cache/helm-{{ helm_version }}-linux-amd64.tar.gz"
@@ -43,22 +43,22 @@
     mode: "0644"
   register: base_helm_archive
 
-- name: Criar diretório versionado do helm
+- name: Create the versioned helm directory
   ansible.builtin.file:
     path: "/opt/helm-{{ helm_version }}"
     state: directory
     mode: "0755"
 
-- name: Extrair helm
+- name: Extract helm
   ansible.builtin.unarchive:
     src: "/var/cache/helm-{{ helm_version }}-linux-amd64.tar.gz"
     dest: "/opt/helm-{{ helm_version }}"
     remote_src: true
     creates: "/opt/helm-{{ helm_version }}/linux-amd64/helm"
-  # Em check mode o get_url não baixa o arquivo, então não há o que extrair.
+  # In check mode get_url does not download the file, so there is nothing to extract.
   when: not (ansible_check_mode and base_helm_archive is changed)
 
-- name: Linkar helm em /usr/local/bin
+- name: Link helm into /usr/local/bin
   ansible.builtin.file:
     src: "/opt/helm-{{ helm_version }}/linux-amd64/helm"
     dest: /usr/local/bin/helm

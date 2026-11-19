@@ -1,17 +1,17 @@
 argument_specs:
   main:
-    short_description: Notebook como servidor (ADR 012) — nunca suspende, desliga com bateria baixa e religa pelo RTC
+    short_description: Laptop as a server (ADR 012) — never suspends, shuts down on low battery and powers back on through the RTC
     options:
       power_lid_switch:
         type: str
         choices: [ignore, lock, poweroff]
         default: ignore
-        description: Ação do logind ao fechar a tampa (na tomada, na bateria e no dock).
+        description: logind action when the lid closes (on AC, on battery and docked).
       power_shutdown_percent:
         type: int
         default: 10
-        description: Na bateria, desliga ao chegar neste percentual.
+        description: On battery, shut down when reaching this percentage.
       power_rtc_wake_interval:
         type: int
         default: 1800
-        description: Segundos até o RTC religar depois de um desligamento pela bateria (0 desliga).
+        description: Seconds until the RTC powers back on after a low-battery shutdown (0 disables).

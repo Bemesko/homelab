@@ -1,4 +1,4 @@
-- name: Recarregar timers do apt
+- name: Reload the apt timers
   ansible.builtin.systemd_service:
     name: "{{ item }}"
     state: restarted
@@ -6,5 +6,5 @@
   loop:
     - apt-daily.timer
     - apt-daily-upgrade.timer
-  # Em check mode num host novo os arquivos não existem de fato.
+  # In check mode on a new host the files do not actually exist.
   when: not ansible_check_mode

@@ -1,7 +1,7 @@
-# Notebooks como servidores (ADR 012, issue #15). Roda no notebook do cluster e no NAS.
-# 1. Nunca suspender: tampa ignorada no logind, alvos de sono mascarados, GNOME sem
-#    suspensão por inatividade (foi o que derrubou o cluster em 2026-11-13).
-- name: Criar diretório de drop-ins do logind
+# Laptops as servers (ADR 012, issue #15). Runs on the cluster laptop and on the NAS.
+# 1. Never suspend: lid ignored in logind, sleep targets masked, GNOME without
+#    suspend on inactivity (which is what took the cluster down on 2026-11-13).
+- name: Create the logind drop-in directory
   ansible.builtin.file:
     path: /etc/systemd/logind.conf.d
     state: directory
@@ -9,27 +9,27 @@
     group: root
     mode: "0755"
 
-- name: Remover o drop-in antigo da tampa
+- name: Remove the old lid drop-in
   ansible.builtin.file:
     path: /etc/systemd/logind.conf.d/90-k3s-lid.conf
     state: absent
-  notify: Recarregar systemd-logind
+  notify: Reload systemd-logind
 
-- name: Configurar a tampa no logind (tomada, bateria e dock)
+- name: Configure the lid in logind (AC, battery and dock)
   ansible.builtin.copy:
     dest: /etc/systemd/logind.conf.d/90-homelab-power.conf
     owner: root
     group: root
     mode: "0644"
     content: |
-      # Gerenciado pelo Ansible (2026-kubernetes), role power. Veja o ADR 012.
+      # Managed by Ansible (homelab), role power. See ADR 012.
       [Login]
       HandleLidSwitch={{ power_lid_switch }}
       HandleLidSwitchExternalPower={{ power_lid_switch }}
       HandleLidSwitchDocked={{ power_lid_switch }}
-  notify: Recarregar systemd-logind
+  notify: Reload systemd-logind
 
-- name: Mascarar os alvos de suspensão e hibernação
+- name: Mask the suspend and hibernate targets
   ansible.builtin.systemd_service:
     name: "{{ item }}"
     masked: true
@@ -40,15 +40,15 @@
     - hybrid-sleep.target
     - suspend-then-hibernate.target
 
-- name: Verificar se o host tem dconf (GNOME)
+- name: Check whether the host has dconf (GNOME)
   ansible.builtin.stat:
     path: /usr/bin/dconf
   register: power_dconf
 
-- name: Configurar o GNOME para não suspender por inatividade
+- name: Configure GNOME not to suspend on inactivity
   when: power_dconf.stat.exists
   block:
-    - name: Criar diretórios do banco local do dconf
+    - name: Create the dconf local database directories
       ansible.builtin.file:
         path: "{{ item }}"
         state: directory
@@ -59,7 +59,7 @@
         - /etc/dconf/profile
         - /etc/dconf/db/local.d/locks
 
-    - name: Criar o perfil de usuário do dconf (se ainda não existe)
+    - name: Create the dconf user profile (if it does not exist yet)
       ansible.builtin.copy:
         dest: /etc/dconf/profile/user
         owner: root
@@ -70,38 +70,38 @@
           user-db:user
           system-db:local
       register: power_dconf_profile_created
-      notify: Atualizar banco do dconf
+      notify: Update the dconf database
 
-    # Um perfil que já existia pode não ler o banco local (o copy não o sobrescreve).
-    # Em check mode, um perfil a criar ainda não está no disco.
-    - name: Conferir um perfil de usuário do dconf já existente
+    # A profile that already existed may not read the local database (copy does not overwrite it).
+    # In check mode, a profile still to be created is not on disk yet.
+    - name: Check an existing dconf user profile
       when: not (ansible_check_mode and power_dconf_profile_created is changed)
       block:
-        - name: Ler o perfil de usuário do dconf
+        - name: Read the dconf user profile
           ansible.builtin.slurp:
             src: /etc/dconf/profile/user
           register: power_dconf_profile
 
-        - name: Garantir que o perfil lê o banco local
+        - name: Ensure the profile reads the local database
           ansible.builtin.assert:
             that:
               - "'system-db:local' in (power_dconf_profile.content | b64decode)"
-            fail_msg: "/etc/dconf/profile/user existe sem system-db:local; ajuste à mão."
+            fail_msg: "/etc/dconf/profile/user exists without system-db:local; fix it by hand."
 
-    - name: Definir os padrões de energia do GNOME
+    - name: Set the GNOME power defaults
       ansible.builtin.copy:
         dest: /etc/dconf/db/local.d/90-homelab-power
         owner: root
         group: root
         mode: "0644"
         content: |
-          # Gerenciado pelo Ansible (2026-kubernetes), role power. Veja o ADR 012.
+          # Managed by Ansible (homelab), role power. See ADR 012.
           [org/gnome/settings-daemon/plugins/power]
           sleep-inactive-ac-type='nothing'
           sleep-inactive-battery-type='nothing'
-      notify: Atualizar banco do dconf
+      notify: Update the dconf database
 
-    - name: Travar os padrões de energia do GNOME
+    - name: Lock the GNOME power defaults
       ansible.builtin.copy:
         dest: /etc/dconf/db/local.d/locks/90-homelab-power
         owner: root
@@ -110,33 +110,33 @@
         content: |
           /org/gnome/settings-daemon/plugins/power/sleep-inactive-ac-type
           /org/gnome/settings-daemon/plugins/power/sleep-inactive-battery-type
-      notify: Atualizar banco do dconf
+      notify: Update the dconf database
 
-# 2. Desligar com bateria baixa e religar pelo RTC (guardião próprio: o NAS não tem
-#    upower, e o upower do notebook só age em 2% e tentaria HybridSleep).
-- name: Verificar se o host tem a configuração do UPower
+# 2. Shut down on low battery and power back on through the RTC (our own guard: the NAS has no
+#    upower, and the laptop's upower only acts at 2% and would try HybridSleep).
+- name: Check whether the host has the UPower config
   ansible.builtin.stat:
     path: /etc/UPower/UPower.conf
   register: power_upower_conf
 
-- name: Fazer o UPower desligar (não hibernar) se a bateria esgotar
+- name: Make UPower power off (not hibernate) if the battery runs out
   ansible.builtin.lineinfile:
     path: /etc/UPower/UPower.conf
     regexp: '^CriticalPowerAction='
     line: CriticalPowerAction=PowerOff
   when: power_upower_conf.stat.exists
-  notify: Reiniciar upower
+  notify: Restart upower
 
-- name: Instalar o guardião de energia
+- name: Install the power guard
   ansible.builtin.copy:
     src: homelab-power-guard
     dest: /usr/local/sbin/homelab-power-guard
     owner: root
     group: root
     mode: "0755"
-  notify: Reiniciar guardião de energia
+  notify: Restart the power guard
 
-- name: Instalar as units do guardião e da checagem de boot
+- name: Install the guard and boot-check units
   ansible.builtin.template:
     src: "{{ item }}.j2"
     dest: "/etc/systemd/system/{{ item }}"
@@ -147,28 +147,28 @@
     - homelab-power-guard.service
     - homelab-power-gate.service
   notify:
-    - Recarregar systemd
-    - Reiniciar guardião de energia
+    - Reload systemd
+    - Restart the power guard
 
-- name: Aplicar os handlers antes de habilitar as units
+- name: Run the handlers before enabling the units
   ansible.builtin.meta: flush_handlers
 
-- name: Habilitar a checagem de boot
+- name: Enable the boot check
   ansible.builtin.systemd_service:
     name: homelab-power-gate.service
     enabled: true
-  # Em check mode a unit ainda não existe no host.
+  # In check mode the unit does not exist on the host yet.
   when: not ansible_check_mode
 
-- name: Habilitar e iniciar o guardião de energia
+- name: Enable and start the power guard
   ansible.builtin.systemd_service:
     name: homelab-power-guard.service
     enabled: true
     state: started
   when: not ansible_check_mode
 
-# Verificações
-- name: Ler a configuração efetiva do logind
+# Checks
+- name: Read the effective logind configuration
   ansible.builtin.command: >-
     busctl get-property org.freedesktop.login1 /org/freedesktop/login1
     org.freedesktop.login1.Manager {{ item }}
@@ -180,20 +180,20 @@
   changed_when: false
   check_mode: false
 
-- name: Ler o estado dos alvos de sono
+- name: Read the state of the sleep targets
   ansible.builtin.command: systemctl is-enabled sleep.target suspend.target hibernate.target hybrid-sleep.target # noqa: command-instead-of-module
   register: power_sleep_targets
   changed_when: false
   failed_when: false
   check_mode: false
 
-- name: Garantir tampa ignorada e sono mascarado
+- name: Ensure the lid is ignored and sleep is masked
   ansible.builtin.assert:
     that:
       - power_logind_effective.results | map(attribute='stdout') | unique | list == ['s "' ~ power_lid_switch ~ '"']
       - power_sleep_targets.stdout_lines | unique | list == ['masked']
     fail_msg: >-
       logind: {{ power_logind_effective.results | map(attribute='stdout') | list }};
-      alvos de sono: {{ power_sleep_targets.stdout_lines }}
-  # Em check mode a configuração ainda não foi gravada nem recarregada.
+      sleep targets: {{ power_sleep_targets.stdout_lines }}
+  # In check mode the configuration has not been written or reloaded yet.
   when: not ansible_check_mode

@@ -1,8 +1,8 @@
-# Gerenciado pelo Ansible (2026-kubernetes), role power. Veja o ADR 012.
-# Só age quando o último desligamento foi do guardião (marcador em /var/lib/homelab-power):
-# se a energia não voltou, desliga de novo antes de rede, k3s e samba subirem.
+# Managed by Ansible (homelab), role power. See ADR 012.
+# Only acts when the last shutdown came from the guard (marker in /var/lib/homelab-power):
+# if power is not back, shuts down again before the network, k3s and samba start.
 [Unit]
-Description=Confere a energia no boot depois de um desligamento pela bateria
+Description=Check the power at boot after a low-battery shutdown
 DefaultDependencies=no
 After=local-fs.target systemd-udev-trigger.service
 Before=network-pre.target k3s.service smbd.service shutdown.target

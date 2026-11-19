@@ -1,13 +1,13 @@
-# Precisa do role tailscale_check (tailscale_check_dns_name) e de k3s instalado.
-- name: Exportar kubeconfig para o controller
+# Needs the tailscale_check role (tailscale_check_dns_name) and k3s installed.
+- name: Export the kubeconfig to the controller
   when: not ansible_check_mode or k3s_installed_version | default('') | length > 0
   block:
-    - name: Ler kubeconfig do k3s
+    - name: Read the k3s kubeconfig
       ansible.builtin.slurp:
         src: /etc/rancher/k3s/k3s.yaml
       register: kubeconfig_export_raw
 
-    - name: Criar ~/.kube no controller
+    - name: Create ~/.kube on the controller
       ansible.builtin.file:
         path: "{{ kubeconfig_local_path | dirname }}"
         state: directory
@@ -15,7 +15,7 @@
       delegate_to: localhost
       become: false
 
-    - name: Gravar kubeconfig no controller (fora do repo)
+    - name: Write the kubeconfig on the controller (outside the repo)
       ansible.builtin.copy:
         dest: "{{ kubeconfig_local_path }}"
         mode: "0600"

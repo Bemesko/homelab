@@ -1,23 +1,23 @@
-# Somente leitura: o Tailscale é o canal de acesso ao notebook, então este role
-# nunca altera o daemon nem sua configuração.
-- name: Ler status do Tailscale
+# Read-only: Tailscale is the access channel to the laptop, so this role
+# never changes the daemon or its configuration.
+- name: Read the Tailscale status
   ansible.builtin.command: tailscale status --json
   register: tailscale_check_raw
   changed_when: false
   check_mode: false
 
-- name: Interpretar status do Tailscale
+- name: Parse the Tailscale status
   ansible.builtin.set_fact:
     tailscale_check_status: "{{ tailscale_check_raw.stdout | from_json }}"
 
-- name: Garantir que o Tailscale está logado e rodando
+- name: Ensure Tailscale is logged in and running
   ansible.builtin.assert:
     that:
       - tailscale_check_status.BackendState == 'Running'
       - tailscale_check_status.Self.DNSName | length > 0
-    fail_msg: Tailscale não está em estado Running neste host.
+    fail_msg: Tailscale is not in the Running state on this host.
 
-- name: Expor nome MagicDNS e IPs do host
+- name: Expose the host's MagicDNS name and IPs
   ansible.builtin.set_fact:
     tailscale_check_dns_name: "{{ tailscale_check_status.Self.DNSName | regex_replace('\\.$', '') }}"
     tailscale_check_ips: "{{ tailscale_check_status.Self.TailscaleIPs }}"

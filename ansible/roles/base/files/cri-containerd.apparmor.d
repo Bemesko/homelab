@@ -1,23 +1,23 @@
-# Gerenciado pelo Ansible (2026-kubernetes), role base.
+# Managed by Ansible (homelab), role base.
 #
-# Perfil AppArmor padrão dos containers (RuntimeDefault). É o template do
-# containerd v2.3.4 (contrib/apparmor/template.go) renderizado como o containerd
-# faria neste host (abi 3.0, tunables/global, abstractions/base, daemon
-# unconfined), MAIS as duas regras marcadas com "stacked" e a regra "homelab" de D-Bus abaixo.
+# Default AppArmor profile for the containers (RuntimeDefault). It is the
+# containerd v2.3.4 template (contrib/apparmor/template.go) rendered the way containerd
+# would on this host (abi 3.0, tunables/global, abstractions/base, daemon
+# unconfined), PLUS the two rules marked "stacked" and the "homelab" D-Bus rule below.
 #
-# Por quê: com kernel.apparmor_restrict_unprivileged_unconfined=1 (Ubuntu 26.04,
-# kernel 7.0.0-42+) o change_onexec do runc vira stacking e os processos do
-# container ficam com o rótulo "cri-containerd.apparmor.d//&unconfined". O peer
-# sem o sufixo não casa, e os sinais entre processos do mesmo container são
-# negados: o Postgres (CNPG) trava na recuperação e lota as conexões.
+# Why: with kernel.apparmor_restrict_unprivileged_unconfined=1 (Ubuntu 26.04,
+# kernel 7.0.0-42+) runc's change_onexec turns into stacking and the container's
+# processes get the label "cri-containerd.apparmor.d//&unconfined". The peer
+# without the suffix does not match, and signals between processes of the same container are
+# denied: Postgres (CNPG) hangs in recovery and fills up the connections.
 #
-# O containerd não gera o próprio perfil quando já existe um carregado com este
-# nome, e o apparmor.service carrega este arquivo no boot, antes do k3s.
+# containerd does not generate its own profile when one with this name is
+# already loaded, and apparmor.service loads this file at boot, before k3s.
 #
-# Remover quando o k3s trouxer um containerd com a correção:
+# Remove once k3s ships a containerd with the fix:
 #   https://github.com/containerd/containerd/issues/14485
-#   https://github.com/containerd/containerd/pull/14487 (usa //&*; aqui usamos
-#   só o rótulo observado, //&unconfined)
+#   https://github.com/containerd/containerd/pull/14487 (uses //&*; here we use
+#   only the observed label, //&unconfined)
 
 abi <abi/3.0>,
 
@@ -40,12 +40,12 @@ profile cri-containerd.apparmor.d flags=(attach_disconnected,mediate_deleted) {
   signal (receive) peer=unconfined,
   # Container processes may send signals amongst themselves.
   signal (send,receive) peer=cri-containerd.apparmor.d,
-  # stacked: mesmo peer com o rótulo empilhado (containerd#14485).
+  # stacked: same peer with the stacked label (containerd#14485).
   signal (send,receive) peer="cri-containerd.apparmor.d//&unconfined",
 
-  # homelab: D-Bus do sistema com os serviços não confinados do host (dbus-daemon,
-  # BlueZ). Só alcança o barramento quem monta /run/dbus do host: hoje apenas o
-  # Home Assistant (Bluetooth, ADR 009). Sem o socket montado, a regra não abre nada.
+  # homelab: system D-Bus with the host's unconfined services (dbus-daemon,
+  # BlueZ). Only containers that mount the host's /run/dbus reach the bus: today only
+  # Home Assistant (Bluetooth, ADR 009). Without the socket mounted, the rule opens nothing.
   dbus (send,receive) bus=system peer=(label=unconfined),
 
   deny @{PROC}/* w,   # deny write for all files directly in /proc (not in a subdir)
@@ -70,6 +70,6 @@ profile cri-containerd.apparmor.d flags=(attach_disconnected,mediate_deleted) {
   # allow processes within the container to trace each other,
   # provided all other LSM and yama setting allow it.
   ptrace (trace,tracedby,read,readby) peer=cri-containerd.apparmor.d,
-  # stacked: mesmo peer com o rótulo empilhado (containerd#14485).
+  # stacked: same peer with the stacked label (containerd#14485).
   ptrace (trace,tracedby,read,readby) peer="cri-containerd.apparmor.d//&unconfined",
 }

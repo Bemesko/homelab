@@ -1,6 +1,6 @@
 argument_specs:
   main:
-    short_description: Copia o kubeconfig para o controller apontando para o MagicDNS do notebook
+    short_description: Copies the kubeconfig to the controller, pointing at the laptop's MagicDNS
     options:
       kubeconfig_local_path:
         type: path
