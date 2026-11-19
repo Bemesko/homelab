@@ -1,6 +1,6 @@
 argument_specs:
   main:
-    short_description: Instala e configura k3s single-node
+    short_description: Installs and configures single-node k3s
     options:
       k3s_version:
         type: str
@@ -12,11 +12,11 @@ argument_specs:
         type: bool
         required: true
       ghcr_pull_username:
-        description: Usuário do GitHub dono do PAT de pull do GHCR
+        description: GitHub user that owns the GHCR pull PAT
         type: str
         default: ""
       ghcr_pull_token:
-        description: PAT classic só com read:packages (vazio = sem registries.yaml, como no CI)
+        description: Classic PAT with only read:packages (empty = no registries.yaml, as in CI)
         type: str
         default: ""
         no_log: true

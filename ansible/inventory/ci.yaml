@@ -1,4 +1,4 @@
-# Usado apenas pelo job e2e do CI: o próprio runner vira o nó k3s.
+# Used only by the CI e2e job: the runner itself becomes the k3s node.
 all:
   children:
     k3s_server:

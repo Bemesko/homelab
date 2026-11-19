@@ -1,7 +1,7 @@
 base_packages:
   - curl
   - jq
-  # cliente NFS: o kubelet monta os PVs do NAS (role nas_storage)
+  # NFS client: the kubelet mounts the NAS PVs (nas_storage role)
   - nfs-common
   - python3-kubernetes
   - python3-yaml

@@ -1,6 +1,6 @@
 argument_specs:
   main:
-    short_description: Segredos iniciais, ArgoCD e Application raiz
+    short_description: Initial secrets, ArgoCD and the root Application
     options:
       git_repo_url:
         type: str
@@ -29,20 +29,20 @@ argument_specs:
         required: true
         no_log: true
       sops_age_cluster_key:
-        description: Chave privada age (AGE-SECRET-KEY-1...) que o KSOPS usa no repo-server do ArgoCD
+        description: age private key (AGE-SECRET-KEY-1...) that KSOPS uses in the ArgoCD repo-server
         type: str
         required: true
         no_log: true
       argocd_github_app_id:
-        description: ID da GitHub App com que o ArgoCD lê os repos privados da org (vazio = sem credencial, como no CI)
+        description: ID of the GitHub App ArgoCD uses to read the org's private repos (empty = no credential, as in CI)
         type: str
         default: ""
       argocd_github_app_installation_id:
-        description: ID da instalação da GitHub App na org bernats-homelab
+        description: ID of the GitHub App installation in the bernats-homelab org
         type: str
         default: ""
       argocd_github_app_private_key:
-        description: Chave privada (PEM) da GitHub App
+        description: Private key (PEM) of the GitHub App
         type: str
         default: ""
         no_log: true

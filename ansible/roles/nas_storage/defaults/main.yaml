@@ -1,11 +1,11 @@
 nas_storage_kubeconfig: /etc/rancher/k3s/k3s.yaml
-# Mesmas opções usadas no teste de montagem e nos PVs. NFSv3 porque o OMV exporta
-# /export como raiz NFSv4 (fsid=0): em v4 o path seria relativo e não bateria com o
-# que o showmount lista. Em v3 o path do showmount é exatamente o que o PV monta.
+# Same options used in the test mount and in the PVs. NFSv3 because OMV exports
+# /export as the NFSv4 root (fsid=0): in v4 the path would be relative and would not match
+# what showmount lists. In v3 the showmount path is exactly what the PV mounts.
 nas_storage_mount_options: [hard, nfsvers=3]
-# Um PV por volume, pré-vinculado (claimRef) à PVC de mesmo nome no namespace do app.
-# `export` é a chave em nas_storage_exports (inventário); `capacity` é informativa
-# (NFS não impõe cota). `write_test` grava e apaga um arquivo na montagem de teste.
+# One PV per volume, pre-bound (claimRef) to the PVC with the same name in the app's namespace.
+# `export` is the key in nas_storage_exports (inventory); `capacity` is informational
+# (NFS enforces no quota). `write_test` writes and deletes a file in the test mount.
 nas_storage_volumes:
   - name: immich-photos
     export: photos

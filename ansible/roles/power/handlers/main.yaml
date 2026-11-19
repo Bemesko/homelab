@@ -1,24 +1,24 @@
-# SIGHUP faz o logind reler a configuração sem reiniciar: sessões (SSH e gráfica) continuam.
-- name: Recarregar systemd-logind
+# SIGHUP makes logind re-read its configuration without restarting: sessions (SSH and graphical) stay up.
+- name: Reload systemd-logind
   ansible.builtin.command: systemctl kill --kill-whom=main --signal=SIGHUP systemd-logind.service
   changed_when: true
 
-- name: Atualizar banco do dconf
+- name: Update the dconf database
   ansible.builtin.command: dconf update
   changed_when: true
 
-- name: Reiniciar upower
+- name: Restart upower
   ansible.builtin.systemd_service:
     name: upower.service
     state: restarted
   when: not ansible_check_mode
 
-- name: Recarregar systemd
+- name: Reload systemd
   ansible.builtin.systemd_service:
     daemon_reload: true
   when: not ansible_check_mode
 
-- name: Reiniciar guardião de energia
+- name: Restart the power guard
   ansible.builtin.systemd_service:
     name: homelab-power-guard.service
     state: restarted
