@@ -75,7 +75,7 @@ def main():
         url = args.prometheus.rstrip("/") + "/api/v1/label/__name__/values"
         have = set(json.load(urllib.request.urlopen(url))["data"])
     else:
-        ap.error("informe --names ou --prometheus")
+        ap.error("pass --names or --prometheus")
     files = []
     for p in map(pathlib.Path, args.paths):
         files += sorted(p.rglob("*.json")) if p.is_dir() else [p]
