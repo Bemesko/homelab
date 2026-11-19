@@ -50,14 +50,14 @@ repos:
       - id: no-local-inventory
         name: real inventory (hostname/user) must not be committed
         language: fail
-        entry: "Apenas inventory.example.yaml e ci.yaml podem ser versionados em ansible/inventory/"
+        entry: "Only inventory.example.yaml and ci.yaml may be versioned in ansible/inventory/"
         files: ^ansible/inventory/
         exclude: ^ansible/inventory/(inventory\.example|ci)\.yaml$
 
       - id: no-kubeconfig
         name: kubeconfig must not be committed
         language: fail
-        entry: "kubeconfigs vivem em ~/.kube/, fora do repo"
+        entry: "kubeconfigs live in ~/.kube/, outside the repo"
         files: (^|/)(kubeconfig[^/]*|[^/]*\.kubeconfig)$
 
       - id: sops-encrypted
@@ -111,7 +111,7 @@ repos:
         files: ^kubernetes/apps/
 
       - id: validate-manifests
-        name: kubeconform + kube-linter nos manifests do repo
+        name: kubeconform + kube-linter on the repo manifests
         language: script
         entry: scripts/validate-manifests.sh
         pass_filenames: false
