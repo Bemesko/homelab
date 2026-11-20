@@ -1,70 +1,70 @@
-# Rode no WSL (máquina de controle). O CI chama os mesmos targets.
+# Run in WSL (control machine). CI calls the same targets.
 SHELL := /usr/bin/env bash
 .SHELLFLAGS := -euo pipefail -c
 .DEFAULT_GOAL := help
 
-# Em /mnt/c o Ansible ignora ansible.cfg do cwd (diretório world-writable); ANSIBLE_CONFIG resolve.
+# On /mnt/c Ansible ignores ansible.cfg in the cwd (world-writable directory); ANSIBLE_CONFIG solves it.
 export ANSIBLE_CONFIG := $(CURDIR)/ansible/ansible.cfg
 export PATH := $(HOME)/.local/bin:$(PATH)
 
-# ASK_BECOME_PASS=0 quando o sudo do notebook não pede senha (NOPASSWD).
+# ASK_BECOME_PASS=0 when the laptop's sudo does not ask for a password (NOPASSWD).
 ASK_BECOME_PASS ?= 1
 BECOME_FLAGS := $(if $(filter 1,$(ASK_BECOME_PASS)),--ask-become-pass,)
 PLAYBOOK := ansible-playbook $(BECOME_FLAGS)
 INVENTORY := ansible/inventory/local.yaml
 
-# OpenTofu (Storage Box da Hetzner): HCLOUD_TOKEN e TF_VAR_state_passphrase vêm do SOPS.
+# OpenTofu (Hetzner Storage Box): HCLOUD_TOKEN and TF_VAR_state_passphrase come from SOPS.
 TOFU_DIR := infra/hetzner
 TOFU := sops exec-env $(TOFU_DIR)/secrets.sops.yaml
 
 .PHONY: help deps lint test-unit test-render test check-inventory plan apply idempotency kernel-upgrade kubeconfig reset \
 	tofu-plan tofu-apply backup-secret
 
-help: ## Lista os targets
+help: ## List the targets
 	@grep -hE '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}'
 
-deps: ## Instala as ferramentas da máquina de controle (versões fixadas)
+deps: ## Install the control machine tools (pinned versions)
 	./scripts/setup-control-node.sh
 
-lint: ## Todos os hooks do pre-commit em todos os arquivos
+lint: ## All pre-commit hooks on all files
 	pre-commit run --all-files
 
-test-unit: ## helm lint + helm unittest do chart app-of-apps
+test-unit: ## helm lint + helm unittest of the app-of-apps chart
 	helm lint --strict kubernetes/apps
 	helm unittest kubernetes/apps
 
-test-render: ## Renderiza manifests do repo e charts upstream e valida com kubeconform/kube-linter
+test-render: ## Render the repo manifests and upstream charts and validate them with kubeconform/kube-linter
 	./scripts/validate-manifests.sh local
 	./scripts/validate-manifests.sh upstream
 
-test: lint test-unit test-render ## Tudo que roda sem cluster
+test: lint test-unit test-render ## Everything that runs without a cluster
 
 check-inventory:
-	@test -f $(INVENTORY) || { echo "Crie $(INVENTORY) a partir de ansible/inventory/inventory.example.yaml"; exit 1; }
+	@test -f $(INVENTORY) || { echo "Create $(INVENTORY) from ansible/inventory/inventory.example.yaml"; exit 1; }
 
-plan: check-inventory ## Dry-run (--check --diff) contra o notebook
+plan: check-inventory ## Dry run (--check --diff) against the laptop
 	cd ansible && $(PLAYBOOK) site.yaml --check --diff
 
-apply: check-inventory lint ## Aplica no notebook (roda lint antes)
+apply: check-inventory lint ## Apply to the laptop (runs lint first)
 	cd ansible && $(PLAYBOOK) site.yaml
 
-idempotency: check-inventory ## Reaplica e falha se algo mudar
+idempotency: check-inventory ## Re-apply and fail if anything changes
 	cd ansible && ../scripts/assert-idempotent.sh site.yaml $(BECOME_FLAGS)
 
-kernel-upgrade: check-inventory ## Atualiza o kernel, reinicia o notebook e valida o cluster (ADR 010)
+kernel-upgrade: check-inventory ## Upgrade the kernel, reboot the laptop and validate the cluster (ADR 010)
 	cd ansible && $(PLAYBOOK) kernel-upgrade.yaml
 
-kubeconfig: check-inventory ## Atualiza ~/.kube/notebook.yaml
+kubeconfig: check-inventory ## Update ~/.kube/notebook.yaml
 	cd ansible && $(PLAYBOOK) site.yaml --tags kubeconfig
 
-reset: check-inventory ## Remove o k3s do notebook (pede confirmação)
+reset: check-inventory ## Remove k3s from the laptop (asks for confirmation)
 	cd ansible && $(PLAYBOOK) reset.yaml
 
-tofu-plan: ## OpenTofu: mostra o que muda no Storage Box da Hetzner
+tofu-plan: ## OpenTofu: show what changes on the Hetzner Storage Box
 	$(TOFU) 'tofu -chdir=$(TOFU_DIR) init -input=false -lockfile=readonly >/dev/null && tofu -chdir=$(TOFU_DIR) plan -input=false'
 
-tofu-apply: ## OpenTofu: aplica no Storage Box (cobra na conta Hetzner; pede confirmação)
+tofu-apply: ## OpenTofu: apply to the Storage Box (bills the Hetzner account; asks for confirmation)
 	$(TOFU) 'tofu -chdir=$(TOFU_DIR) init -input=false -lockfile=readonly >/dev/null && tofu -chdir=$(TOFU_DIR) apply -input=false'
 
-backup-secret: ## Preenche o repositório e o known_hosts do restic a partir do state do OpenTofu
+backup-secret: ## Fill in the restic repository and known_hosts from the OpenTofu state
 	$(TOFU) ./scripts/backup-fill-secret.sh

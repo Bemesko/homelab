@@ -1,29 +1,29 @@
-# 004 — Segredos dos apps com KSOPS no ArgoCD
+# 004 — App secrets with KSOPS in ArgoCD
 
-- **Status:** aceito
-- **Data:** 2026-11-01
-- **Evolui:** [002](002-sops-age-secrets.md)
+- **Status:** accepted
+- **Date:** 2026-11-01
+- **Evolves:** [002](002-sops-age-secrets.md)
 
-## Contexto
+## Context
 
-O ADR 002 deixou os segredos a cargo do Ansible no bootstrap. Isso serve para o OAuth do Tailscale, mas cada app novo com segredo exigiria uma task nova e um `make apply`, e o segredo ficaria fora do GitOps. A ideia é commitar o segredo criptografado ao lado do app e deixar o ArgoCD sincronizar.
+ADR 002 left secrets to Ansible during the bootstrap. That works for the Tailscale OAuth client, but every new app with a secret would need a new task and a `make apply`, and the secret would sit outside GitOps. The idea is to commit the encrypted secret next to the app and let ArgoCD sync it.
 
-## Decisão
+## Decision
 
-- **KSOPS** no `repo-server` do ArgoCD. Um init container copia o binário (imagem fixada por digest), e `kustomize.buildOptions` habilita `--enable-alpha-plugins --enable-exec`. Os apps declaram um generator `viaduct.ai/v1 ksops` que aponta para os seus `*.sops.yaml`.
-- **Chave age própria do cluster**, separada da do WSL:
-  - a privada fica no Secret `argocd/sops-age`, que o Ansible cria a partir de `ansible/secrets/secrets.sops.yaml` (rota do ADR 002) antes de o ArgoCD subir;
-  - os arquivos em `kubernetes/` são criptografados para as duas chaves (`.sops.yaml`): WSL para editar, cluster para sincronizar;
-  - `ansible/secrets/` continua só com a chave do WSL.
-- **`unencrypted_regex: ^(apiVersion|metadata|kind|type)$`** nos manifests: só `data`/`stringData` são criptografados. Assim o diff mostra qual Secret mudou, e o render offline consegue gerar a estrutura.
-- **Chave de teste do CI** (`tests/ci-age.key`), **pública de propósito**:
-  - é destinatária só do demo `kubernetes/workloads/hello-world/base/demo-secret.sops.yaml`, para o e2e exercitar o caminho real (ArgoCD → KSOPS → Secret);
-  - o hook `sops-encrypted` barra essa chave em qualquer outro caminho, e o gitleaks só libera esse arquivo.
-- **Validação offline com stub.** `scripts/ksops-stub.py` substitui o ksops no pre-commit e no CI. Ele gera o Secret com valores placeholder, valida a estrutura com kubeconform/kube-linter e não precisa de chave.
+- **KSOPS** in the ArgoCD `repo-server`. An init container copies the binary (image pinned by digest), and `kustomize.buildOptions` enables `--enable-alpha-plugins --enable-exec`. Apps declare a `viaduct.ai/v1 ksops` generator pointing at their `*.sops.yaml` files.
+- **The cluster's own age key**, separate from the WSL one:
+  - the private key lives in the `argocd/sops-age` Secret, which Ansible creates from `ansible/secrets/secrets.sops.yaml` (the ADR 002 path) before ArgoCD starts;
+  - files under `kubernetes/` are encrypted to both keys (`.sops.yaml`): WSL to edit, the cluster to sync;
+  - `ansible/secrets/` still uses only the WSL key.
+- **`unencrypted_regex: ^(apiVersion|metadata|kind|type)$`** in the manifests: only `data`/`stringData` are encrypted. That way the diff shows which Secret changed, and the offline render can produce the structure.
+- **CI test key** (`tests/ci-age.key`), **public on purpose**:
+  - it is a recipient only of the demo `kubernetes/workloads/hello-world/base/demo-secret.sops.yaml`, so the e2e exercises the real path (ArgoCD → KSOPS → Secret);
+  - the `sops-encrypted` hook blocks this key on any other path, and gitleaks only allows that file.
+- **Offline validation with a stub.** `scripts/ksops-stub.py` replaces ksops in pre-commit and CI. It generates the Secret with placeholder values, validates the structure with kubeconform/kube-linter and needs no key.
 
-## Consequências
+## Consequences
 
-- **A chave do cluster passa a viver no cluster.** Quem tiver admin do cluster (kubeconfig) ou ler o disco do notebook descriptografa os segredos de `kubernetes/`, mas não os de `ansible/secrets/`. Se ela vazar: gere outra, atualize `.sops.yaml` e `secrets.sops.yaml`, rode `sops updatekeys` nos arquivos de `kubernetes/` e depois `make apply`.
-- **A chave do WSL continua sendo a raiz:** ela descriptografa tudo, inclusive a chave do cluster.
-- **Recriar o cluster continua sendo só `make apply`:** a chave do cluster vem do `secrets.sops.yaml`.
-- **Nenhum segredo real é testado no CI.** O que o e2e garante é o mecanismo (init container, montagem da chave, buildOptions, generator), e não os valores.
+- **The cluster key now lives in the cluster.** Anyone with cluster admin (kubeconfig) or read access to the laptop disk can decrypt the secrets under `kubernetes/`, but not those in `ansible/secrets/`. If it leaks: generate a new one, update `.sops.yaml` and `secrets.sops.yaml`, run `sops updatekeys` on the files under `kubernetes/`, then `make apply`.
+- **The WSL key is still the root:** it decrypts everything, including the cluster key.
+- **Rebuilding the cluster is still just `make apply`:** the cluster key comes from `secrets.sops.yaml`.
+- **No real secret is tested in CI.** What the e2e guarantees is the mechanism (init container, key mount, buildOptions, generator), not the values.

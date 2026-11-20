@@ -1,20 +1,20 @@
-# 001 — k3s + Ansible + ArgoCD no notebook
+# 001 — k3s + Ansible + ArgoCD on the laptop
 
-- **Status:** aceito
-- **Data:** 2026-10-31
+- **Status:** accepted
+- **Date:** 2026-10-31
 
-## Contexto
+## Context
 
-O cluster precisa rodar num notebook pessoal com Ubuntu 26.04, com poucos recursos, e ser reproduzível depois de uma reinstalação do sistema.
+The cluster has to run on a personal laptop with Ubuntu 26.04, with few resources, and be reproducible after a system reinstall.
 
-## Decisão
+## Decision
 
-- **k3s** direto no host, single-node. É um binário só, consome pouco, e o Traefik embutido fica desligado porque o ingress é feito pelo Tailscale Operator.
-- **Ansible** é idempotente e cobre só o host e o bootstrap: pacotes, sysctl, k3s, Secrets iniciais, `helm install` do ArgoCD e Application raiz.
-- **ArgoCD app-of-apps** (Helm chart em `kubernetes/apps`) cuida de tudo que roda dentro do cluster. O próprio ArgoCD é autogerenciado.
-- O ArgoCD é instalado pelo Ansible **só se ainda não existir**. Depois disso é o ArgoCD que o gerencia, para que os dois não briguem pelo release.
+- **k3s** directly on the host, single-node. It is a single binary, light on resources, and the embedded Traefik stays off because ingress goes through the Tailscale Operator.
+- **Ansible** is idempotent and covers only the host and the bootstrap: packages, sysctl, k3s, the initial Secrets, the ArgoCD `helm install` and the root Application.
+- **ArgoCD app-of-apps** (Helm chart in `kubernetes/apps`) takes care of everything that runs inside the cluster. ArgoCD manages itself.
+- Ansible installs ArgoCD **only if it does not exist yet**. After that, ArgoCD manages itself, so the two never fight over the release.
 
-## Consequências
+## Consequences
 
-- Mudanças no cluster são feitas via Git; o Ansible só volta a ser necessário para host/k3s.
-- A versão do chart do ArgoCD fica num único lugar (`kubernetes/apps/values.yaml`).
+- Cluster changes go through Git; Ansible is only needed again for the host/k3s.
+- The ArgoCD chart version lives in a single place (`kubernetes/apps/values.yaml`).

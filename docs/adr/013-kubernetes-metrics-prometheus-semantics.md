@@ -1,45 +1,45 @@
-# 013 — Métricas do Kubernetes no formato Prometheus (e o OpenCost)
+# 013 — Kubernetes metrics in the Prometheus format (and OpenCost)
 
-- **Status:** aceito
-- **Data:** 2026-11-17
-- **Atualiza:** [008](008-observability-otel-lgtm.md), na decisão de usar só métricas OTel nativas para o Kubernetes
+- **Status:** accepted
+- **Date:** 2026-11-17
+- **Updates:** [008](008-observability-otel-lgtm.md), in the decision to use only native OTel metrics for Kubernetes
 
-## Contexto
+## Context
 
-Queremos o OpenCost para saber o custo de cada namespace, pod e nó. Ele consulta o Prometheus com os nomes do ecossistema: uso real de CPU e memória do cAdvisor (`container_cpu_usage_seconds_total`, `container_memory_working_set_bytes`) e o estado dos objetos do kube-state-metrics (`kube_*`). O ADR 008 tinha deixado os dois de fora, para ficar só com as métricas OTel (`kubeletstats` e `k8s_cluster`).
+We want OpenCost to know the cost of each namespace, pod and node. It queries Prometheus with the ecosystem's names: real CPU and memory usage from cAdvisor (`container_cpu_usage_seconds_total`, `container_memory_working_set_bytes`) and the object state from kube-state-metrics (`kube_*`). ADR 008 had left both out, to keep only the OTel metrics (`kubeletstats` and `k8s_cluster`).
 
-Essa escolha já custava caro:
-- **Patches:** sete patches `jq` (21 traduções ou remoções de painéis) para adaptar dashboards da comunidade.
-- **Dashboards próprios:** o `cluster.json` foi escrito à mão, porque nenhum dashboard da comunidade usa os nomes `k8s_*`.
-- **Alertas:** as regras de Kubernetes ficaram reescritas para nomes OTel que ainda mudam entre versões do coletor (`*_cpu_utilization_ratio` virou `*_cpu_usage`).
-- **Ferramentas:** tudo o que assume o formato Prometheus (OpenCost, dashboards e alertas dos mixins) não funciona sem tradução.
+That choice was already expensive:
+- **Patches:** seven `jq` patches (21 translations or panel removals) to adapt community dashboards.
+- **Own dashboards:** `cluster.json` was written by hand, because no community dashboard uses the `k8s_*` names.
+- **Alerts:** the Kubernetes rules were rewritten for OTel names that still change between collector versions (`*_cpu_utilization_ratio` became `*_cpu_usage`).
+- **Tooling:** everything that assumes the Prometheus format (OpenCost, mixin dashboards and alerts) does not work without translation.
 
-## Decisão
+## Decision
 
-**O transporte do 008 não muda; a semântica das métricas do Kubernetes sim.** Continua tudo por OTLP (`otel-agent` → `otel-gateway` → Prometheus), e os backends seguem sem scrape. O que o `otel-agent` passa a raspar:
-- **kube-state-metrics** (job `kube-state-metrics`): subchart do chart do Prometheus, com imagem por digest. Só os coletores que o OpenCost, os dashboards e os alertas usam, e `kube_pod_labels`/`kube_namespace_labels` liberados, porque o OpenCost agrega o custo por label.
-- **cAdvisor** (job `kubernetes-nodes-cadvisor`): `/metrics/cadvisor` do kubelet do próprio nó, com o token do ServiceAccount (regra RBAC `nodes/metrics`) e uma allowlist de séries.
-- **OpenCost** (job `opencost`): com `honor_labels: true`, porque as métricas dele trazem `instance` e `namespace` próprios.
-- Os três jobs levam `cluster=homelab`, como os outros jobs do agent, que é o label que os dashboards da comunidade filtram.
+**The transport from 008 does not change; the semantics of the Kubernetes metrics do.** Everything still goes over OTLP (`otel-agent` → `otel-gateway` → Prometheus), and the backends still do not scrape. What the `otel-agent` now scrapes:
+- **kube-state-metrics** (job `kube-state-metrics`): a subchart of the Prometheus chart, with the image by digest. Only the collectors that OpenCost, the dashboards and the alerts use, with `kube_pod_labels`/`kube_namespace_labels` allowed, because OpenCost aggregates cost by label.
+- **cAdvisor** (job `kubernetes-nodes-cadvisor`): the node's own kubelet `/metrics/cadvisor`, with the ServiceAccount token (RBAC rule `nodes/metrics`) and a series allowlist.
+- **OpenCost** (job `opencost`): with `honor_labels: true`, because its metrics carry their own `instance` and `namespace`.
+- The three jobs carry `cluster=homelab`, like the agent's other jobs; it is the label the community dashboards filter on.
 
-**Saem `kubeletstats` (preset `kubeletMetrics` do agent) e `k8s_cluster` (preset `clusterMetrics` do gateway).** Os dois não podem conviver com o cAdvisor: o `kubeletstats` emite `container_memory_working_set_bytes` com labels `k8s_*`, no mesmo nome que o cAdvisor, e duplicaria as séries. Hosts e NAS continuam com `hostmetrics`, sem node-exporter.
+**`kubeletstats` (the agent's `kubeletMetrics` preset) and `k8s_cluster` (the gateway's `clusterMetrics` preset) go away.** Neither can coexist with cAdvisor: `kubeletstats` emits `container_memory_working_set_bytes` with `k8s_*` labels, under the same name as cAdvisor, and would duplicate the series. Hosts and the NAS keep `hostmetrics`, without node-exporter.
 
-**OpenCost** (chart 2.5.34, app 1.121.4, imagens com digest do próprio chart):
-- **Local:** namespace `opencost`, sync-wave 3, lendo `prometheus-server.observability.svc`.
-- **UI:** na tailnet como `opencost`, sem login (só quem já está na tailnet), e não exposta no CI.
-- **Preços:** os padrões on-prem do OpenCost, sem `customPricing`. Os valores absolutos são uma referência de nuvem e não o custo real do notebook, mas a proporção entre apps vale.
-- **`emitKsmV1MetricsOnly`:** emite só as métricas v1 que o kube-state-metrics 2 não tem, para não duplicar `kube_*`.
+**OpenCost** (chart 2.5.34, app 1.121.4, images with the chart's own digests):
+- **Placement:** namespace `opencost`, sync-wave 3, reading `prometheus-server.observability.svc`.
+- **UI:** on the tailnet as `opencost`, no login (only whoever is already on the tailnet), and not exposed in CI.
+- **Prices:** `customPricing` on, with the values from OpenCost's own `default.json` (GCP us-central1 reference, in USD per hour). Without it the exporter only emits the PV cost and no `node_*_hourly_cost` (the log shows `No pricing found for key=default`); CI caught that on the first push. The chart ships other example values (CPU 1.25, storage 0.25), which are not the OpenCost defaults. The absolute values are a cloud reference, not the laptop's real cost, but the proportion between apps holds.
+- **`emitKsmV1MetricsOnly`:** emits only the v1 metrics that kube-state-metrics 2 does not have, so `kube_*` is not duplicated.
 
-**Migração dos consumidores:**
-- **Alertas:** os 8 de `kubernetes.yaml`, o de restarts e a sentinela `pipeline-dead` voltam às expressões do kubernetes-mixin, mantendo os `uid`. Entra o alerta `info` `kube-state-metrics-missing`.
-- **Dashboards:** `pods` (20944) e o `cluster.json` próprio saem, e entram *Namespaces* (15758) e *Pods* (15760) do dotdc, mais *OpenCost / Overview* (22208). Os patches do `cnpg` e do `argocd` perdem as traduções de `kube_*`, e o dashboard do Immich passa a usar o cAdvisor.
-- **Dashboard *Global* (15757) do dotdc, de fora:** os painéis de nó dele dependem do node-exporter, que não instalamos. O dashboard `host` continua sendo a visão do nó.
+**Migrating the consumers:**
+- **Alerts:** the 8 in `kubernetes.yaml`, the restarts one and the `pipeline-dead` sentinel go back to the kubernetes-mixin expressions, keeping their `uid`s. The `info` alert `kube-state-metrics-missing` is added.
+- **Dashboards:** `pods` (20944) and our own `cluster.json` go away, and dotdc's *Namespaces* (15758) and *Pods* (15760) come in, plus *OpenCost / Overview* (22208). The `cnpg` and `argocd` patches lose their `kube_*` translations, and the Immich dashboard now uses cAdvisor.
+- **dotdc's *Global* dashboard (15757), left out:** its node panels depend on node-exporter, which we do not install. The `host` dashboard remains the node view.
 
-## Consequências
+## Consequences
 
-- **Histórico:** as séries `k8s_*` antigas ficam até 30 dias, mas nenhum painel as consulta. Os dashboards e alertas novos começam sem histórico.
-- **Séries:** o cAdvisor e o kube-state-metrics aumentam o head do Prometheus (15,9 mil séries antes). Vale conferir `prometheus_tsdb_head_series` depois do deploy e apertar a allowlist se passar de uns 40 mil.
-- **Nomes estáveis:** `kube_*` e `container_*` são o padrão do ecossistema, e deixam de mudar a cada versão do coletor. O custo dos patches de dashboard cai.
-- **PVCs:** `kubelet_volume_stats_*` continua ausente (o `local-path` não reporta), então os painéis de volume seguem removidos.
-- **UI sem login:** qualquer dispositivo na tailnet enxerga os custos. É o mesmo nível de acesso do Grafana, que tem login de admin; avaliar um proxy com autenticação se a tailnet passar a ter mais gente.
-- **Recursos:** o OpenCost (exporter e UI) pede 30m de CPU e 160Mi de memória; o kube-state-metrics, 10m e 64Mi.
+- **History:** the old `k8s_*` series stay for up to 30 days, but no panel queries them. The new dashboards and alerts start without history.
+- **Series:** cAdvisor and kube-state-metrics grow the Prometheus head (15.9k series before). Check `prometheus_tsdb_head_series` after the deploy and tighten the allowlist if it goes above ~40k.
+- **Stable names:** `kube_*` and `container_*` are the ecosystem standard and no longer change with each collector version. The cost of dashboard patches drops.
+- **PVCs:** `kubelet_volume_stats_*` is still missing (`local-path` does not report it), so the volume panels stay removed.
+- **UI without login:** any device on the tailnet can see the costs. That is the same access level as Grafana, which has an admin login; consider an authenticating proxy if more people join the tailnet.
+- **Resources:** OpenCost (exporter and UI) requests 30m of CPU and 160Mi of memory; kube-state-metrics, 10m and 64Mi.

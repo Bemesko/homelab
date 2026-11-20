@@ -1,47 +1,47 @@
-# 014 — Backup off-site do NAS: restic no cluster para um Storage Box da Hetzner
+# 014 — NAS off-site backup: restic in the cluster to a Hetzner Storage Box
 
-- **Status:** aceito
-- **Data:** 2026-11-09
+- **Status:** accepted
+- **Date:** 2026-11-09
 
-## Contexto
+## Context
 
-O NAS (OMV) tem duas cópias, ambas em casa: o SSD primário e a réplica em disco USB (tarefas Rsync do OMV às 03:00, só `data-with-backup`). Falta a terceira cópia, fora de casa. Hoje são ~600 GB (`data-with-backup` ~250 GB + `data-without-backup`), com orçamento de até ~US$ 5/mês. Restore lento é aceitável, mas a configuração do provedor tem de ser declarativa.
+The NAS (OMV) has two copies, both at home: the primary SSD and the replica on a USB disk (OMV Rsync jobs at 03:00, `data-with-backup` only). The third copy, outside the house, is missing. Today it is ~600 GB (`data-with-backup` ~250 GB + `data-without-backup`), with a budget of up to ~US$ 5/month. A slow restore is acceptable, but the provider configuration must be declarative.
 
-Preços consultados em 2026-11-08, sem impostos, para 600 GB:
+Prices checked on 2026-11-08, before taxes, for 600 GB:
 
-| Opção | Custo/mês | Observação |
+| Option | Cost/month | Notes |
 |---|---|---|
-| **Hetzner Storage Box BX11 (1 TB)** | € 3,20 fixo | Tráfego ilimitado; SFTP/SSH; BX21 (5 TB) a € 10,90 |
-| Backblaze B2 | US$ 4,17 (US$ 6,95/TB) | Egress grátis até 3× o armazenado; passa de US$ 5 em ~720 GB |
-| Storj | US$ 4,20 + US$ 7/TB de egress | |
-| Wasabi | US$ 7,99 (mínimo 1 TB) | |
-| Cloudflare R2 | US$ 9 (Standard) / US$ 6 (IA) | Egress grátis |
-| AWS S3 Standard | US$ 13,80 (us-east-1) / US$ 24,30 (sa-east-1) | |
-| Glacier Deep Archive, GCS Archive, Azure Archive | US$ 0,59–0,72 | Retenção mínima de 180–365 dias; restore de 12–48 h e pago; não combina com `restic prune` |
+| **Hetzner Storage Box BX11 (1 TB)** | € 3.20 flat (US$ 4.00 when billed in USD) | Unlimited traffic; SFTP/SSH; BX21 (5 TB) at € 10.90 / US$ 13.00; no setup fee |
+| Backblaze B2 | US$ 4.17 (US$ 6.95/TB) | Free egress up to 3× the stored data; passes US$ 5 at ~720 GB |
+| Storj | US$ 4.20 + US$ 7/TB egress | |
+| Wasabi | US$ 7.99 (1 TB minimum) | |
+| Cloudflare R2 | US$ 9 (Standard) / US$ 6 (IA) | Free egress |
+| AWS S3 Standard | US$ 13.80 (us-east-1) / US$ 24.30 (sa-east-1) | |
+| Glacier Deep Archive, GCS Archive, Azure Archive | US$ 0.59–0.72 | 180–365 day minimum retention; paid restore in 12–48 h; does not fit `restic prune` |
 
-## Decisão
+## Decision
 
-- **Destino:** Hetzner Storage Box **BX11** em `fsn1`. É o mais barato acima de ~530 GB, sem custo de egress no restore. Entre 1 e ~1,8 TB o B2 voltaria a ser mais barato; acima disso, o BX21.
-- **Provisionamento:** **OpenTofu** em `infra/hetzner/` com o provider `hetznercloud/hcloud` (o Storage Box deixou de ser experimental no provider). Ele cria o box, as `access_settings` (só SSH) e o plano de snapshots, e injeta a chave SSH do restic.
-  - O **state é versionado no git, criptografado pelo próprio OpenTofu** (pbkdf2 + AES-GCM, `enforced`). Ele contém a senha do box.
-  - O token da API e a passphrase do state ficam em `infra/hetzner/secrets.sops.yaml`, que só a chave da WSL abre.
-  - `ssh_keys` não pode ser alterado pela API (mudar recriaria o box). Por isso há `ignore_changes` e `prevent_destroy`, além do `delete_protection` do lado da Hetzner.
-- **Ferramenta:** **restic** por SFTP (porta 23), com criptografia no cliente, deduplicação e versões. A senha do repositório fica só no Secret SOPS e no gerenciador de senhas.
-- **Onde roda:** CronJob `restic-backup` no k3s (namespace `backup`), às 04:00, depois da réplica local e do dump do Postgres do Immich e antes do unattended-upgrades do notebook (05:15, ADR 010). Não no NAS, porque:
-  - o NAS é configurado só pela UI e o repo nunca altera o NAS;
-  - no cluster ficam GitOps, imagem por digest, segredo em KSOPS e alertas no stack existente;
-  - o NAS (T400, sistema em USB 2.0) já é frágil.
-  - O custo é ler por NFS (`ro`) pela tailnet. Com upload abaixo de 50 Mbps, o gargalo é a internet, não o NFS.
-- **Escopo:** a raiz do SSD inteira (export `photos`, PV `backup-source`, só leitura). Isso inclui `data-with-backup`, `data-without-backup` e `immich-data` (uploads e dumps do Postgres).
-- **Retenção:**
-  - restic: 7 diários, 4 semanais, 6 mensais. O `forget` roda todo dia; o `prune` e o `check --read-data-subset=5%` rodam aos domingos.
-  - Snapshots automáticos do Storage Box: 7 diários às 06:00 UTC (03:00 em Brasília), antes do backup. Ficam fora do alcance da chave SSH do cluster: se ela for usada para apagar o repositório, dá para voltar até uma semana. Não têm custo à parte, mas ocupam a cota.
+- **Destination:** Hetzner Storage Box **BX11** in `fsn1`. In USD it is cheaper than B2 above ~575 GB (above ~530 GB in EUR), with no egress cost on restore. Between 1 and ~1.9 TB B2 would be cheaper again; above that, the BX21.
+- **Provisioning:** **OpenTofu** in `infra/hetzner/` with the `hetznercloud/hcloud` provider (Storage Box support is no longer experimental there). It creates the box, the `access_settings` (SSH only) and the snapshot plan, and injects the restic SSH key.
+  - The **state is versioned in git, encrypted by OpenTofu itself** (pbkdf2 + AES-GCM, `enforced`). It holds the box password.
+  - The API token and the state passphrase live in `infra/hetzner/secrets.sops.yaml`, which only the WSL key opens.
+  - `ssh_keys` cannot be changed through the API (changing it would recreate the box). Hence `ignore_changes` and `prevent_destroy`, on top of `delete_protection` on Hetzner's side.
+- **Tool:** **restic** over SFTP (port 23), with client-side encryption, deduplication and versions. The repository password lives only in the SOPS Secret and in the password manager.
+- **Where it runs:** the `restic-backup` CronJob in k3s (namespace `backup`), at 04:00, after the local replica and the Immich Postgres dump and before the laptop's unattended-upgrades (05:15, ADR 010). Not on the NAS, because:
+  - the NAS is configured only through its UI and this repo does not change it (the exceptions are the `nas_syncthing` and `power` roles);
+  - in the cluster we get GitOps, image by digest, the secret in KSOPS and alerts in the existing stack;
+  - the NAS (T400, system on USB 2.0) is already fragile.
+  - The cost is reading over NFS (`ro`) through the tailnet. With an upload below 50 Mbps, the bottleneck is the internet, not NFS.
+- **Scope:** the whole SSD root (export `photos`, PV `backup-source`, read-only). This includes `data-with-backup`, `data-without-backup` and `immich-data` (uploads and Postgres dumps).
+- **Retention:**
+  - restic: 7 daily, 4 weekly, 6 monthly. `forget` runs every day; `prune` and `check --read-data-subset=5%` run on Sundays.
+  - Storage Box automatic snapshots: 7 daily at 06:00 UTC (03:00 in Brasília), before the backup. They are out of reach of the cluster's SSH key: if that key is used to delete the repository, you can go back up to a week. No extra charge, but they use the quota.
 
-## Consequências e riscos
+## Consequences and risks
 
-- **Senha do restic:** sem ela o backup é irrecuperável. Guarde-a no gerenciador de senhas (`sops -d kubernetes/workloads/backup/overlays/nas/restic.sops.yaml`).
-- **Envio inicial:** leva dias (~3 a 20 Mbps, ~11 a 5 Mbps). Cada execução é cortada em 22h e retomada no dia seguinte. Enquanto isso, o alerta `backup-offsite-stale` dispara.
-- **Cota:** com o crescimento do NAS, os snapshots antigos e os snapshots do box, 1 TB pode encher. Siga os gatilhos de upgrade do NAS; o próximo degrau é o BX21. Não há alerta de cota ainda: o espaço usado aparece no painel da Hetzner e no `restic stats`.
-- **Arquivos ilegíveis:** com o `all_squash` 1000:100 do export, um arquivo sem permissão de leitura para esse usuário faz o restic sair com código 3. O Job falha e dispara `backup-offsite-failed`, mesmo com o snapshot criado.
-- **Cache:** o cache do restic é um `emptyDir`. Cada execução baixa de novo índices e árvores, o que é aceitável com tráfego grátis. Um PVC local-path deixaria a Application `Progressing` até a primeira execução.
-- **Restore:** é feito da WSL com o restic e a mesma chave/senha (README). O tráfego de saída do Storage Box não é cobrado.
+- **restic password:** without it the backup cannot be recovered. Keep it in the password manager (`sops -d kubernetes/workloads/backup/overlays/nas/restic.sops.yaml`).
+- **Initial upload:** takes days (~3 at 20 Mbps, ~11 at 5 Mbps). Each run is cut at 22h and resumed the next day, so for the first days it still overlaps the 05:15 unattended-upgrades. Meanwhile the `backup-offsite-stale` alert fires.
+- **Quota:** with NAS growth, old snapshots and the box snapshots, 1 TB can fill up. Follow the NAS upgrade triggers; the next step is the BX21. There is no quota alert yet: the used space shows in the Hetzner console and in `restic stats`.
+- **Unreadable files:** with the export's `all_squash` 1000:100, a file this user cannot read makes restic exit with code 3. The Job fails and fires `backup-offsite-failed`, even though the snapshot was created.
+- **Cache:** the restic cache is an `emptyDir`. Each run downloads indexes and trees again, which is acceptable with free traffic. A local-path PVC would leave the Application `Progressing` until the first run.
+- **Restore:** done from WSL with restic and the same key/password (README). Outbound traffic from the Storage Box is not billed.

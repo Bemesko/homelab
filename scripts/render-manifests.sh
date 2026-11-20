@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
-# Renderiza manifests para validação (stdout, multi-documento).
-#   render-manifests.sh local     -> chart app-of-apps (Tailscale/NAS on/off) + kustomize dos workloads (offline, KSOPS via stub)
-#   render-manifests.sh upstream  -> charts upstream (argo-cd, tailscale-operator, cloudnative-pg, immich, prometheus, loki, tempo, grafana, otel-agent/otel-gateway, opencost) com nossos values (precisa de rede)
+# Renders manifests for validation (stdout, multi-document).
+#   render-manifests.sh local     -> app-of-apps chart (Tailscale/NAS on/off) + workload kustomize (offline, KSOPS through the stub)
+#   render-manifests.sh upstream  -> upstream charts (argo-cd, tailscale-operator, cloudnative-pg, immich, prometheus, loki, tempo, grafana, otel-agent/otel-gateway, opencost) with our values (needs network)
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 readonly REPO_ROOT
 readonly APPS_CHART="${REPO_ROOT}/kubernetes/apps"
 
-# chart_field <chart-key> <field> -> lê kubernetes/apps/values.yaml (fonte única das versões)
+# chart_field <chart-key> <field> -> reads kubernetes/apps/values.yaml (single source of the versions)
 chart_field() {
   helm show values "${APPS_CHART}" | awk -v chart="$1" -v field="$2" '
     /^charts:/ { in_charts = 1; next }
@@ -19,7 +19,7 @@ chart_field() {
   '
 }
 
-# workload_dirs -> toda kustomization em kubernetes/workloads/<app>/{base,overlays/*}
+# workload_dirs -> every kustomization in kubernetes/workloads/<app>/{base,overlays/*}
 workload_dirs() {
   find "${REPO_ROOT}/kubernetes/workloads" -name kustomization.yaml -printf '%h\n' | sort
 }
@@ -30,10 +30,10 @@ render_local() {
   helm template apps "${APPS_CHART}" --set tailscaleOperator.enabled=false --set nasStorage.enabled=false \
     --set smokeApp.enabled=true
   echo "---"
-  # Uma app externa de exemplo, para validar o template de Application (apps: {} por padrão)
+  # An example external app, to validate the Application template (apps: {} by default)
   helm template apps "${APPS_CHART}" \
-    --set apps.exemplo.repoURL=https://github.com/bernats-homelab/exemplo \
-    --set apps.exemplo.targetRevision=v1.0.0 \
+    --set apps.example.repoURL=https://github.com/bernats-homelab/example \
+    --set apps.example.targetRevision=v1.0.0 \
     --show-only templates/external-apps.yaml
   local dir
   while read -r dir; do
@@ -43,7 +43,7 @@ render_local() {
 }
 
 render_upstream() {
-  # Isola o helm dos repos configurados pelo usuário (render hermético).
+  # Isolates helm from the repos configured by the user (hermetic render).
   local helm_home
   helm_home="$(mktemp -d)"
   trap 'rm -rf "${helm_home}"' RETURN
@@ -51,8 +51,8 @@ render_upstream() {
   export HELM_REPOSITORY_CACHE="${helm_home}/cache"
   export HELM_REGISTRY_CONFIG="${helm_home}/registry.json"
 
-  # chave-do-chart:release:namespace, iguais às Applications em kubernetes/apps/templates.
-  # Um chart pode ter mais de uma release (opentelemetryCollector: agent e gateway).
+  # chart-key:release:namespace, same as the Applications in kubernetes/apps/templates.
+  # A chart can have more than one release (opentelemetryCollector: agent and gateway).
   local entry key release namespace repo chart
   local releases=(
     argocd:argocd:argocd
@@ -71,7 +71,7 @@ render_upstream() {
     IFS=: read -r key release namespace <<<"${entry}"
     repo="$(chart_field "${key}" repoURL)"
     chart="$(chart_field "${key}" chart)"
-    # Charts OCI são referenciados direto (oci://registry/path/chart), sem --repo.
+    # OCI charts are referenced directly (oci://registry/path/chart), without --repo.
     local source=(--repo "${repo}" "${chart}")
     [[ "${repo}" == oci://* ]] && source=("${repo}/${chart}")
     echo "---"
@@ -87,7 +87,7 @@ case "${1:-}" in
   local) render_local ;;
   upstream) render_upstream ;;
   *)
-    echo "uso: $0 local|upstream" >&2
+    echo "usage: $0 local|upstream" >&2
     exit 2
     ;;
 esac

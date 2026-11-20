@@ -1,9 +1,9 @@
-- name: Bootstrap do cluster k3s
+- name: Bootstrap the k3s cluster
   hosts: k3s_server
   become: true
   gather_facts: true
   pre_tasks:
-    - name: Carregar segredos SOPS (descriptografados no controller)
+    - name: Load the SOPS secrets (decrypted on the controller)
       community.sops.load_vars:
         file: "{{ secrets_file }}"
       no_log: true
@@ -34,9 +34,9 @@
       when: tailscale_enabled | bool
       tags: [kubeconfig]
 
-# Única exceção ao "o Ansible não altera o NAS" (ADR 011): o Syncthing do NAS
-# não é gerenciável pela UI do openmediavault. Sem grupo `nas` (CI), não roda.
-- name: Syncthing do NAS
+# The exceptions to "Ansible does not change the NAS": Syncthing (ADR 011), which
+# the openmediavault UI cannot manage, and power (ADR 012). Without a `nas` group (CI), it does not run.
+- name: NAS Syncthing and power
   hosts: nas
   become: false
   gather_facts: true

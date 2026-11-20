@@ -1,50 +1,50 @@
-# 012 — Energia dos notebooks-servidor (tampa, bateria, RTC)
+# 012 — Power for the laptop servers (lid, battery, RTC)
 
-- **Status:** aceito
-- **Data:** 2026-11-14
-- **Atualiza:** [011](011-syncthing-nas-ansible.md), que passa a ter uma segunda exceção ao "o Ansible não toca no NAS"
+- **Status:** accepted
+- **Date:** 2026-11-14
+- **Updates:** [011](011-syncthing-nas-ansible.md), which gains a second exception to "Ansible does not touch the NAS"
 - **Issue:** #15
 
-## Contexto
+## Context
 
-O cluster e o NAS rodam em notebooks com a tampa fechada.
+The cluster and the NAS run on laptops with the lid closed.
 
-- **2026-11-13, das 16:20 às 17:37:** o notebook do k3s ficou mais de 15 min na bateria, e o GNOME o suspendeu (`sleep-inactive-battery-type 'suspend'`, 900 s). O role `power` só tratava a tampa no logind. O cluster inteiro caiu: o CNPG perdeu o lease, o coletor descartou dados e o Loki recusou 1h de logs atrasados.
-- **NAS (ThinkPad T400):** a tampa fechada com `HandleLidSwitch=suspend`, somada aos alvos de sono que o OMV mascara, gera cerca de 1.600 linhas por hora de "Failed to execute suspend operation: Permission denied". Isso é 79% dos erros do Loki.
+- **2026-11-13, from 16:20 to 17:37:** the k3s laptop spent more than 15 min on battery, and GNOME suspended it (`sleep-inactive-battery-type 'suspend'`, 900 s). The `power` role only handled the lid in logind. The whole cluster went down: CNPG lost its lease, the collector dropped data and Loki rejected 1h of late logs.
+- **NAS (ThinkPad T400):** the closed lid with `HandleLidSwitch=suspend`, plus the sleep targets that OMV masks, produce about 1,600 lines per hour of "Failed to execute suspend operation: Permission denied". That is 79% of the Loki errors.
 
-A issue #15 pede:
-- nunca suspender, nem na tomada nem na bateria;
-- limitar a carga a 80–90%;
-- desligar com segurança com bateria baixa;
-- de preferência, religar sozinho quando a energia voltar.
+Issue #15 asks to:
+- never suspend, on AC or on battery;
+- cap the charge at 80–90%;
+- shut down safely on low battery;
+- preferably, power back on by itself when power returns.
 
-Restrições do hardware:
-- **Acer A515-51G (BIOS V2.02):** o `acer_wmi` não expõe `charge_control_end_threshold`. O GUID WMI de bateria (`79772EC5-…`) existe, mas o método `WMBE` do SSDT só implementa a função 0x13 (ler informações). As funções 20 e 21, que leem e gravam o "health mode" do Acer Care Center, caem no `default` e devolvem erro. Testado em 2026-11-14 com o [acer-wmi-battery](https://github.com/frederik-h/acer-wmi-battery) v0.2.0 pelo DKMS: o `modprobe` falha com "buffer of unexpected length 4", o mesmo da issue upstream #55 (TravelMate da mesma geração). O UPower vem com `CriticalPowerAction=HybridSleep` em 2%.
-- **T400 (BIOS 3.23):** os thresholds do `thinkpad_acpi` não funcionam nesse modelo, e o `tp_smapi` exigiria o kernel 7.2 com headers no pendrive do sistema. A bateria guarda 2,4 de 37,4 Wh (6%).
-- **Ligar ao conectar o AC:** nenhum dos dois BIOS tem a opção. Os dois expõem `/sys/class/rtc/rtc0/wakealarm`.
+Hardware constraints:
+- **Acer A515-51G (BIOS V2.02):** `acer_wmi` does not expose `charge_control_end_threshold`. The battery WMI GUID (`79772EC5-…`) exists, but the SSDT `WMBE` method only implements function 0x13 (read information). Functions 20 and 21, which read and write the Acer Care Center "health mode", fall through to `default` and return an error. Tested on 2026-11-14 with [acer-wmi-battery](https://github.com/frederik-h/acer-wmi-battery) v0.2.0 through DKMS: `modprobe` fails with "buffer of unexpected length 4", the same as upstream issue #55 (a TravelMate of the same generation). UPower ships with `CriticalPowerAction=HybridSleep` at 2%.
+- **T400 (BIOS 3.23):** the `thinkpad_acpi` thresholds do not work on this model, and `tp_smapi` would need kernel 7.2 with headers on the system USB stick. The battery holds 2.4 of 37.4 Wh (6%).
+- **Power on when AC is connected:** neither BIOS has the option. Both expose `/sys/class/rtc/rtc0/wakealarm`.
 
-## Decisão
+## Decision
 
-O role `power` vale para os dois notebooks: no play do k3s e num play `hosts: nas`, com `nas_power_enabled`.
+The `power` role applies to both laptops: in the k3s play and in a `hosts: nas` play, with `nas_power_enabled`.
 
-- **Nunca suspender:**
-  - `HandleLidSwitch*=ignore` no logind, para tomada, bateria e dock;
-  - alvos `sleep`, `suspend`, `hibernate`, `hybrid-sleep` e `suspend-then-hibernate` mascarados;
-  - onde há GNOME, o dconf do sistema trava `sleep-inactive-{ac,battery}-type='nothing'`.
-- **Guardião de energia (`homelab-power-guard.service`):** um serviço contínuo (não um timer, para não gerar duas linhas de journal a cada 30 s) lê `/sys/class/power_supply` a cada 30 s.
-  - Na bateria, registra "energia externa caiu" uma vez. O alerta `host-on-battery` avisa por e-mail.
-  - Com `capacity <= power_shutdown_percent` (10%), arma o RTC, grava um marcador e desliga pelo systemd, que para o k3s e o Postgres em ordem.
-  - O UPower do Acer passa a `CriticalPowerAction=PowerOff`, só como rede de segurança.
-- **Religar pelo RTC:** antes de desligar, o guardião programa o RTC para daqui a `power_rtc_wake_interval` (30 min). No boot, o `homelab-power-gate.service` roda antes da rede, do k3s e do samba, **só se o marcador existir**: se a energia voltou, o boot segue; se não, desliga de novo e rearma. Um boot manual (sem marcador) nunca é derrubado.
-- **Sem limite de carga** (item 2 da issue): nenhum dos dois firmwares tem um mecanismo, e o role não instala módulo nem DKMS. As baterias ficam em 100% na tomada, o que acelera o desgaste, mas o guardião não depende da capacidade total.
-- **NAS:** a segunda exceção ao "Ansible não toca o NAS", com o mesmo acesso do ADR 011 (root SSH, grupo `nas`, ausente no CI).
+- **Never suspend:**
+  - `HandleLidSwitch*=ignore` in logind, on AC, battery and dock;
+  - the `sleep`, `suspend`, `hibernate`, `hybrid-sleep` and `suspend-then-hibernate` targets masked;
+  - where there is GNOME, the system dconf locks `sleep-inactive-{ac,battery}-type='nothing'`.
+- **Power guard (`homelab-power-guard.service`):** a long-running service (not a timer, so it does not write two journal lines every 30 s) reads `/sys/class/power_supply` every 30 s.
+  - On battery, it logs "external power lost" once. The `host-on-battery` alert warns by email.
+  - At `capacity <= power_shutdown_percent` (10%), it arms the RTC, writes a marker and shuts down through systemd, which stops k3s and Postgres in order.
+  - The Acer's UPower is set to `CriticalPowerAction=PowerOff`, only as a safety net.
+- **Power back on through the RTC:** before shutting down, the guard sets the RTC to `power_rtc_wake_interval` (30 min) from now. At boot, `homelab-power-gate.service` runs before the network, k3s and samba, **only if the marker exists**: if power is back, the boot continues; if not, it shuts down again and re-arms. A manual boot (no marker) is never taken down.
+- **No charge limit** (item 2 of the issue): neither firmware has a mechanism, and the role installs no module and no DKMS. The batteries stay at 100% on AC, which speeds up wear, but the guard does not depend on the full capacity.
+- **NAS:** the second exception to "Ansible does not touch the NAS", with the same access as ADR 011 (root SSH, `nas` group, absent in CI).
 
-## Consequências
+## Consequences
 
-- **Bateria do NAS:** dura menos de um minuto a 10%, então o desligamento dele é "melhor esforço" até a troca (Sanyo 42T4654 ou equivalente).
-- **RTC:** religar depende de o BIOS acordar de S5 pelo RTC, o que é testado com alguém em casa (`rtcwake -m no -s 300` + `systemctl poweroff`). Onde não funcionar, `power_rtc_wake_interval: 0` naquele host.
-  - **T400 (2026-11-14): não acorda.** O alarme ficou gravado no chip (`/proc/driver/rtc`) e nada o apagou no desligamento, mas o BIOS 3.23 o ignora em S5. O NAS usa `power_rtc_wake_interval: 0`: desliga com segurança e só volta pelo botão.
-  - **Acer (2026-11-15): não acorda.** O BIOS Insyde marca a hora certa em UTC e também ignora o alarme em S5. O único "wake" do BIOS é o Wake on LAN, que vale só para a placa com cabo, e o Acer está no Wi-Fi.
-  - **Resultado:** os dois hosts usam `power_rtc_wake_interval: 0`, e o item 5 da issue fica sem solução no hardware. O código do RTC e do gate continua no role, testado, para um host que acorde de S5. Depois de um desligamento pela bateria, a recuperação é manual: abrir a tampa do Acer ("Lid Open Resume" ligado no BIOS) e apertar o botão do NAS. A alternativa de um Raspberry Pi mandar Wake-on-LAN quando a energia voltar está na issue #23.
-- **Ciclos de boot:** cada boot do gate na bateria gasta um pouco de carga, mas o desligamento acontece antes da rede e do k3s, então o consumo é pequeno.
-- **Limite de carga, se um dia houver:** a bateria nova do NAS reabre o `tp_smapi` (exige os headers do kernel no pendrive). Um notebook de cluster mais novo (Acer a partir de ~2019) teria o "health mode" pelo acer-wmi-battery.
+- **NAS battery:** it lasts less than a minute at 10%, so its shutdown is "best effort" until the battery is replaced (Sanyo 42T4654 or equivalent).
+- **RTC:** powering back on depends on the BIOS waking from S5 on the RTC, which is tested with someone at home (`rtcwake -m no -s 300` + `systemctl poweroff`). Where it does not work, `power_rtc_wake_interval: 0` on that host.
+  - **T400 (2026-11-14): does not wake.** The alarm stayed programmed in the chip (`/proc/driver/rtc`) and nothing cleared it on shutdown, but BIOS 3.23 ignores it in S5. The NAS uses `power_rtc_wake_interval: 0`: it shuts down safely and only comes back through the power button.
+  - **Acer (2026-11-15): does not wake.** The Insyde BIOS keeps the right time in UTC and also ignores the alarm in S5. The BIOS's only "wake" option is Wake on LAN, which only applies to the wired NIC, and the Acer is on Wi-Fi.
+  - **Result:** both hosts use `power_rtc_wake_interval: 0`, and item 5 of the issue has no hardware solution. The RTC and gate code stays in the role, tested, for a host that does wake from S5. After a low-battery shutdown, recovery is manual: open the Acer lid ("Lid Open Resume" on in the BIOS) and press the NAS power button. The alternative of a Raspberry Pi sending Wake-on-LAN when power returns is in issue #23.
+- **Boot cycles:** each gate boot on battery uses a little charge, but the shutdown happens before the network and k3s, so the drain is small.
+- **Charge limit, should it ever exist:** a new NAS battery reopens `tp_smapi` (needs the kernel headers on the USB stick). A newer cluster laptop (Acer from ~2019 on) would have "health mode" through acer-wmi-battery.

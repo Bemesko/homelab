@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# fmt + validate dos diretórios OpenTofu sem token nem state: init sem backend, só
-# com os providers do .terraform.lock.hcl (cache em .cache/tofu-plugins).
+# fmt + validate of the OpenTofu directories without a token or state: init without a
+# backend, only with the providers in .terraform.lock.hcl (cached in .cache/tofu-plugins).
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 readonly REPO_ROOT
 export TF_PLUGIN_CACHE_DIR="${REPO_ROOT}/.cache/tofu-plugins"
-# validate não lê o state, mas a config de criptografia exige a variável (pbkdf2: ≥ 16 caracteres).
-export TF_VAR_state_passphrase="somente-para-o-validate"
+# validate does not read the state, but the encryption config requires the variable (pbkdf2: >= 16 chars).
+export TF_VAR_state_passphrase="validate-only-passphrase"
 mkdir -p "${TF_PLUGIN_CACHE_DIR}"
 
 tofu fmt -check -recursive "${REPO_ROOT}/infra"

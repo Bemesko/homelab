@@ -1,21 +1,21 @@
-# OpenTelemetry Collector do NAS (openmediavault). NÃO é aplicado pelo Ansible:
-# cole este arquivo inteiro no plugin compose do OMV (Services -> Compose -> Files).
-# A configuração vai embutida (configs.content): nada para copiar por SMB.
-# Métricas do host (via /hostfs), SMART dos discos (smartctl-exporter), syslog do OMV
-# e o log das tarefas Rsync do OMV -> gateway OTLP do cluster na tailnet ("otel",
-# resolvido pelo MagicDNS). service.name=nas-host vira job no Prometheus e
-# service_name no Loki; o alerta "NAS sem métricas" depende dele. O log do rsync vai
-# como service_name=nas-rsync, que o Loki guarda por 30 dias (histórico das réplicas).
-# Literais "$" na config embutida são "$$" (o compose interpola ${...}).
+# OpenTelemetry Collector of the NAS (openmediavault). It is NOT applied by Ansible:
+# paste this whole file into the OMV compose plugin (Services -> Compose -> Files).
+# The configuration is embedded (configs.content): nothing to copy over SMB.
+# Host metrics (via /hostfs), disk SMART (smartctl-exporter), the OMV syslog
+# and the OMV Rsync task log -> the cluster OTLP gateway on the tailnet ("otel",
+# resolved by MagicDNS). service.name=nas-host becomes job in Prometheus and
+# service_name in Loki; the "NAS without metrics" alert depends on it. The rsync log goes
+# as service_name=nas-rsync, which Loki keeps for 30 days (replica history).
+# Literal "$" in the embedded config are "$$" (compose interpolates ${...}).
 services:
   smartctl-exporter:
     # yamllint disable-line rule:line-length
     image: prometheuscommunity/smartctl-exporter:v0.15.0@sha256:a76e08dbf5db4781fefd1ed81c65ad46ae8d2849dae6b6d3acebcde2fc4e59d6
     container_name: smartctl-exporter
     restart: unless-stopped
-    # O smartctl fala direto com os discos (ATA pass-through, inclusive o SSD no case
-    # USB via -d sat): exige privileged e root. Só leitura de SMART; ouve em localhost
-    # e quem raspa é o otel-collector.
+    # smartctl talks directly to the disks (ATA pass-through, including the SSD in the
+    # USB case via -d sat): it needs privileged and root. Reads SMART only; it listens on localhost
+    # and the otel-collector scrapes it.
     privileged: true
     user: root
     network_mode: host
@@ -30,14 +30,14 @@ services:
     image: ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib:0.163.2@sha256:7f22d2a6748110ffb6a59bc0df448bccbf501cdb667d610ede4c61d3863d5849
     container_name: otel-collector
     restart: unless-stopped
-    # Host: lê as interfaces e recebe o syslog do próprio NAS em 127.0.0.1.
+    # Host: reads the interfaces and receives the NAS's own syslog on 127.0.0.1.
     network_mode: host
-    # Sem read_only: o Compose grava o configs.content no container na criação
-    # ("`file` is the sole supported option" em serviço read-only). A camada do
-    # container fica no SSD (Docker storage), e a fila do exporter é só em memória.
+    # No read_only: Compose writes configs.content into the container on creation
+    # ("`file` is the sole supported option" on a read-only service). The container
+    # layer lives on the SSD (Docker storage), and the exporter queue is in memory only.
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
-    # Grupo adm (gid 4 no Debian): lê o /var/log/rsync.log (root:adm 0640).
+    # adm group (gid 4 on Debian): reads /var/log/rsync.log (root:adm 0640).
     group_add: ["4"]
     mem_limit: 256m
     command: ["--config=/etc/otelcol-contrib/config.yaml"]
@@ -49,7 +49,7 @@ services:
 
 configs:
   otel-config:
-    # O compose interpola ${...}: OTEL_GATEWAY pode vir do .env do stack.
+    # Compose interpolates ${...}: OTEL_GATEWAY can come from the stack's .env.
     content: |
       receivers:
         hostmetrics:
@@ -66,15 +66,15 @@ configs:
               exclude_fs_types:
                 fs_types: [autofs, cgroup2, devtmpfs, nsfs, overlay, proc, squashfs, sysfs, tmpfs, tracefs]
                 match_type: strict
-        # O OMV encaminha o syslog para cá (Diagnostics -> System Logs -> Remote:
-        # host 127.0.0.1, porta 5140, TCP).
+        # OMV forwards the syslog here (Diagnostics -> System Logs -> Remote:
+        # host 127.0.0.1, port 5140, TCP).
         syslog:
           tcp:
             listen_address: 127.0.0.1:5140
           protocol: rfc3164
           location: America/Sao_Paulo
-        # SMART dos discos (serviço smartctl-exporter acima). 5 min basta: atributos
-        # de desgaste e erro mudam devagar.
+        # Disk SMART (smartctl-exporter service above). 5 min is enough: wear and
+        # error attributes change slowly.
         prometheus/smart:
           config:
             scrape_configs:
@@ -86,10 +86,10 @@ configs:
                   - source_labels: [__name__]
                     regex: smartctl_device|smartctl_device_(attribute|smart_status|temperature|smartctl_exit_status)
                     action: keep
-        # Log das tarefas Rsync do OMV (--log-file=/var/log/rsync.log, em tmpfs pelo
-        # writecache). Uma linha por evento: "AAAA/MM/DD hh:mm:ss [pid] mensagem".
-        # start_at end: sem storage em disco (pendrive), um restart perde no máximo
-        # as linhas escritas enquanto o coletor estava parado.
+        # Log of the OMV Rsync tasks (--log-file=/var/log/rsync.log, on tmpfs through
+        # writecache). One line per event: "YYYY/MM/DD hh:mm:ss [pid] message".
+        # start_at end: with no on-disk storage (USB stick), a restart loses at most
+        # the lines written while the collector was stopped.
         file_log/rsync:
           include: [/hostfs/var/log/rsync.log]
           start_at: end
@@ -119,9 +119,9 @@ configs:
             - key: service.name
               value: nas-host
               action: upsert
-        # Papel de cada disco (label nas_role) para os alertas de capacidade em
-        # base/alerts/nas.yaml. Os mountpoints (/srv/dev-disk-by-uuid-...) vêm do .env
-        # do stack, NAS_PRIMARY_MOUNT e NAS_REPLICA_MOUNT; sem eles nada casa.
+        # Role of each disk (nas_role label) for the capacity alerts in
+        # base/alerts/nas.yaml. The mountpoints (/srv/dev-disk-by-uuid-...) come from the
+        # stack's .env, NAS_PRIMARY_MOUNT and NAS_REPLICA_MOUNT; without them nothing matches.
         transform/nas_role:
           error_mode: ignore
           metric_statements:
@@ -133,13 +133,13 @@ configs:
             - key: service.name
               value: nas-rsync
               action: upsert
-        # Classifica as linhas do rsync (atributo rsync_event, structured metadata no
-        # Loki) e extrai os números dos resumos, sem as vírgulas de milhar:
-        #   "sent X bytes  received Y bytes  Z bytes/sec" -> stats (+ duração estimada)
-        #   "total size is N  speedup is S"                -> summary (fim com sucesso)
+        # Classifies the rsync lines (rsync_event attribute, structured metadata in
+        # Loki) and extracts the numbers from the summaries, without the thousands commas:
+        #   "sent X bytes  received Y bytes  Z bytes/sec" -> stats (+ estimated duration)
+        #   "total size is N  speedup is S"                -> summary (successful end)
         transform/rsync:
           error_mode: ignore
-          # Statements longos quebram em linhas: o YAML junta a string com espaços.
+          # Long statements are split over lines: YAML joins the string with spaces.
           log_statements:
             - statements:
                 - 'set(log.attributes["rsync_event"], "start") where log.attributes["rsync_msg"] == "building file list"'
@@ -163,22 +163,22 @@ configs:
                 - 'replace_pattern(log.attributes["rsync_received_bytes"], ",", "") where log.attributes["rsync_received_bytes"] != nil'
                 - 'replace_pattern(log.attributes["rsync_rate"], ",", "") where log.attributes["rsync_rate"] != nil'
                 - 'replace_pattern(log.attributes["rsync_total_size_bytes"], ",", "") where log.attributes["rsync_total_size_bytes"] != nil'
-                # O rsync calcula bytes/sec = (enviados + recebidos) / tempo total.
+                # rsync computes bytes/sec = (sent + received) / total time.
                 - 'set(log.attributes["rsync_duration_seconds"],
                   Int((Double(log.attributes["rsync_sent_bytes"]) + Double(log.attributes["rsync_received_bytes"]))
                   / Double(log.attributes["rsync_rate"])))
                   where log.attributes["rsync_event"] == "stats" and log.attributes["rsync_rate"] != "0.00"'
-                # A mensagem já é o corpo do log.
+                # The message already is the log body.
                 - 'delete_key(log.attributes, "rsync_msg")'
         batch: {}
 
       exporters:
         otlp:
           endpoint: ${OTEL_GATEWAY:-otel:4317}
-          # Tráfego já cifrado pelo WireGuard da tailnet.
+          # Traffic already encrypted by the tailnet's WireGuard.
           tls:
             insecure: true
-          # Em memória: o NAS não aguenta escrita contínua no pendrive.
+          # In memory: the NAS cannot take continuous writes to the USB stick.
           sending_queue:
             enabled: true
             queue_size: 500

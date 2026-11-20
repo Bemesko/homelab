@@ -1,5 +1,5 @@
-# Banco do Immich: CloudNativePG + VectorChord, no disco do notebook (local-path).
-# As PVCs do Immich ficam em ../storage, junto da Application que as monta.
+# Immich database: CloudNativePG + VectorChord, on the laptop disk (local-path).
+# The Immich PVCs live in ../storage, next to the Application that mounts them.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: immich

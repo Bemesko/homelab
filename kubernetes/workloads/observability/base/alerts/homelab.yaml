@@ -1,8 +1,8 @@
-# Regras do Grafana Alerting, carregadas pelo sidecar (label grafana_alert).
-# Métricas chegam por OTLP: nomes seguem a tradução do Prometheus
-# (system.filesystem.usage -> system_filesystem_usage_bytes). Hosts são
-# identificados por service.name: homelab-host (otel_host_agent) e nas-host (NAS),
-# que vira o label job no Prometheus e service_name no Loki.
+# Grafana Alerting rules, loaded by the sidecar (grafana_alert label).
+# Metrics arrive over OTLP: the names follow the Prometheus translation
+# (system.filesystem.usage -> system_filesystem_usage_bytes). Hosts are
+# identified by service.name: homelab-host (otel_host_agent) and nas-host (NAS),
+# which becomes the job label in Prometheus and service_name in Loki.
 apiVersion: 1
 groups:
   - orgId: 1
@@ -11,14 +11,14 @@ groups:
     interval: 1m
     rules:
       - uid: host-disk-full
-        title: Disco raiz acima de 85%
+        title: Root disk above 85%
         condition: B
         for: 10m
         noDataState: OK
         execErrState: Error
         labels: {severity: warning}
         annotations:
-          summary: "{{ $labels.host_name }}: disco / com {{ humanizePercentage $values.A.Value }} em uso"
+          summary: "{{ $labels.host_name }}: disk / at {{ humanizePercentage $values.A.Value }} used"
         data:
           - refId: A
             relativeTimeRange: {from: 600, to: 0}
@@ -39,14 +39,14 @@ groups:
                 - evaluator: {type: gt, params: [0.85]}
 
       - uid: host-memory-low
-        title: Memória disponível abaixo de 10%
+        title: Available memory below 10%
         condition: B
         for: 10m
         noDataState: OK
         execErrState: Error
         labels: {severity: warning}
         annotations:
-          summary: "{{ $labels.host_name }}: só {{ humanizePercentage $values.A.Value }} de memória disponível"
+          summary: "{{ $labels.host_name }}: only {{ humanizePercentage $values.A.Value }} of memory available"
         data:
           - refId: A
             relativeTimeRange: {from: 600, to: 0}
@@ -67,14 +67,14 @@ groups:
                 - evaluator: {type: lt, params: [0.10]}
 
       - uid: pod-restarting
-        title: Container reiniciando
+        title: Container restarting
         condition: B
         for: 5m
         noDataState: OK
         execErrState: Error
         labels: {severity: warning}
         annotations:
-          summary: "{{ $labels.namespace }}/{{ $labels.pod }} ({{ $labels.container }}) reiniciou {{ $values.A.Value }}x em 30 min"
+          summary: "{{ $labels.namespace }}/{{ $labels.pod }} ({{ $labels.container }}) restarted {{ $values.A.Value }}x in 30 min"
         data:
           - refId: A
             relativeTimeRange: {from: 1800, to: 0}
@@ -95,14 +95,14 @@ groups:
                 - evaluator: {type: gt, params: [2]}
 
       - uid: argocd-app-unhealthy
-        title: Application do ArgoCD fora de Healthy
+        title: ArgoCD Application not Healthy
         condition: B
         for: 15m
         noDataState: OK
         execErrState: Error
         labels: {severity: warning}
         annotations:
-          summary: "Application {{ $labels.name }} está {{ $labels.health_status }}"
+          summary: "Application {{ $labels.name }} is {{ $labels.health_status }}"
         data:
           - refId: A
             relativeTimeRange: {from: 600, to: 0}
@@ -120,16 +120,16 @@ groups:
               conditions:
                 - evaluator: {type: gt, params: [0]}
 
-      # Pegaria o incidente de 05/11: conexões presas lotaram o max_connections.
+      # Would have caught the 11/05 incident: stuck connections filled max_connections.
       - uid: postgres-connections-high
-        title: Postgres perto do max_connections
+        title: Postgres near max_connections
         condition: B
         for: 5m
         noDataState: OK
         execErrState: Error
         labels: {severity: critical}
         annotations:
-          summary: "{{ $labels.pod }}: {{ humanizePercentage $values.A.Value }} das conexões em uso"
+          summary: "{{ $labels.pod }}: {{ humanizePercentage $values.A.Value }} of the connections in use"
         data:
           - refId: A
             relativeTimeRange: {from: 600, to: 0}
@@ -150,14 +150,14 @@ groups:
                 - evaluator: {type: gt, params: [0.8]}
 
       - uid: nas-silent
-        title: NAS sem métricas
+        title: NAS without metrics
         condition: B
         for: 0s
         noDataState: OK
         execErrState: Error
         labels: {severity: critical}
         annotations:
-          summary: O NAS não envia métricas há 10 minutos (desligado, sem rede ou coletor parado)
+          summary: The NAS has not sent metrics for 10 minutes (powered off, no network or the collector stopped)
         data:
           - refId: A
             relativeTimeRange: {from: 600, to: 0}
@@ -175,16 +175,16 @@ groups:
               conditions:
                 - evaluator: {type: gt, params: [0]}
 
-      # Pegaria o incidente de 05/11: kernel negando sinais dentro dos containers.
+      # Would have caught the 11/05 incident: the kernel denying signals inside the containers.
       - uid: host-apparmor-denied
-        title: AppArmor negando sinais no host
+        title: AppArmor denying signals on the host
         condition: B
         for: 0s
         noDataState: OK
         execErrState: Error
         labels: {severity: warning}
         annotations:
-          summary: "{{ $values.A.Value }} negações de sinal do AppArmor nos últimos 10 min"
+          summary: "{{ $values.A.Value }} AppArmor signal denials in the last 10 min"
         data:
           - refId: A
             relativeTimeRange: {from: 600, to: 0}

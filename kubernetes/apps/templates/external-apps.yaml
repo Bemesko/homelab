@@ -1,7 +1,7 @@
 {{- /*
-Apps de outros repos da org (bernats-homelab/repotpl-k8s-app), declaradas em `apps`
-no values.yaml. O repo da app tem os kustomize em deploy/; aqui só fica a Application,
-fixada numa tag. Veja docs/adr/007-external-apps.md.
+Apps from other repos (template bernats-homelab/repotpl-k8s-app), declared under `apps`
+in values.yaml. The app repo holds the kustomize in deploy/; only the Application lives here,
+pinned to a tag. See docs/adr/007-external-apps.md.
 */}}
 {{- $apps := deepCopy .Values.apps }}
 {{- if .Values.smokeApp.enabled }}
@@ -19,7 +19,7 @@ metadata:
   finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:
-  # Restrito a repos da org e a recursos namespaced (templates/appproject-homelab-apps.yaml).
+  # Restricted to org/personal repos and namespaced resources (templates/appproject-homelab-apps.yaml).
   project: homelab-apps
   source:
     repoURL: {{ $app.repoURL }}

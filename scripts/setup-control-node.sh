@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# Prepara a máquina de controle (WSL Ubuntu nesta máquina, ou o runner do CI):
-# ferramentas com versão e sha256 fixados em ~/.local/bin + coleções Ansible.
+# Prepares the control machine (WSL Ubuntu on this machine, or the CI runner):
+# tools with pinned version and sha256 in ~/.local/bin + Ansible collections.
 set -euo pipefail
 
 readonly BIN_DIR="${HOME}/.local/bin"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 readonly REPO_ROOT
 
-# --- versões fixadas (atualize versão + sha256 juntos) -----------------------
+# --- pinned versions (update version + sha256 together) ----------------------
 readonly ANSIBLE_CORE_VERSION="2.21.5"
 readonly ANSIBLE_LINT_VERSION="26.10.1"
 readonly PRE_COMMIT_VERSION="4.7.0"
@@ -48,7 +48,7 @@ install_bin() {
   if [[ -f "${stamp}" && -x "${BIN_DIR}/${name}" ]]; then
     return 0
   fi
-  log "instalando ${name} ${version}"
+  log "installing ${name} ${version}"
   local tmp
   tmp="$(mktemp -d)"
   download "${url}" "${sha}" "${tmp}/artifact"
@@ -64,24 +64,24 @@ install_bin() {
 
 main() {
   if [[ "$(uname -s)-$(uname -m)" != "Linux-x86_64" ]]; then
-    echo "Rode no WSL (Ubuntu x86_64) ou em um runner Linux." >&2
+    echo "Run in WSL (Ubuntu x86_64) or on a Linux runner." >&2
     exit 1
   fi
   mkdir -p "${BIN_DIR}"
   case ":${PATH}:" in
     *":${BIN_DIR}:"*) ;;
-    *) echo "Adicione ${BIN_DIR} ao PATH (ex.: no ~/.bashrc)." >&2 ;;
+    *) echo "Add ${BIN_DIR} to the PATH (e.g. in ~/.bashrc)." >&2 ;;
   esac
   export PATH="${BIN_DIR}:${PATH}"
-  # pipx próprio: ignora instalações pré-existentes (ex.: /opt/pipx dos runners do GitHub)
+  # Own pipx: ignores pre-existing installations (e.g. /opt/pipx on the GitHub runners)
   export PIPX_HOME="${HOME}/.local/share/pipx"
   export PIPX_BIN_DIR="${BIN_DIR}"
 
-  log "pacotes apt"
+  log "apt packages"
   sudo apt-get update -qq
   sudo apt-get install -y -qq curl git jq make pipx python3 python3-venv openssh-client >/dev/null
 
-  log "ferramentas Python (pipx)"
+  log "Python tools (pipx)"
   pipx install --force "ansible-core==${ANSIBLE_CORE_VERSION}" >/dev/null
   pipx inject ansible-core "kubernetes==${KUBERNETES_PY_VERSION}" >/dev/null
   pipx install --force "ansible-lint==${ANSIBLE_LINT_VERSION}" >/dev/null
@@ -118,14 +118,14 @@ main() {
   if ! helm plugin list 2>/dev/null | grep -q "^unittest[[:space:]]\+${HELM_UNITTEST_VERSION#v}"; then
     log "helm-unittest ${HELM_UNITTEST_VERSION}"
     helm plugin uninstall unittest >/dev/null 2>&1 || true
-    # Helm 4 verifica assinatura de plugins por padrão; o helm-unittest é instalado pela tag fixada.
+    # Helm 4 verifies plugin signatures by default; helm-unittest is installed from the pinned tag.
     helm plugin install https://github.com/helm-unittest/helm-unittest --version "${HELM_UNITTEST_VERSION}" --verify=false
   fi
 
-  log "coleções Ansible"
+  log "Ansible collections"
   ansible-galaxy collection install -r "${REPO_ROOT}/ansible/requirements.yml" >/dev/null
 
-  log "pronto. Próximo passo: pre-commit install"
+  log "done. Next step: pre-commit install"
 }
 
 main "$@"

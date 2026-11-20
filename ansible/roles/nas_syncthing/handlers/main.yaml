@@ -1,4 +1,4 @@
-- name: Reiniciar syncthing
+- name: Restart syncthing
   ansible.builtin.systemd_service:
     name: "syncthing@{{ nas_syncthing_user }}"
     state: restarted

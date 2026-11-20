@@ -1,5 +1,5 @@
-# Cópia off-site do NAS: Storage Box da Hetzner (ADR 014). Rode só pela WSL:
-# `make tofu-plan` / `make tofu-apply` (o token e a passphrase vêm de secrets.sops.yaml).
+# NAS off-site copy: Hetzner Storage Box (ADR 014). Run only from WSL:
+# `make tofu-plan` / `make tofu-apply` (the token and passphrase come from secrets.sops.yaml).
 terraform {
   required_version = "~> 1.13.0"
 
@@ -15,5 +15,5 @@ terraform {
   }
 }
 
-# Token em HCLOUD_TOKEN (exportado pelo Makefile a partir do SOPS).
+# Token in HCLOUD_TOKEN (exported by the Makefile from SOPS).
 provider "hcloud" {}

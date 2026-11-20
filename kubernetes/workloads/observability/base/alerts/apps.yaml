@@ -1,8 +1,8 @@
-# Regras do Grafana Alerting, carregadas pelo sidecar (label grafana_alert).
-# Derivadas de regras da comunidade (origem em cada comentário), reescritas para os
-# nomes OTel que chegam ao Prometheus por OTLP. Hosts se distinguem por host_name
-# (service.name vira o label job). Severidades: critical e warning chegam por e-mail;
-# info só aparece na UI (veja a política em overlays/tailscale/contact-points.yaml).
+# Grafana Alerting rules, loaded by the sidecar (grafana_alert label).
+# Derived from community rules (source in each comment), rewritten for the
+# OTel names that reach Prometheus over OTLP. Hosts are told apart by host_name
+# (service.name becomes the job label). Severities: critical and warning arrive by email;
+# info only shows up in the UI (see the policy in overlays/tailscale/contact-points.yaml).
 apiVersion: 1
 groups:
   - orgId: 1
@@ -10,16 +10,16 @@ groups:
     folder: Homelab
     interval: 1m
     rules:
-      # Origem: awesome-prometheus-alerts (CC BY 4.0), ArgocdServiceNotSynced
+      # Source: awesome-prometheus-alerts (CC BY 4.0), ArgocdServiceNotSynced
       - uid: argocd-app-outofsync
-        title: Application do ArgoCD fora de sync
+        title: ArgoCD Application out of sync
         condition: B
         for: 30m
         noDataState: OK
         execErrState: Error
         labels: {severity: warning}
         annotations:
-          summary: "Application {{ $labels.name }} está {{ $labels.sync_status }} há 30 min"
+          summary: "Application {{ $labels.name }} has been {{ $labels.sync_status }} for 30 min"
         data:
           - refId: A
             relativeTimeRange: {from: 600, to: 0}
@@ -38,16 +38,16 @@ groups:
               conditions:
                 - evaluator: {type: gt, params: [0]}
 
-      # Origem: cloudnative-pg/charts, regra cluster-offline (cluster-v0.9.0)
+      # Source: cloudnative-pg/charts, cluster-offline rule (cluster-v0.9.0)
       - uid: cnpg-instance-down
-        title: Instância do Postgres (CNPG) fora do ar
+        title: Postgres (CNPG) instance down
         condition: B
         for: 5m
         noDataState: OK
         execErrState: Error
         labels: {severity: critical}
         annotations:
-          summary: "{{ $labels.namespace }}/{{ $labels.pod }}: o Postgres não responde ao exporter do CNPG"
+          summary: "{{ $labels.namespace }}/{{ $labels.pod }}: Postgres does not answer the CNPG exporter"
         data:
           - refId: A
             relativeTimeRange: {from: 600, to: 0}
@@ -66,16 +66,16 @@ groups:
               conditions:
                 - evaluator: {type: lt, params: [1]}
 
-      # Origem: awesome-prometheus-alerts (CC BY 4.0), PostgresqlTooManyLocksAcquired / XID wraparound
+      # Source: awesome-prometheus-alerts (CC BY 4.0), PostgresqlTooManyLocksAcquired / XID wraparound
       - uid: postgres-xid-age
-        title: Idade do XID do Postgres alta
+        title: High Postgres XID age
         condition: B
         for: 10m
         noDataState: OK
         execErrState: Error
         labels: {severity: warning}
         annotations:
-          summary: "{{ $labels.namespace }}/{{ $labels.datname }}: XID age em {{ $values.A.Value }} (wraparound perto)"
+          summary: "{{ $labels.namespace }}/{{ $labels.datname }}: XID age at {{ $values.A.Value }} (wraparound is near)"
         data:
           - refId: A
             relativeTimeRange: {from: 600, to: 0}
@@ -94,16 +94,16 @@ groups:
               conditions:
                 - evaluator: {type: gt, params: [1500000000]}
 
-      # Origem: awesome-prometheus-alerts (CC BY 4.0), PostgresqlDeadLocks
+      # Source: awesome-prometheus-alerts (CC BY 4.0), PostgresqlDeadLocks
       - uid: postgres-deadlocks
-        title: Deadlocks no Postgres
+        title: Postgres deadlocks
         condition: B
         for: 10m
         noDataState: OK
         execErrState: Error
         labels: {severity: warning}
         annotations:
-          summary: "{{ $labels.namespace }}/{{ $labels.datname }}: {{ $values.A.Value }} deadlocks em 10 min"
+          summary: "{{ $labels.namespace }}/{{ $labels.datname }}: {{ $values.A.Value }} deadlocks in 10 min"
         data:
           - refId: A
             relativeTimeRange: {from: 600, to: 0}

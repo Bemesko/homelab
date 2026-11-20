@@ -1,5 +1,5 @@
-# Também é a rota interna do grocery-ops: http://home-assistant.home-assistant.svc:8123
-# (com hostNetwork o endpoint vira <IP do nó>:8123 e o Service segue funcionando).
+# Also the internal route for grocery-ops: http://home-assistant.home-assistant.svc:8123
+# (with hostNetwork the endpoint becomes <node IP>:8123 and the Service keeps working).
 apiVersion: v1
 kind: Service
 metadata:

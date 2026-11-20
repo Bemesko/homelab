@@ -1,6 +1,6 @@
 argument_specs:
   main:
-    short_description: Verificações antes de qualquer mudança no host
+    short_description: Checks before any change to the host
     options:
       tailscale_enabled:
         type: bool

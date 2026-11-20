@@ -29,5 +29,5 @@ spec:
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
-      # CRDs do CNPG passam do limite de annotation do client-side apply.
+      # The CNPG CRDs exceed the client-side apply annotation limit.
       - ServerSideApply=true

@@ -1,4 +1,4 @@
 argument_specs:
   main:
-    short_description: Verifica (somente leitura) que o Tailscale do host está ativo e expõe nome/IPs
+    short_description: Checks (read-only) that the host's Tailscale is up and exposes its name/IPs
     options: {}

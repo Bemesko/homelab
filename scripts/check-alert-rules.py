@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Valida as regras de alerta do Grafana versionadas em base/alerts/*.yaml.
+"""Validates the Grafana alert rules versioned in base/alerts/*.yaml.
 
-Confere o que o provisionamento só reclama em runtime (e que o e2e demora a mostrar):
-uid único em todos os arquivos, severity conhecida (a política de notificação roteia
-por ela), datasource conhecido e o par A (query) + B (threshold) esperado.
+Checks what provisioning only complains about at runtime (and the e2e takes a while to show):
+a unique uid across all files, a known severity (the notification policy routes
+on it), a known datasource and the expected A (query) + B (threshold) pair.
 """
 import pathlib
 import sys
@@ -26,26 +26,26 @@ def main():
                 uid = rule.get("uid", "?")
                 where = f"{path.name}:{uid}"
                 if uid in uids:
-                    errors.append(f"{where}: uid repetido (já em {uids[uid]})")
+                    errors.append(f"{where}: duplicate uid (already in {uids[uid]})")
                 uids[uid] = path.name
                 if rule.get("labels", {}).get("severity") not in SEVERITIES:
-                    errors.append(f"{where}: severity deve ser {sorted(SEVERITIES)}")
+                    errors.append(f"{where}: severity must be one of {sorted(SEVERITIES)}")
                 if rule.get("noDataState") not in NODATA:
-                    errors.append(f"{where}: noDataState inválido")
+                    errors.append(f"{where}: invalid noDataState")
                 data = {d["refId"]: d for d in rule.get("data", [])}
                 a, b = data.get("A"), data.get("B")
                 if rule.get("condition") != "B" or not a or not b:
-                    errors.append(f"{where}: esperado condition B com queries A e B")
+                    errors.append(f"{where}: expected condition B with queries A and B")
                     continue
                 if a["datasourceUid"] not in DATASOURCES:
-                    errors.append(f"{where}: datasourceUid {a['datasourceUid']} desconhecido")
+                    errors.append(f"{where}: unknown datasourceUid {a['datasourceUid']}")
                 if not a["model"].get("expr"):
-                    errors.append(f"{where}: A sem expr")
+                    errors.append(f"{where}: A without expr")
                 if b["datasourceUid"] != "__expr__" or b["model"].get("type") != "threshold":
-                    errors.append(f"{where}: B deve ser um threshold em __expr__")
+                    errors.append(f"{where}: B must be a threshold on __expr__")
     for err in errors:
         print(err, file=sys.stderr)
-    print(f"{total} regras em {len(list(ALERTS.glob('*.yaml')))} arquivos: {'ERROS' if errors else 'ok'}")
+    print(f"{total} rules in {len(list(ALERTS.glob('*.yaml')))} files: {'ERRORS' if errors else 'ok'}")
     return 1 if errors else 0
 
 

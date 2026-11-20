@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# kustomize build para validação offline: o generator KSOPS é resolvido por
-# scripts/ksops-stub.py (sem chave age; valores viram placeholder).
-#   kustomize-build.sh <diretório-da-kustomization>
+# kustomize build for offline validation: the KSOPS generator is resolved by
+# scripts/ksops-stub.py (no age key; values become placeholders).
+#   kustomize-build.sh <kustomization-directory>
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

@@ -1,40 +1,40 @@
-# 005 — Immich com as fotos do NAS via NFS
+# 005 — Immich with the NAS photos over NFS
 
-- **Status:** aceito
-- **Data:** 2026-11-01
+- **Status:** accepted
+- **Date:** 2026-11-01
 
-## Contexto
+## Context
 
-O Immich roda no k3s do notebook e precisa exibir, **somente leitura**, as fotos e vídeos do NAS `thinkpad` (openmediavault, na tailnet). A coleção tem de 200 GB a 1 TB; o notebook tem ~50 GB livres. O NAS expunha só SMB.
+Immich runs on the laptop's k3s and has to show, **read-only**, the photos and videos on the `thinkpad` NAS (openmediavault, on the tailnet). The collection is 200 GB to 1 TB; the laptop has ~50 GB free. The NAS only exposed SMB.
 
-## Decisão
+## Decision
 
-- **NFS, e não SMB.**
-  - O kubelet monta `nfs:` nativamente: não precisa de CSI driver no cluster, só do `nfs-common` no host.
-  - Não há credencial para guardar.
-  - Os dois lados são Linux, então permissões e nomes de arquivo funcionam sem tradução.
-  - O acesso fica restrito ao IP Tailscale do notebook, e o tráfego já vai cifrado pelo WireGuard.
-- **O OMV é configurado pela UI dele, e o Ansible só verifica.**
-  - O OMV mantém a configuração num banco próprio e regenera o `/etc/exports`. Automatizar exigiria `omv-rpc` + `omv-salt`, que é frágil entre versões e daria ao playbook escrita no NAS das fotos.
-  - O role `nas_storage` só lê (`showmount`) e faz uma montagem temporária de teste, incluindo uma escrita no export de dados.
-- **Os PVs vêm do Ansible; as PVCs vêm do git.**
-  - O PV carrega hostname e paths do NAS, que ficam no inventário privado, junto com o hostname do notebook.
-  - A PVC só declara a necessidade do app. O `claimRef` garante que só a PVC do Immich usa cada PV.
-- **Onde fica cada dado:**
+- **NFS, not SMB.**
+  - The kubelet mounts `nfs:` natively: no CSI driver in the cluster, only `nfs-common` on the host.
+  - There is no credential to store.
+  - Both sides are Linux, so permissions and file names work without translation.
+  - Access is restricted to the laptop's Tailscale IP, and the traffic is already encrypted by WireGuard.
+- **OMV is configured through its own UI, and Ansible only verifies.**
+  - OMV keeps its configuration in its own database and regenerates `/etc/exports`. Automating it would need `omv-rpc` + `omv-salt`, which is fragile across versions and would give the playbook write access to the photo NAS.
+  - The `nas_storage` role only reads (`showmount`) and does a temporary test mount, including a write to the data export.
+- **PVs come from Ansible; PVCs come from git.**
+  - The PV carries the NAS hostname and paths, which live in the private inventory together with the laptop hostname.
+  - The PVC only declares what the app needs. `claimRef` makes sure only the Immich PVC uses each PV.
+- **Where each piece of data lives:**
 
-  | Dado | Onde | Por quê |
+  | Data | Where | Why |
   |---|---|---|
-  | Fotos/vídeos originais | NAS, export `ro` | o Immich nunca altera os originais |
-  | Thumbnails, previews, transcodes, dumps do banco | NAS, export `rw` dedicado (`immich-data`) | ~12 a 70 GB, não cabe no notebook |
-  | Postgres (CNPG + VectorChord) | disco do notebook (`local-path`) | banco em NFS corrompe com facilidade |
+  | Original photos/videos | NAS, `ro` export | Immich never changes the originals |
+  | Thumbnails, previews, transcodes, database dumps | NAS, dedicated `rw` export (`immich-data`) | ~12 to 70 GB, does not fit on the laptop |
+  | Postgres (CNPG + VectorChord) | laptop disk (`local-path`) | a database on NFS corrupts easily |
 
-- **Backup do banco** com o job nativo do Immich (dump diário em `immich-data/backups`, 14 cópias). O banco some com um `make reset`, mas os dumps ficam no NAS.
-- **HEVC aceito sem transcode** (`ffmpeg.acceptedVideoCodecs`) e **ML desligado**. Os dois evitam dias de CPU no i7-7500U e GBs extras no NAS.
+- **Database backup** with Immich's native job (daily dump to `immich-data/backups`, 14 copies). The database is gone after a `make reset`, but the dumps stay on the NAS.
+- **HEVC accepted without transcoding** (`ffmpeg.acceptedVideoCodecs`) and **ML turned off**. Both avoid days of CPU on the i7-7500U and extra GBs on the NAS.
 
-## Consequências
+## Consequences
 
-- **Firefox e HEVC:** o Firefox pode não tocar vídeos HEVC. Chrome/Edge, Safari e o app tocam.
-- **Fotos novas não aparecem na hora.** O `library.watch` não funciona sobre NFS; elas aparecem no próximo scan agendado.
-- **O CI não tem NAS.** O e2e sobe Immich + CNPG com `local-path` (`nasStorage.enabled=false`). O caminho NFS é coberto pelo assert e pela montagem de teste do `nas_storage`, que rodam no notebook.
-- **PVC é imutável.** Trocar `nasStorage` depois que as PVCs existem exige apagá-las.
-- **O Postgres do Immich não tem um segredo nosso:** o CNPG gera o `immich-database-app`.
+- **Firefox and HEVC:** Firefox may not play HEVC videos. Chrome/Edge, Safari and the app do.
+- **New photos do not show up right away.** `library.watch` does not work over NFS; they appear on the next scheduled scan.
+- **CI has no NAS.** The e2e brings up Immich + CNPG on `local-path` (`nasStorage.enabled=false`). The NFS path is covered by the `nas_storage` assert and test mount, which run on the laptop.
+- **PVCs are immutable.** Switching `nasStorage` after the PVCs exist requires deleting them.
+- **The Immich Postgres has no secret of ours:** CNPG generates `immich-database-app`.

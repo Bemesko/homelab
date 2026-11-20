@@ -1,12 +1,12 @@
-# Porta de entrada OTLP para quem está fora do cluster (otel_host_agent nos hosts,
-# coletor do NAS): o otel-gateway exposto na tailnet como "otel".
+# OTLP entry point for whatever is outside the cluster (otel_host_agent on the hosts,
+# the NAS collector): the otel-gateway exposed on the tailnet as "otel".
 apiVersion: v1
 kind: Service
 metadata:
   name: otel
   annotations:
     tailscale.com/hostname: otel
-    ignore-check.kube-linter.io/dangling-service: "os pods vêm da release otel-gateway (chart), fora deste kustomize"
+    ignore-check.kube-linter.io/dangling-service: "the pods come from the otel-gateway release (chart), outside this kustomize"
 spec:
   type: LoadBalancer
   loadBalancerClass: tailscale

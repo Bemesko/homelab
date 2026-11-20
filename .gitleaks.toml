@@ -1,4 +1,4 @@
-title = "2026-kubernetes"
+title = "homelab"
 
 [extend]
 useDefault = true
@@ -11,13 +11,13 @@ keywords = ["age-secret-key"]
 
 [[rules]]
 id = "tailnet-name"
-description = "Nome da tailnet (*.ts.net) identifica a rede privada; é descoberto em runtime"
+description = "The tailnet name (*.ts.net) identifies the private network; it is discovered at runtime"
 regex = '''[a-z0-9-]+\.ts\.net'''
 keywords = ["ts.net"]
 
-# Chave de teste do CI: pública de propósito (só descriptografa o demo do hello-world).
-# O hook sops-encrypted impede que ela seja destinatária de qualquer outro arquivo.
+# CI test key: public on purpose (it only decrypts the hello-world demo).
+# The sops-encrypted hook prevents it from being a recipient of any other file.
 [[allowlists]]
-description = "Chave age pública de teste do CI"
+description = "Public CI test age key"
 targetRules = ["age-private-key", "age-secret-key", "generic-api-key"]
 paths = ['''^tests/ci-age\.key$''']

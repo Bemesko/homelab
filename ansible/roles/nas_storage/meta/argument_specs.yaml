@@ -1,30 +1,30 @@
 argument_specs:
   main:
-    short_description: Verifica os exports NFS do NAS (sem alterar o NAS) e cria os PVs dos apps
+    short_description: Checks the NAS NFS exports (without changing the NAS) and creates the app PVs
     options:
       nas_storage_host:
-        description: Nome MagicDNS curto do NAS (definido em ansible/inventory/local.yaml)
+        description: Short MagicDNS name of the NAS (set in ansible/inventory/local.yaml)
         type: str
         required: true
       nas_storage_exports:
-        description: Paths exportados pelo OMV
+        description: Paths exported by OMV
         type: dict
         required: true
         options:
           photos:
-            description: Export somente leitura da raiz do SSD (External Library do Immich e origem do backup off-site)
+            description: Read-only export of the SSD root (Immich External Library and off-site backup source)
             type: str
             required: true
           data:
-            description: Export com escrita para thumbnails, previews, transcodes e backups do banco do Immich
+            description: Writable export for the Immich thumbnails, previews, transcodes and database backups
             type: str
             required: true
           obsidian:
-            description: Export com escrita do vault do Obsidian
+            description: Writable export for the Obsidian vault
             type: str
             required: true
           home_assistant:
-            description: Export com escrita do /config do Home Assistant
+            description: Writable export for the Home Assistant /config
             type: str
             required: true
       nas_storage_kubeconfig:
@@ -35,7 +35,7 @@ argument_specs:
         elements: str
         default: [hard, nfsvers=3]
       nas_storage_volumes:
-        description: Um PV por volume, pré-vinculado à PVC de mesmo nome no namespace do app
+        description: One PV per volume, pre-bound to the PVC with the same name in the app's namespace
         type: list
         elements: dict
         default:
@@ -50,7 +50,7 @@ argument_specs:
             type: str
             required: true
           export:
-            description: Chave em nas_storage_exports
+            description: Key in nas_storage_exports
             type: str
             required: true
             choices: [photos, data, obsidian, home_assistant]

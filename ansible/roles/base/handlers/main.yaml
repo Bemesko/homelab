@@ -1,8 +1,8 @@
-- name: Recarregar sysctl
+- name: Reload sysctl
   ansible.builtin.command: sysctl --system
   changed_when: true
 
-# Substituir (-r) o perfil já carregado também atualiza os containers em execução.
-- name: Recarregar perfil AppArmor dos containers
+# Replacing (-r) the loaded profile also updates the running containers.
+- name: Reload the containers' AppArmor profile
   ansible.builtin.command: apparmor_parser --replace /etc/apparmor.d/cri-containerd.apparmor.d
   changed_when: true

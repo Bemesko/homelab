@@ -1,36 +1,36 @@
-- name: Garantir Ubuntu suportado
+- name: Ensure a supported Ubuntu
   ansible.builtin.assert:
     that:
       - ansible_facts['distribution'] == 'Ubuntu'
       - ansible_facts['distribution_version'] in preflight_supported_ubuntu_versions
       - ansible_facts['architecture'] == 'x86_64'
     fail_msg: >-
-      Host é {{ ansible_facts['distribution'] }} {{ ansible_facts['distribution_version'] }}
-      ({{ ansible_facts['architecture'] }}); suportado: Ubuntu {{ preflight_supported_ubuntu_versions | join(', ') }} x86_64.
+      Host is {{ ansible_facts['distribution'] }} {{ ansible_facts['distribution_version'] }}
+      ({{ ansible_facts['architecture'] }}); supported: Ubuntu {{ preflight_supported_ubuntu_versions | join(', ') }} x86_64.
 
-- name: Garantir que a conexão não é feita como root
+- name: Ensure the connection is not made as root
   ansible.builtin.assert:
     that:
       - (ansible_user | default(lookup('ansible.builtin.env', 'USER'))) != 'root'
-    fail_msg: Conecte com um usuário comum e use become (sudo).
+    fail_msg: Connect with a regular user and use become (sudo).
 
-- name: Garantir que o host está na tailnet
+- name: Ensure the host is on the tailnet
   ansible.builtin.assert:
     that:
       - "'tailscale0' in ansible_facts['interfaces']"
-    fail_msg: Interface tailscale0 ausente; o playbook não instala nem configura o Tailscale do host.
+    fail_msg: Interface tailscale0 missing; the playbook does not install or configure the host's Tailscale.
   when: tailscale_enabled | bool
 
-- name: Ler estado do firewall do host (somente leitura)
-  ansible.builtin.command: ufw status # lockout-safe: leitura
+- name: Read the host firewall state (read-only)
+  ansible.builtin.command: ufw status # lockout-safe: read-only
   register: preflight_firewall
   changed_when: false
   failed_when: false
   check_mode: false
 
-- name: Avisar se o firewall do host está ativo
+- name: Warn if the host firewall is active
   ansible.builtin.debug:
     msg: >-
-      O firewall do host está ativo. O playbook NÃO o altera; se pods não alcançarem a API,
-      libere manualmente 10.42.0.0/16 e 10.43.0.0/16 (veja o README).
+      The host firewall is active. The playbook does NOT change it; if pods cannot reach the API,
+      allow 10.42.0.0/16 and 10.43.0.0/16 manually (see the README).
   when: "'Status: active' in preflight_firewall.stdout"

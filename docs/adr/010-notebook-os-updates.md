@@ -1,30 +1,30 @@
-# 010 — Atualizações do SO do notebook sob controle
+# 010 — Laptop OS updates under control
 
-- **Status:** aceito
-- **Data:** 2026-11-11
+- **Status:** accepted
+- **Date:** 2026-11-11
 
-## Contexto
+## Context
 
-Em 2026-11-11, às 06:40, o `apt-daily-upgrade.timer` do Ubuntu disparou num horário aleatório (06:00 + até 60 min) e o unattended-upgrades instalou o kernel 7.0.0-43, com initramfs e módulos NVIDIA. O SSD do notebook é um SATA de entrada (115 GB, 76% cheio): ficou 84% ocupado gravando só 3–8 MB/s. Os dois SQLite do cluster travaram por ~7 min:
+On 2026-11-11 at 06:40, Ubuntu's `apt-daily-upgrade.timer` fired at a random time (06:00 + up to 60 min) and unattended-upgrades installed kernel 7.0.0-43, with initramfs and NVIDIA modules. The laptop SSD is an entry-level SATA drive (115 GB, 76% full): it stayed 84% busy while writing only 3–8 MB/s. Both of the cluster's SQLite databases stalled for ~7 min:
 
-- **Grafana:** `database is locked (SQLITE_BUSY)`, com falhas de login, de leitura de datasources e do sync das regras de alerta.
-- **k3s (kine):** `Handler timeout` no apiserver.
+- **Grafana:** `database is locked (SQLITE_BUSY)`, with failed logins, datasource reads and alert-rule syncs.
+- **k3s (kine):** `Handler timeout` in the apiserver.
 
-Nenhum pod reiniciou, mas o kernel novo ficou instalado para o próximo boot sem teste. Foi assim que o 7.0.0-42 (também via unattended-upgrades) quebrou o Postgres em 2026-11-05, pela regressão do AppArmor (memória `kernel-42-apparmor-signals`).
+No pod restarted, but the new kernel was left installed for the next boot without any testing. That is how 7.0.0-42 (also via unattended-upgrades) broke Postgres on 2026-11-05, through the AppArmor regression.
 
-## Decisão
+## Decision
 
-- **Role `os_updates`** (Ansible, depois do `base`):
-  - O unattended-upgrades continua instalando atualizações de segurança, **exceto `linux-*`** (`Package-Blacklist`), e não remove kernels antigos sozinho.
-  - Horário fixo e sem atraso aleatório: download às 05:00, upgrade às 05:15. Fica depois do rsync do NAS (03:00) e fora do uso.
-  - O `apt-daily-upgrade.service` roda com `Nice=19`, `CPUSchedulingPolicy=idle` e `IOSchedulingClass=idle`. O dpkg herda isso, e o `mq-deadline` respeita a classe de I/O.
-- **`make kernel-upgrade`** (`ansible/kernel-upgrade.yaml`): instala os `linux-*` pendentes, reinicia se o kernel mais novo em `/boot` não é o que está rodando, e confere kernel, nó `Ready`, todas as Applications Synced/Healthy, Postgres (CNPG) prontos e nenhuma negação do AppArmor de sinal ou D-Bus. Só então roda `apt autoremove`, que mantém o kernel atual e o anterior.
-- **Grafana com SQLite em WAL** (`database.wal: true`): leitores não esperam as escritas.
-- **GC de imagens do kubelet fica no padrão (85/80).** Testamos 70/60: o kubelet mede o filesystem inteiro (77%, puxado por `/home/snap`, swap e snapd), e as 35 imagens do containerd (18 GB) estão todas em uso. Ele liberou 0 bytes e passaria a registrar falha a cada 5 minutos. O espaço a recuperar está fora do cluster.
-- **Alerta `host-disk-saturated`** (warning): disco do notebook mais de 70% ocupado por 5 min.
+- **The `os_updates` role** (Ansible, after `base`):
+  - unattended-upgrades keeps installing security updates, **except `linux-*`** (`Package-Blacklist`), and does not remove old kernels on its own.
+  - Fixed schedule with no random delay: download at 05:00, upgrade at 05:15. That is after the NAS rsync (03:00) and outside usage hours.
+  - `apt-daily-upgrade.service` runs with `Nice=19`, `CPUSchedulingPolicy=idle` and `IOSchedulingClass=idle`. dpkg inherits that, and `mq-deadline` honors the I/O class.
+- **`make kernel-upgrade`** (`ansible/kernel-upgrade.yaml`): installs the pending `linux-*` packages, reboots if the newest kernel in `/boot` is not the running one, and checks the kernel, the node `Ready`, all Applications Synced/Healthy, the Postgres clusters (CNPG) ready and no AppArmor signal or D-Bus denials. Only then does it run `apt autoremove`, which keeps the current and the previous kernel.
+- **Grafana with SQLite in WAL mode** (`database.wal: true`): readers do not wait for writes.
+- **The kubelet image GC stays at the default (85/80).** We tried 70/60: the kubelet measures the whole filesystem (77%, driven by `/home/snap`, swap and snapd), and all 35 containerd images (18 GB) are in use. It freed 0 bytes and would log a failure every 5 minutes. The space to reclaim is outside the cluster.
+- **The `host-disk-saturated` alert** (warning): the laptop disk more than 70% busy for 5 min.
 
-## Consequências
+## Consequences
 
-- Kernel novo só entra quando alguém roda `make kernel-upgrade`. É preciso lembrar de rodar periodicamente (os avisos de segurança do kernel não se aplicam sozinhos).
-- O reboot do `make kernel-upgrade` deixa os apps alguns minutos fora; rodar num horário escolhido.
-- Postgres do Grafana (em vez de SQLite) e troca do SSD por um maior ficam como alternativas se o problema voltar.
+- A new kernel only goes in when someone runs `make kernel-upgrade`. It has to be run periodically (kernel security fixes do not apply themselves).
+- The `make kernel-upgrade` reboot takes the apps down for a few minutes; run it at a chosen time.
+- Postgres for Grafana (instead of SQLite) and replacing the SSD with a bigger one remain as alternatives if the problem comes back.

@@ -1,4 +1,4 @@
-# Values do chart cloudnative-pg (operator). Os Clusters ficam nos workloads
+# Values for the cloudnative-pg chart (operator). The Clusters live in the workloads
 # (kubernetes/workloads/immich/database/database-cluster.yaml).
 resources:
   requests:

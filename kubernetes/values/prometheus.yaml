@@ -1,13 +1,13 @@
-# Values do chart prometheus (prometheus-community), versão em kubernetes/apps/values.yaml.
-# Só o TSDB: as métricas chegam por OTLP do otel-gateway (o Prometheus não faz scrape
-# nenhum) e as regras de alerta vivem no Grafana. Veja docs/adr/008.
+# Values for the prometheus chart (prometheus-community), version in kubernetes/apps/values.yaml.
+# TSDB only: metrics arrive over OTLP from the otel-gateway (Prometheus does no scraping
+# at all) and the alert rules live in Grafana. See docs/adr/008.
 server:
   image:
     tag: v3.16.0
     digest: sha256:9332054523223e2ddc18d8101799d54a4a8d823b030c53216f063a6c117773cd
   extraFlags:
     - web.enable-lifecycle
-    # OTLP em /api/v1/otlp (otel-gateway) e remote write do metrics-generator do Tempo.
+    # OTLP on /api/v1/otlp (otel-gateway) and remote write from the Tempo metrics-generator.
     - web.enable-otlp-receiver
     - web.enable-remote-write-receiver
   extraArgs:
@@ -16,8 +16,8 @@ server:
     scrape_interval: 1m
     evaluation_interval: 1m
   otlp:
-    # Atributos de resource viram labels (o resto fica em target_info).
-    # service.name já vira o label job (e service.instance.id, o instance).
+    # Resource attributes become labels (the rest stays in target_info).
+    # service.name already becomes the job label (and service.instance.id, the instance).
     promote_resource_attributes:
       - host.name
       - k8s.namespace.name
@@ -29,11 +29,11 @@ server:
       - k8s.node.name
     keep_identifying_resource_attributes: true
   tsdb:
-    # O gateway faz batch: amostras podem chegar alguns segundos fora de ordem.
+    # The gateway batches: samples can arrive a few seconds out of order.
     out_of_order_time_window: 5m
   exemplars:
     max_exemplars: 100000
-  # Disco do notebook: o que bater primeiro (tempo ou tamanho) apaga blocos antigos.
+  # Laptop disk: whichever comes first (time or size) deletes old blocks.
   retention: 30d
   retentionSize: 6GB
   persistentVolume:
@@ -63,7 +63,7 @@ configmapReload:
       capabilities:
         drop: [ALL]
 
-# Sem scrape: tudo entra por OTLP pelo coletor (inclusive os /metrics dos apps).
+# No scraping: everything comes in over OTLP through the collector (including the apps' /metrics).
 scrapeConfigs:
   prometheus:
     enabled: false
@@ -89,22 +89,22 @@ scrapeConfigs:
 alertmanager:
   enabled: false
 
-# Estado do Kubernetes (kube_*), usado pelo OpenCost, pelos dashboards e pelos alertas
-# (docs/adr/013). O Prometheus continua sem scrape: o otel-agent raspa este Service e
-# manda por OTLP.
+# Kubernetes state (kube_*), used by OpenCost, the dashboards and the alerts
+# (docs/adr/013). Prometheus still does no scraping: the otel-agent scrapes this Service and
+# sends it over OTLP.
 kube-state-metrics:
   enabled: true
-  # Nome fixo: o job kube-state-metrics do otel-agent aponta para este Service.
+  # Fixed name: the otel-agent kube-state-metrics job points at this Service.
   fullnameOverride: kube-state-metrics
   prometheusScrape: false
   image:
     tag: v2.20.0
     sha: sha256:42cfe3723a5f058171c627537fb57a3ea0f26e4380fa18555a95cb1a1b4cfc5b
-  # kube_pod_labels e kube_namespace_labels: o OpenCost agrega o custo por label.
+  # kube_pod_labels and kube_namespace_labels: OpenCost aggregates cost by label.
   metricLabelsAllowlist:
     - pods=[*]
     - namespaces=[*]
-  # Só os recursos que o OpenCost, os dashboards e os alertas usam (nó único).
+  # Only the resources that OpenCost, the dashboards and the alerts use (single node).
   collectors:
     - cronjobs
     - daemonsets

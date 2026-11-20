@@ -1,5 +1,5 @@
 # {{ ansible_managed }}
-# Logs do journald e métricas do host -> gateway OTLP do cluster (via tailnet).
+# journald logs and host metrics -> cluster OTLP gateway (over the tailnet).
 receivers:
   journald:
     priority: {{ otel_host_agent_journald_priority }}
@@ -17,7 +17,7 @@ receivers:
           fs_types: [autofs, cgroup2, devtmpfs, nsfs, overlay, proc, squashfs, sysfs, tmpfs, tracefs]
           match_type: strict
         exclude_mount_points:
-          # Volumes dos pods e montagens NFS do kubelet já aparecem pelo cluster.
+          # Pod volumes and kubelet NFS mounts already show up through the cluster.
           mount_points: ["/var/lib/kubelet/*", "/run/k3s/*", "/snap/*"]
           match_type: regexp
 
@@ -29,7 +29,7 @@ processors:
     detectors: [system]
     system:
       hostname_sources: [os]
-  # Vira job (Prometheus) e service_name (Loki); as regras de alerta filtram por ele.
+  # Becomes job (Prometheus) and service_name (Loki); the alert rules filter on it.
   resource:
     attributes:
       - key: service.name
@@ -40,7 +40,7 @@ processors:
 exporters:
   otlp:
     endpoint: {{ otel_host_agent_endpoint }}
-    # Tráfego já cifrado pelo WireGuard da tailnet.
+    # Traffic already encrypted by the tailnet's WireGuard.
     tls:
       insecure: true
     sending_queue:

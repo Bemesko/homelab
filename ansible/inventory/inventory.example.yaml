@@ -1,42 +1,42 @@
-# Copie para ansible/inventory/local.yaml (ignorado pelo git) e preencha.
-# Use o nome curto do MagicDNS, não o FQDN *.ts.net.
+# Copy to ansible/inventory/local.yaml (ignored by git) and fill it in.
+# Use the short MagicDNS name, not the *.ts.net FQDN.
 all:
   children:
     k3s_server:
       hosts:
         notebook:
-          ansible_host: <hostname-magicdns>
-          ansible_user: <usuario>
-          # NAS (openmediavault) com os exports NFS do Immich; veja o README.
-          # Ficam no host, não em `vars:` do grupo: variáveis de grupo do inventário
-          # perdem para ansible/group_vars/all (onde o padrão é false).
+          ansible_host: <magicdns-hostname>
+          ansible_user: <user>
+          # NAS (openmediavault) with the Immich NFS exports; see the README.
+          # They live on the host, not in the group `vars:`: inventory group variables
+          # lose to ansible/group_vars/all (where the default is false).
           nas_storage_enabled: true
-          nas_storage_host: <hostname-magicdns-do-nas>
+          nas_storage_host: <nas-magicdns-hostname>
           nas_storage_exports:
-            photos: </export/fotos>
+            photos: </export/photos>
             data: </export/immich-data>
             obsidian: </export/borbsidian>
             home_assistant: </export/home-assistant>
-          # OpenTelemetry Collector no host (journald + métricas) -> gateway do cluster.
+          # OpenTelemetry Collector on the host (journald + metrics) -> cluster gateway.
           otel_host_agent_enabled: true
-          otel_host_agent_endpoint: <nome-magicdns-do-gateway>:4317
-    # NAS: o Ansible só gerencia o Syncthing (ADR 011) e a energia (ADR 012); o resto é pela UI do OMV.
+          otel_host_agent_endpoint: <gateway-magicdns-name>:4317
+    # NAS: Ansible only manages Syncthing (ADR 011) and power (ADR 012); the rest is done in the OMV UI.
     nas:
       hosts:
         nas:
-          ansible_host: <hostname-magicdns-do-nas>
+          ansible_host: <nas-magicdns-hostname>
           ansible_user: root
           nas_syncthing_enabled: true
-          # Tampa, sono e guardião de bateria (ADR 012).
+          # Lid, sleep and battery guard (ADR 012).
           nas_power_enabled: true
-          # Estado (config, chaves, índice) no disco de dados, fora do pendrive.
+          # State (config, keys, index) on the data disk, off the USB stick.
           nas_syncthing_home: </srv/dev-disk-by-uuid-.../appdata/syncthing>
-          # Lista completa: devices fora dela são removidos.
+          # Complete list: devices not in it are removed.
           nas_syncthing_devices:
-            - id: <DEVICE-ID-DO-CELULAR>
-              name: <nome>
+            - id: <PHONE-DEVICE-ID>
+              name: <name>
           nas_syncthing_folders:
-            - id: <id-da-pasta>
-              label: <rótulo>
-              path: </srv/dev-disk-by-uuid-.../caminho/do/vault>
-              devices: [<DEVICE-ID-DO-CELULAR>]
+            - id: <folder-id>
+              label: <label>
+              path: </srv/dev-disk-by-uuid-.../path/to/vault>
+              devices: [<PHONE-DEVICE-ID>]

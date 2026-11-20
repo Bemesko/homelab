@@ -1,8 +1,8 @@
-# State e plan criptografados pelo próprio OpenTofu: o terraform.tfstate é versionado
-# no git (tem a senha do Storage Box) e nunca existe em texto puro. A passphrase fica
-# em secrets.sops.yaml, que só a chave da WSL abre. Sem ela não dá para ler o state.
+# State and plan encrypted by OpenTofu itself: terraform.tfstate is versioned in git
+# (it holds the Storage Box password) and never exists in plain text. The passphrase
+# lives in secrets.sops.yaml, which only the WSL key opens. Without it the state is unreadable.
 variable "state_passphrase" {
-  description = "Passphrase do state (TF_VAR_state_passphrase, exportada pelo Makefile)"
+  description = "State passphrase (TF_VAR_state_passphrase, exported by the Makefile)"
   type        = string
   sensitive   = true
 }

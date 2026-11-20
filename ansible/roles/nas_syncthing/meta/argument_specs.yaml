@@ -1,19 +1,19 @@
 argument_specs:
   main:
-    short_description: Syncthing no NAS (única exceção ao "Ansible não altera o NAS"; ADR 011)
+    short_description: Syncthing on the NAS (an exception to "Ansible does not change the NAS"; ADR 011)
     options:
       nas_syncthing_version:
-        description: Versão do pacote syncthing (definida em group_vars/all)
+        description: Version of the syncthing package (set in group_vars/all)
         type: str
         required: true
       nas_syncthing_deb_sha256:
-        description: sha256 do syncthing_<versão>_amd64.deb publicado no release do GitHub
+        description: sha256 of the syncthing_<version>_amd64.deb published in the GitHub release
         type: str
         required: true
       nas_syncthing_home:
         description: >-
-          Diretório de estado (config, chaves, índice) no disco de dados do NAS,
-          fora do pendrive do sistema (definido em ansible/inventory/local.yaml)
+          State directory (config, keys, index) on the NAS data disk,
+          off the system USB stick (set in ansible/inventory/local.yaml)
         type: str
         required: true
       nas_syncthing_user:
@@ -29,13 +29,13 @@ argument_specs:
         type: str
         default: 127.0.0.1:8384
       nas_syncthing_options:
-        description: Campos de /rest/config/options aplicados (os demais ficam como estão)
+        description: Fields of /rest/config/options that are applied (the others stay as they are)
         type: dict
         default: {}
       nas_syncthing_devices:
         description: >-
-          Devices remotos. É a lista completa: devices que não estão aqui são
-          removidos (o próprio NAS nunca é).
+          Remote devices. This is the complete list: devices that are not here are
+          removed (the NAS itself never is).
         type: list
         elements: dict
         default: []
@@ -48,8 +48,8 @@ argument_specs:
             required: true
       nas_syncthing_folders:
         description: >-
-          Pastas gerenciadas. Pastas fora da lista não são apagadas, só
-          aparecem num aviso.
+          Managed folders. Folders outside the list are not deleted, they only
+          show up in a warning.
         type: list
         elements: dict
         default: []
@@ -64,7 +64,7 @@ argument_specs:
             type: str
             required: true
           devices:
-            description: IDs dos devices que compartilham a pasta (o NAS entra sozinho)
+            description: IDs of the devices that share the folder (the NAS joins on its own)
             type: list
             elements: str
             required: true

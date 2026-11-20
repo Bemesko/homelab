@@ -10,12 +10,12 @@ metadata:
 spec:
   project: default
   sources:
-    # Ingress "borbsidian" e basic auth (KSOPS) só com Tailscale; o CI usa base.
+    # "borbsidian" Ingress and basic auth (KSOPS) only with Tailscale; CI uses base.
     - repoURL: {{ .Values.repoURL }}
       targetRevision: {{ .Values.targetRevision }}
       path: kubernetes/workloads/obsidian/{{ ternary "overlays/tailscale" "base" .Values.tailscaleOperator.enabled }}
-    # PVC do vault na mesma Application do Deployment que a monta: em local-path (CI)
-    # ela só vincula quando o pod existe. overlays/nas usa o PV NFS criado pelo Ansible.
+    # The vault PVC lives in the same Application as the Deployment that mounts it: on local-path (CI)
+    # it only binds once the pod exists. overlays/nas uses the NFS PV created by Ansible.
     - repoURL: {{ .Values.repoURL }}
       targetRevision: {{ .Values.targetRevision }}
       path: kubernetes/workloads/obsidian/storage/{{ ternary "overlays/nas" "base" .Values.nasStorage.enabled }}

@@ -1,310 +1,310 @@
-# 2026-kubernetes
+# homelab
 
-Bootstrap e configuração de um cluster **k3s single-node** no notebook pessoal (Ubuntu 26.04).
-Tudo é aplicado **remotamente**: o Ansible roda no WSL desta máquina e conecta no notebook por SSH pela tailnet.
+Bootstrap and configuration of a **single-node k3s** cluster on a personal laptop (Ubuntu 26.04).
+Everything is applied **remotely**: Ansible runs in WSL on this machine and connects to the laptop over SSH through the tailnet.
 
 ```
-WSL (controle)  ──ssh via Tailscale──▶  notebook (Ubuntu 26.04)
+WSL (control)  ──ssh over Tailscale──▶  laptop (Ubuntu 26.04)
   ansible + sops/age                      k3s
-                                           └─ ArgoCD (app-of-apps, GitOps deste repo)
-                                               ├─ tailscale-operator  → Ingress na tailnet
-                                               ├─ argocd (self-managed) → https://argocd.<sua-tailnet>
-                                               ├─ hello-world           → https://hello.<sua-tailnet>
-                                               ├─ cloudnative-pg        → Postgres do Immich
-                                               ├─ immich                → https://fotos.<sua-tailnet>
-                                               │    └─ NFS (tailnet) ──▶ NAS openmediavault (fotos ro, immich-data rw)
-                                               ├─ home-assistant        → https://casa.<sua-tailnet> (/config no NAS, recorder no CNPG)
-                                               └─ apps: (outros repos da org/Bemesko, AppProject homelab-apps)
-                                                    └─ bernats-homelab/<app> @ vX.Y.Z → deploy/ → https://<app>.<sua-tailnet>
+                                           └─ ArgoCD (app-of-apps, GitOps from this repo)
+                                               ├─ tailscale-operator  → Ingress on the tailnet
+                                               ├─ argocd (self-managed) → https://argocd.<your-tailnet>
+                                               ├─ hello-world           → https://hello.<your-tailnet>
+                                               ├─ cloudnative-pg        → Immich Postgres
+                                               ├─ immich                → https://fotos.<your-tailnet>
+                                               │    └─ NFS (tailnet) ──▶ openmediavault NAS (photos ro, immich-data rw)
+                                               ├─ home-assistant        → https://casa.<your-tailnet> (/config on the NAS, recorder on CNPG)
+                                               └─ apps: (other repos from the org/Bemesko, AppProject homelab-apps)
+                                                    └─ <owner>/<app> @ vX.Y.Z → deploy/ → https://<app>.<your-tailnet>
 ```
 
-## Garantias de segurança
+## Safety guarantees
 
-- **Sem lockout.** O playbook nunca mexe no Tailscale, no SSH, no firewall ou na rede do host. O role `tailscale_check` só lê o status, e o hook `no-lockout` barra qualquer task que tente alterar essas coisas.
-- **Nada identificável no repo.** O inventário real fica em `ansible/inventory/local.yaml` (ignorado pelo git e barrado por hook). O nome da tailnet (`*.ts.net`) é descoberto em runtime e barrado pelo gitleaks. Os kubeconfigs ficam em `~/.kube/`.
-- **Segredos com SOPS + age.** A chave privada fica só no WSL. O Ansible descriptografa no controller e cria os Secrets do bootstrap com `no_log` (veja [ADR 002](docs/adr/002-sops-age-secrets.md)). Os segredos dos apps são commitados criptografados ao lado do app, e o ArgoCD os descriptografa com KSOPS usando uma chave age própria do cluster (veja [ADR 004](docs/adr/004-ksops.md)).
-- **Notebooks nunca suspendem, e uma queda de energia não derruba nada sem aviso.** O role `power` (notebook do cluster e NAS; veja o [ADR 012](docs/adr/012-power-management.md)):
-  - ignora a tampa no `systemd-logind` e mascara os alvos de sono;
-  - trava o GNOME para não suspender por inatividade;
-  - roda um guardião que, sem energia externa, avisa (alerta `host-on-battery`) e desliga com 10% de bateria;
-  - religar é manual (abrir a tampa do Acer, botão do NAS): os dois BIOS ignoram o alarme do RTC. A automação por Wake-on-LAN está na issue #23.
-  - Limite de carga: nenhum dos dois firmwares tem (o ADR registra o que foi tentado).
-- **Atualizações do Ubuntu sem surpresa.** O role `os_updates` roda o unattended-upgrades às 05:15, com prioridade idle de CPU e I/O, e tira o kernel (`linux-*`) do automático: kernel só com `make kernel-upgrade`, que reinicia e valida o cluster. Veja o [ADR 010](docs/adr/010-notebook-os-updates.md).
-- **Versões fixadas com sha256** para k3s (instalador), helm, kubectl, sops, age, kubeconform, kube-linter e kustomize. A imagem do hello-world é fixada por digest.
-- **Uma fonte por versão.** As versões dos charts ficam só em [kubernetes/apps/values.yaml](kubernetes/apps/values.yaml), que o Ansible também lê no bootstrap.
+- **No lockout.** The playbook never touches Tailscale, SSH, the firewall or the host network. The `tailscale_check` role only reads the status, and the `no-lockout` hook blocks any task that tries to change those things.
+- **Nothing identifiable in the repo.** The real inventory lives in `ansible/inventory/local.yaml` (ignored by git and blocked by a hook). The tailnet name (`*.ts.net`) is discovered at runtime and blocked by gitleaks. Kubeconfigs live in `~/.kube/`.
+- **Secrets with SOPS + age.** The private key lives only in WSL. Ansible decrypts on the controller and creates the bootstrap Secrets with `no_log` (see [ADR 002](docs/adr/002-sops-age-secrets.md)). App secrets are committed encrypted next to the app, and ArgoCD decrypts them with KSOPS using the cluster's own age key (see [ADR 004](docs/adr/004-ksops.md)).
+- **The laptops never suspend, and a power outage never takes anything down without warning.** The `power` role (cluster laptop and NAS; see [ADR 012](docs/adr/012-power-management.md)):
+  - ignores the lid in `systemd-logind` and masks the sleep targets;
+  - locks GNOME so it does not suspend on inactivity;
+  - runs a guard that, without external power, warns (alert `host-on-battery`) and shuts down at 10% battery;
+  - powering back on is manual (open the Acer lid, press the NAS button): both BIOSes ignore the RTC alarm. Wake-on-LAN automation is tracked in issue #23.
+  - Charge limit: neither firmware supports one (the ADR records what was tried).
+- **Ubuntu updates without surprises.** The `os_updates` role runs unattended-upgrades at 05:15 with idle CPU and I/O priority, and takes the kernel (`linux-*`) out of the automatic run: kernels only through `make kernel-upgrade`, which reboots and validates the cluster. See [ADR 010](docs/adr/010-notebook-os-updates.md).
+- **Versions pinned with sha256** for k3s (installer), helm, kubectl, sops, age, kubeconform, kube-linter and kustomize. The hello-world image is pinned by digest.
+- **One source per version.** Chart versions live only in [kubernetes/apps/values.yaml](kubernetes/apps/values.yaml), which Ansible also reads during the bootstrap.
 
-## Pré-requisitos (uma vez)
+## Prerequisites (once)
 
-### 1. WSL nesta máquina
+### 1. WSL on this machine
 
 ```bash
-make deps                 # ferramentas com versão/sha256 fixados em ~/.local/bin + coleções Ansible
+make deps                 # tools with pinned version/sha256 in ~/.local/bin + Ansible collections
 pre-commit install
 ```
 
-O repo pode ficar em `/mnt/c/dev/bernats-homelab/2026-kubernetes`. O `Makefile` exporta `ANSIBLE_CONFIG`, porque em `/mnt/c` o Ansible ignora o `ansible.cfg` do diretório world-writable. Faça os commits **pelo WSL** para os hooks rodarem; se algum escapar, o job `lint` do CI roda os mesmos hooks.
+The repo can live under `/mnt/c/...`. The `Makefile` exports `ANSIBLE_CONFIG`, because under `/mnt/c` Ansible ignores the `ansible.cfg` of a world-writable directory. Commit **from WSL** so the hooks run; if one slips through, the CI `lint` job runs the same hooks.
 
-### 2. Acesso SSH ao notebook
+### 2. SSH access to the laptop
 
 ```bash
-ssh-copy-id <usuario>@<hostname-magicdns>
-cp ansible/inventory/inventory.example.yaml ansible/inventory/local.yaml   # e preencha
+ssh-copy-id <user>@<magicdns-hostname>
+cp ansible/inventory/inventory.example.yaml ansible/inventory/local.yaml   # and fill it in
 ```
 
-### 3. Chave age
+### 3. age key
 
 ```bash
 age-keygen -o ~/.config/sops/age/keys.txt
-age-keygen -y ~/.config/sops/age/keys.txt   # chave pública → substitua em .sops.yaml
+age-keygen -y ~/.config/sops/age/keys.txt   # public key → replace it in .sops.yaml
 ```
 
-Guarde `keys.txt` no gerenciador de senhas. Sem esse arquivo não dá para descriptografar os segredos.
+Keep `keys.txt` in your password manager. Without that file the secrets cannot be decrypted.
 
 ### 4. Tailscale (admin console)
 
-1. Na policy, em `tagOwners`, adicione:
+1. In the policy, under `tagOwners`, add:
    ```json
    "tag:k8s-operator": ["autogroup:admin"],
    "tag:k8s": ["tag:k8s-operator"]
    ```
-2. Em Trust credentials, crie um **OAuth client** com os scopes *Devices Core* e *Auth Keys* (write) e a tag `tag:k8s-operator`.
-3. Em DNS, deixe **MagicDNS** e **HTTPS Certificates** habilitados.
+2. Under Trust credentials, create an **OAuth client** with the *Devices Core* and *Auth Keys* (write) scopes and the `tag:k8s-operator` tag.
+3. Under DNS, keep **MagicDNS** and **HTTPS Certificates** enabled.
 
-### 5. Segredos
+### 5. Secrets
 
 ```bash
 cp ansible/secrets/secrets.example.yaml ansible/secrets/secrets.sops.yaml
-sops ansible/secrets/secrets.sops.yaml   # preencha client id/secret do OAuth client
+sops ansible/secrets/secrets.sops.yaml   # fill in the OAuth client id/secret
 ```
 
-Se o arquivo já existir em texto claro, criptografe com `sops --encrypt --in-place ...`. O hook `sops-encrypted` impede o commit de um arquivo descriptografado.
+If the file already exists in plain text, encrypt it with `sops --encrypt --in-place ...`. The `sops-encrypted` hook blocks committing a decrypted file.
 
-Preencha também `sops_age_cluster_key` com a chave privada age do cluster, que o KSOPS usa. Gere com `age-keygen` e coloque a chave pública correspondente no `.sops.yaml`, na regra de `kubernetes/`.
+Also fill in `sops_age_cluster_key` with the cluster's age private key, which KSOPS uses. Generate it with `age-keygen` and put the matching public key in `.sops.yaml`, in the `kubernetes/` rule.
 
-## Immich (fotos do NAS)
+## Immich (photos from the NAS)
 
-O Immich exibe, **somente leitura**, as fotos e vídeos do NAS como External Library. Os dados que ele gera (thumbnails, previews, transcodes e dumps diários do banco) ficam numa pasta própria no NAS. O Postgres fica no disco do notebook. Veja o [ADR 005](docs/adr/005-immich-nas-nfs.md).
+Immich shows the NAS photos and videos **read-only** as an External Library. The data it generates (thumbnails, previews, transcodes and daily database dumps) lives in its own folder on the NAS. Postgres lives on the laptop disk. See [ADR 005](docs/adr/005-immich-nas-nfs.md).
 
-### 1. NAS: exports NFS no OMV (uma vez, pela UI do openmediavault)
+### 1. NAS: NFS exports in OMV (once, through the openmediavault UI)
 
-O playbook não altera o NAS; ele só confere o que você configurou aqui. A única exceção é o Syncthing (veja [Syncthing no NAS](#syncthing-no-nas)).
+The playbook does not change the NAS; it only checks what you configure here. The only exceptions are Syncthing (see [Syncthing on the NAS](#syncthing-on-the-nas)) and power management.
 
-1. **Services → NFS → Settings**: marque *Enabled*, clique em *Save* e aplique as mudanças (banner amarelo).
-2. **Storage → Shared Folders**: crie a pasta `immich-data` no disco com espaço (o Immich vai gravar de ~12 a 70 GB nela). A pasta das fotos já deve existir. Se as fotos estão espalhadas pelo disco, ela pode ser a shared folder da raiz do disco; nesse caso, veja os import paths no passo 3.
-3. Descubra o UID/GID do dono dos arquivos, para o squash. Por exemplo, em **Users → Users** veja o UID do seu usuário (normalmente `1000`); o grupo `users` do OMV é o GID `100`.
-4. **Services → NFS → Shares → Create**, duas vezes:
+1. **Services → NFS → Settings**: tick *Enabled*, click *Save* and apply the changes (yellow banner).
+2. **Storage → Shared Folders**: create the `immich-data` folder on the disk with free space (Immich writes about 12 to 70 GB there). The photos folder must already exist. If the photos are spread across the disk, it can be the shared folder for the disk root; in that case, see the import paths in step 3.
+3. Find the UID/GID of the files' owner, for the squash. For example, under **Users → Users** check the UID of your user (usually `1000`); the OMV `users` group is GID `100`.
+4. **Services → NFS → Shares → Create**, twice:
 
    | Shared folder | Client | Permission | Extra options |
    |---|---|---|---|
-   | (pasta das fotos) | `<IP Tailscale do notebook>/32` | Read-only | `subtree_check,all_squash,anonuid=<uid>,anongid=<gid>` |
-   | `immich-data` | `<IP Tailscale do notebook>/32` | Read/Write | `subtree_check,all_squash,anonuid=<uid>,anongid=<gid>` |
+   | (photos folder) | `<laptop Tailscale IP>/32` | Read-only | `subtree_check,all_squash,anonuid=<uid>,anongid=<gid>` |
+   | `immich-data` | `<laptop Tailscale IP>/32` | Read/Write | `subtree_check,all_squash,anonuid=<uid>,anongid=<gid>` |
 
-   Para descobrir o IP Tailscale do notebook, rode `tailscale ip -4` nele. O `all_squash` faz o Immich (que roda como root no container) gravar como o seu usuário.
-5. Aplique as mudanças. Os exports aparecem como `/export/<pasta>`.
+   To find the laptop's Tailscale IP, run `tailscale ip -4` on it. `all_squash` makes Immich (which runs as root in the container) write as your user.
+5. Apply the changes. The exports show up as `/export/<folder>`.
 
-### 2. Inventário (`ansible/inventory/local.yaml`)
+### 2. Inventory (`ansible/inventory/local.yaml`)
 
-Preencha as variáveis de `inventory.example.yaml`: `nas_storage_enabled: true`, `nas_storage_host` e `nas_storage_exports.{photos,data,obsidian,home_assistant}`, que são os paths `/export/...` (o `obsidian` e o `home_assistant` estão descritos nas seções de cada app). Faça isso **antes** do primeiro `make apply` com o Immich. As PVCs são imutáveis, e com `nas_storage_enabled: false` elas seriam criadas em `local-path`.
+Fill in the variables from `inventory.example.yaml`: `nas_storage_enabled: true`, `nas_storage_host` and `nas_storage_exports.{photos,data,obsidian,home_assistant}`, which are the `/export/...` paths (`obsidian` and `home_assistant` are described in each app's section). Do this **before** the first `make apply` with Immich. PVCs are immutable, and with `nas_storage_enabled: false` they would be created on `local-path`.
 
-Depois rode `make plan` e `make apply`. O role `nas_storage` confere os exports com `showmount` e faz uma montagem de teste de cada um, incluindo uma escrita em `immich-data`. Se algo estiver errado no OMV, ele falha antes de criar os PVs.
+Then run `make plan` and `make apply`. The `nas_storage` role checks the exports with `showmount` and test-mounts each one, including a write to `immich-data`. If something is wrong in OMV, it fails before creating the PVs.
 
-### 3. Primeiro acesso
+### 3. First access
 
-1. Abra `https://fotos.<sua-tailnet>` e crie o usuário admin.
-2. Em **Administration → External Libraries → Create**, adicione o import path `/mnt/nas/fotos` e clique em *Scan*.
-   - Se o export de fotos for a raiz do disco, use um import path por subpasta (ex.: `/mnt/nas/fotos/<pasta>`) em vez de `/mnt/nas/fotos`. Assim a própria `immich-data`, que também está no disco, fica de fora; senão o Immich indexaria os thumbnails que ele mesmo gera.
-   - Use *Exclusion patterns* para pular o que não é foto, como backups de sistema (ex.: `**/*backup-windows*/**`, `**/lost+found/**`).
-   - As bibliotecas ficam no banco, não no `immich.configuration`, então são ajustadas pela UI.
+1. Open `https://fotos.<your-tailnet>` and create the admin user.
+2. Under **Administration → External Libraries → Create**, add the import path `/mnt/nas/fotos` and click *Scan*.
+   - If the photos export is the disk root, use one import path per subfolder (e.g. `/mnt/nas/fotos/<folder>`) instead of `/mnt/nas/fotos`. That keeps `immich-data`, which is on the same disk, out of the library; otherwise Immich would index the thumbnails it generates itself.
+   - Use *Exclusion patterns* to skip what is not a photo, such as system backups (e.g. `**/*backup-windows*/**`, `**/lost+found/**`).
+   - Libraries live in the database, not in `immich.configuration`, so they are managed through the UI.
 
-As configurações do servidor vêm de `kubernetes/values/immich.yaml` (`immich.configuration`), e as telas de ajuste da UI ficam somente leitura. Para mudar algo (ligar o ML, o horário do scan), altere o arquivo e faça push.
+Server settings come from `kubernetes/values/immich.yaml` (`immich.configuration`), and the matching settings screens in the UI are read-only. To change something (enable ML, the scan schedule), edit the file and push.
 
-### Backup e restauração do banco
+### Database backup and restore
 
-O Immich faz um `pg_dump` diário em `immich-data/backups` no NAS e mantém 14 cópias. Para restaurar num cluster recriado:
+Immich runs a daily `pg_dump` into `immich-data/backups` on the NAS and keeps 14 copies. To restore into a rebuilt cluster:
 ```bash
 gunzip -c <dump>.sql.gz | kubectl -n immich exec -i immich-database-1 -- psql -U postgres -d postgres
 ```
-O dump é um `pg_dumpall` e já recria o banco `app`. Rode isso com o `immich-server` parado (`kubectl -n immich scale deploy/immich-server --replicas=0`). Depois volte o `replicas` para 1. O procedimento completo está na documentação do Immich, em *Backup and Restore*.
+The dump is a `pg_dumpall` and already recreates the `app` database. Run it with `immich-server` stopped (`kubectl -n immich scale deploy/immich-server --replicas=0`), then set `replicas` back to 1. The full procedure is in the Immich docs under *Backup and Restore*.
 
-## Obsidian no navegador (vault do NAS)
+## Obsidian in the browser (vault on the NAS)
 
-O Obsidian desktop roda no cluster ([linuxserver/obsidian](https://docs.linuxserver.io/images/docker-obsidian/)) e abre pelo navegador em `https://borbsidian.<sua-tailnet>`, com usuário e senha. O vault fica no NAS, montado por NFS, e o estado do app (`/config`) fica no disco do notebook. Veja o [ADR 006](docs/adr/006-obsidian-nas-nfs.md).
+The Obsidian desktop app runs in the cluster ([linuxserver/obsidian](https://docs.linuxserver.io/images/docker-obsidian/)) and opens in the browser at `https://borbsidian.<your-tailnet>`, with a user and password. The vault lives on the NAS, mounted over NFS, and the app state (`/config`) lives on the laptop disk. See [ADR 006](docs/adr/006-obsidian-nas-nfs.md).
 
-1. **NAS (UI do OMV):** crie a shared folder do vault (pode apontar para a pasta que já existe) e um share NFS **Read/Write** para `<IP Tailscale do notebook>/32` com `subtree_check,all_squash,anonuid=<uid>,anongid=<gid>`, como o `immich-data`. Coloque o path em `nas_storage_exports.obsidian` e rode `make apply`.
-2. **Senha:** o usuário e a senha estão em `kubernetes/workloads/obsidian/overlays/tailscale/auth.sops.yaml`:
+1. **NAS (OMV UI):** create the vault's shared folder (it can point to an existing folder) and an NFS share, **Read/Write**, for `<laptop Tailscale IP>/32` with `subtree_check,all_squash,anonuid=<uid>,anongid=<gid>`, like `immich-data`. Put the path in `nas_storage_exports.obsidian` and run `make apply`.
+2. **Password:** the user and password are in `kubernetes/workloads/obsidian/overlays/tailscale/auth.sops.yaml`:
    ```bash
    sops -d kubernetes/workloads/obsidian/overlays/tailscale/auth.sops.yaml
    ```
-   Para trocar a senha, use `sops edit` no mesmo arquivo e faça push.
-3. **Primeiro acesso:** no Obsidian, use *Open folder as vault* em `/vaults/borbsidian`. A escolha fica salva em `/config`.
+   To change the password, run `sops edit` on the same file and push.
+3. **First access:** in Obsidian, use *Open folder as vault* on `/vaults/borbsidian`. The choice is saved in `/config`.
 
-**Edição em vários lugares.** Por NFS, o Obsidian do cluster não é avisado de mudanças feitas por outros dispositivos (Syncthing, SMB), porque o inotify não atravessa NFS. Edite num lugar por vez. Ao voltar para o Obsidian do navegador, use *Reload app without saving* (paleta de comandos) antes de editar, para não sobrescrever a versão mais nova.
+**Editing in several places.** Over NFS, the cluster's Obsidian is not notified of changes made from other devices (Syncthing, SMB), because inotify does not cross NFS. Edit in one place at a time. When you come back to the browser Obsidian, run *Reload app without saving* (command palette) before editing, so you do not overwrite the newer version.
 
-### Syncthing no NAS
+### Syncthing on the NAS
 
-O vault chega ao celular pelo Syncthing do NAS. Junto com a energia (role `power`, `nas_power_enabled`; veja o [ADR 012](docs/adr/012-power-management.md)), ele é o que o Ansible altera no NAS: o OMV não gerencia o Syncthing pela UI. Veja o [ADR 011](docs/adr/011-syncthing-nas-ansible.md).
+The vault reaches the phone through the NAS's Syncthing. Together with power management (the `power` role, `nas_power_enabled`; see [ADR 012](docs/adr/012-power-management.md)), it is what Ansible changes on the NAS: OMV does not manage Syncthing through its UI. See [ADR 011](docs/adr/011-syncthing-nas-ansible.md).
 
-- **Inventário:** preencha o grupo `nas` de `inventory.example.yaml`. Ele leva `ansible_user: root`, `nas_syncthing_home` (um diretório no disco de dados, fora do pendrive do sistema), `nas_syncthing_devices` e `nas_syncthing_folders`.
-  - `nas_syncthing_devices` é a lista **completa**: um device que não estiver nela é removido.
-  - Uma pasta fora de `nas_syncthing_folders` não é apagada, só gera um aviso.
-- **SSH:** a chave do WSL precisa estar no `/root/.ssh/authorized_keys` do NAS, e a host key do NAS no `known_hosts` do WSL (rode `ssh root@<nas>` uma vez e aceite). O `host_key_checking` continua ligado.
-- **Aplicar:** `make plan` e `make apply`. O segundo play (`hosts: nas`) instala o `.deb` fixado em `group_vars/all` e habilita `syncthing@<usuário>` no boot. Depois aplica opções, devices e pastas pela REST API. Qualquer mudança feita pela GUI nesses itens volta ao que está no inventário no próximo apply.
-- **Parear um device novo:** adicione o ID em `nas_syncthing_devices` (e nos `devices` da pasta), rode `make apply` e aceite no outro lado.
-- **GUI:** só escuta em `127.0.0.1:8384`. Para abrir no navegador:
+- **Inventory:** fill in the `nas` group from `inventory.example.yaml`. It takes `ansible_user: root`, `nas_syncthing_home` (a directory on the data disk, off the system USB stick), `nas_syncthing_devices` and `nas_syncthing_folders`.
+  - `nas_syncthing_devices` is the **complete** list: a device that is not in it is removed.
+  - A folder outside `nas_syncthing_folders` is not deleted; it only produces a warning.
+- **SSH:** the WSL key must be in the NAS's `/root/.ssh/authorized_keys`, and the NAS host key in WSL's `known_hosts` (run `ssh root@<nas>` once and accept). `host_key_checking` stays on.
+- **Apply:** `make plan` and `make apply`. The second play (`hosts: nas`) installs the `.deb` pinned in `group_vars/all` and enables `syncthing@<user>` at boot. Then it applies options, devices and folders through the REST API. Any change made through the GUI to those items reverts to the inventory on the next apply.
+- **Pair a new device:** add its ID to `nas_syncthing_devices` (and to the folder's `devices`), run `make apply` and accept on the other side.
+- **GUI:** listens only on `127.0.0.1:8384`. To open it in the browser:
   ```bash
   ssh -L 8384:127.0.0.1:8384 root@<nas>
   ```
-  Depois acesse `http://localhost:8384`.
+  Then open `http://localhost:8384`.
 
-## Home Assistant (ponte da lista de compras da Alexa)
+## Home Assistant (bridge for the Alexa shopping list)
 
-O Home Assistant roda no cluster e abre em `https://casa.<sua-tailnet>`. O `configuration.yaml` vem do Git ([kubernetes/workloads/home-assistant/base/configuration.yaml](kubernetes/workloads/home-assistant/base/configuration.yaml)); o resto do `/config` fica no NAS e o histórico no Postgres (CNPG). No notebook ele usa `hostNetwork` (descoberta na LAN; também responde em `<IP do notebook>:8123`) e o Bluetooth do host via D-Bus. Veja o [ADR 009](docs/adr/009-home-assistant.md).
+Home Assistant runs in the cluster and opens at `https://casa.<your-tailnet>`. Its `configuration.yaml` comes from Git ([kubernetes/workloads/home-assistant/base/configuration.yaml](kubernetes/workloads/home-assistant/base/configuration.yaml)); the rest of `/config` lives on the NAS and the history in Postgres (CNPG). On the laptop it uses `hostNetwork` (LAN discovery; it also answers on `<laptop IP>:8123`) and the host's Bluetooth over D-Bus. See [ADR 009](docs/adr/009-home-assistant.md).
 
-1. **NAS (UI do OMV):** crie a shared folder `home-assistant` e um share NFS **Read/Write** para `<IP Tailscale do notebook>/32` com as mesmas opções do `immich-data`. Coloque o path em `nas_storage_exports.home_assistant` e rode `make plan` e `make apply`.
-2. **Primeiro acesso (direto, sem o proxy):** abra `http://<IP do notebook>:8123` (LAN ou IP Tailscale do notebook; funciona por causa do `hostNetwork`) e crie o usuário dono. Pelo `https://casa.<sua-tailnet>` o HA responde 400 até o passo seguinte.
-3. **Confiar no proxy do Tailscale:** desde o 2026.8 a config HTTP é só pela UI (o bloco `http:` do YAML é ignorado). Em *Settings → System → Network → HTTP server*, ligue *Trust X-Forwarded-For*, coloque `10.42.0.0/16` em *Trusted proxies* e salve. O HA reinicia e pede confirmação: **confirme em até 5 minutos, ainda pelo acesso direto**, senão ele volta à config anterior. Depois disso `https://casa.<sua-tailnet>` funciona.
-4. **Alexa:** ative na conta Amazon o 2FA por app autenticador (SMS não serve) e adicione a integração **Alexa Devices** em *Settings → Devices & services*. A lista de compras vira uma entidade `todo`. Depois, em *Alexa Devices → ⋮ → System options*, **desligue "Enable polling for changes"**: com polling a Amazon devolve 429 (Too Many Requests) a cada poucos ciclos e todas as entidades ficam `unavailable`. As listas continuam sincronizadas nos dois sentidos, porque chegam por push.
-5. **grocery-ops:** crie um usuário `grocery-ops` no HA, gere um *long-lived access token* no perfil dele e guarde-o como `*.sops.yaml` no `deploy/` do repo do grocery-ops. O app chama `http://home-assistant.home-assistant.svc:8123` (contrato no ADR 009).
+1. **NAS (OMV UI):** create the `home-assistant` shared folder and an NFS share, **Read/Write**, for `<laptop Tailscale IP>/32` with the same options as `immich-data`. Put the path in `nas_storage_exports.home_assistant` and run `make plan` and `make apply`.
+2. **First access (directly, without the proxy):** open `http://<laptop IP>:8123` (LAN or the laptop's Tailscale IP; it works because of `hostNetwork`) and create the owner user. Through `https://casa.<your-tailnet>` HA answers 400 until the next step.
+3. **Trust the Tailscale proxy:** since 2026.8 the HTTP config is UI-only (the `http:` block in YAML is ignored). Under *Settings → System → Network → HTTP server*, turn on *Trust X-Forwarded-For*, put `10.42.0.0/16` in *Trusted proxies* and save. HA restarts and asks for confirmation: **confirm within 5 minutes, still through the direct access**, or it rolls back to the previous config. After that, `https://casa.<your-tailnet>` works.
+4. **Alexa:** enable authenticator-app 2FA on the Amazon account (SMS does not work) and add the **Alexa Devices** integration under *Settings → Devices & services*. The shopping list becomes a `todo` entity. Then, under *Alexa Devices → ⋮ → System options*, **turn off "Enable polling for changes"**: with polling on, Amazon returns 429 (Too Many Requests) every few cycles and every entity goes `unavailable`. The lists stay in sync both ways, because they arrive by push.
+5. **grocery-ops:** create a `grocery-ops` user in HA, generate a *long-lived access token* in its profile and store it as `*.sops.yaml` in the grocery-ops repo's `deploy/`. The app calls `http://home-assistant.home-assistant.svc:8123` (contract in ADR 009).
 
-## Backup off-site do NAS (restic → Hetzner Storage Box)
+## NAS off-site backup (restic → Hetzner Storage Box)
 
-Todo dia às 04:00 o CronJob `restic-backup` (namespace `backup`) envia a raiz do SSD do NAS para um Storage Box BX11 da Hetzner. Ele lê pelo NFS em modo só leitura, envia por SFTP com criptografia do restic e mantém 7 snapshots diários, 4 semanais e 6 mensais. O Storage Box tira ainda 7 snapshots diários próprios. O box é criado pelo OpenTofu (`infra/hetzner/`), com o state criptografado no git. Veja o [ADR 014](docs/adr/014-offsite-backup-hetzner-restic.md).
+Every day at 04:00 the `restic-backup` CronJob (namespace `backup`) sends the root of the NAS SSD to a Hetzner Storage Box BX11. It reads over read-only NFS, sends over SFTP with restic encryption and keeps 7 daily, 4 weekly and 6 monthly snapshots. The Storage Box also takes 7 daily snapshots of its own. OpenTofu creates the box (`infra/hetzner/`), with the state encrypted in git. See [ADR 014](docs/adr/014-offsite-backup-hetzner-restic.md).
 
-A chave SSH do restic (`infra/hetzner/restic_ed25519.pub` + Secret SOPS) e a senha do repositório já estão no repo. Para colocar no ar:
+The restic SSH key (`infra/hetzner/restic_ed25519.pub` + SOPS Secret) and the repository password are already in the repo. To go live:
 
-1. **Senha do restic no gerenciador de senhas.** Sem ela o backup é irrecuperável:
+1. **Store the restic password in the password manager.** Without it the backup cannot be recovered:
    ```bash
    sops -d kubernetes/workloads/backup/overlays/nas/restic.sops.yaml | grep RESTIC_PASSWORD
    ```
-2. **Token da Hetzner:** crie um token *Read & Write* no projeto do Hetzner Console e grave-o em `HCLOUD_TOKEN`:
+2. **Hetzner token:** create a *Read & Write* token in the Hetzner Console project and save it as `HCLOUD_TOKEN`:
    ```bash
    sops edit infra/hetzner/secrets.sops.yaml
    ```
-3. **Criar o box** (gera cobrança; o `apply` pede confirmação):
+3. **Create the box** (this starts billing; `apply` asks for confirmation):
    ```bash
    make tofu-plan
    ```
    ```bash
    make tofu-apply
    ```
-   Commite o `infra/hetzner/terraform.tfstate`. Ele sai criptografado; confira com `grep -c '"password"' infra/hetzner/terraform.tfstate`, que deve dar 0.
-4. **Preencher o repositório e o known_hosts** no Secret do restic, depois commitar:
+   Commit `infra/hetzner/terraform.tfstate`. It comes out encrypted; check with `grep -c '"password"' infra/hetzner/terraform.tfstate`, which must print 0.
+4. **Fill in the repository and known_hosts** in the restic Secret, then commit:
    ```bash
    make backup-secret
    ```
-5. **PV do NAS:** `make plan` e `make apply` criam o PV `backup-source`. É o mesmo export das fotos, sem mudança no OMV.
-6. **Primeira execução:** depois do sync do ArgoCD, dispare o envio inicial sem esperar as 04:00:
+5. **NAS PV:** `make plan` and `make apply` create the `backup-source` PV. It is the same export as the photos, with no change on OMV.
+6. **First run:** after ArgoCD syncs, start the initial upload without waiting for 04:00:
    ```bash
-   kubectl -n backup create job --from=cronjob/restic-backup restic-inicial
+   kubectl -n backup create job --from=cronjob/restic-backup restic-initial
    ```
-   Ele leva dias. Cada execução é cortada em 22h e a do dia seguinte continua de onde parou; até lá o alerta `backup-offsite-stale` fica disparado.
+   It takes days. Each run is cut at 22h and the next day's run picks up where it stopped; until then the `backup-offsite-stale` alert stays firing.
 
-**Restaurar** (da WSL, com `restic` instalado):
+**Restore** (from WSL, with `restic` installed):
 ```bash
 sops -d kubernetes/workloads/backup/overlays/nas/restic.sops.yaml > /tmp/restic.yaml
 ```
-Com `/tmp/restic.yaml` em mãos, grave `id_ed25519` (modo 600), `known_hosts` e a senha em arquivos e use `restic -r <RESTIC_REPOSITORY> -o sftp.args="-i <chave> -o UserKnownHostsFile=<known_hosts>" snapshots`. Depois use `restore latest --target <dir>` (com `--include` para uma pasta) ou `mount`. Apague os arquivos em `/tmp` ao terminar. Se o repositório tiver sido apagado ou corrompido, restaure antes um snapshot do Storage Box no painel da Hetzner.
+From `/tmp/restic.yaml`, write `id_ed25519` (mode 600), `known_hosts` and the password to files and run `restic -r <RESTIC_REPOSITORY> -o sftp.args="-i <key> -o UserKnownHostsFile=<known_hosts>" snapshots`. Then use `restore latest --target <dir>` (with `--include` for one folder) or `mount`. Delete the files in `/tmp` when done. If the repository was deleted or corrupted, first restore a Storage Box snapshot in the Hetzner console.
 
-## Observabilidade (OpenTelemetry + Grafana)
+## Observability (OpenTelemetry + Grafana)
 
-Logs, métricas e traces do cluster, do notebook e do NAS chegam por OTLP ao `otel-gateway` e seguem para Prometheus, Loki e Tempo, todos no namespace `observability`. Veja o [ADR 008](docs/adr/008-observability-otel-lgtm.md). As métricas do Kubernetes seguem o formato Prometheus (kube-state-metrics e cAdvisor, raspados pelo `otel-agent`), o que alimenta o OpenCost: veja o [ADR 013](docs/adr/013-kubernetes-metrics-prometheus-semantics.md).
+Logs, metrics and traces from the cluster, the laptop and the NAS arrive over OTLP at the `otel-gateway` and go on to Prometheus, Loki and Tempo, all in the `observability` namespace. See [ADR 008](docs/adr/008-observability-otel-lgtm.md). Kubernetes metrics follow the Prometheus format (kube-state-metrics and cAdvisor, scraped by the `otel-agent`), which feeds OpenCost: see [ADR 013](docs/adr/013-kubernetes-metrics-prometheus-semantics.md).
 
-- **Acesso:** `https://grafana.<sua-tailnet>`. O usuário e a senha do admin estão no SOPS:
+- **Access:** `https://grafana.<your-tailnet>`. The admin user and password are in SOPS:
   ```bash
   sops -d --extract '["stringData"]["admin-password"]' kubernetes/workloads/observability/overlays/tailscale/grafana-admin.sops.yaml
   ```
-- **Alertas por e-mail (Gmail):** crie uma [senha de app](https://myaccount.google.com/apppasswords) e preencha `GF_SMTP_USER`, `GF_SMTP_PASSWORD`, `GF_SMTP_FROM_ADDRESS` e `ALERT_EMAIL_TO`. Troque também `GF_SMTP_ENABLED` para `"true"`:
+- **Email alerts (Gmail):** create an [app password](https://myaccount.google.com/apppasswords) and fill in `GF_SMTP_USER`, `GF_SMTP_PASSWORD`, `GF_SMTP_FROM_ADDRESS` and `ALERT_EMAIL_TO`. Also set `GF_SMTP_ENABLED` to `"true"`:
   ```bash
   sops edit kubernetes/workloads/observability/overlays/tailscale/grafana-smtp.sops.yaml
   ```
-  Faça push. Depois, em *Alerting → Contact points → email*, use *Test* para confirmar. As regras ficam em `kubernetes/workloads/observability/base/alerts/`.
-- **Notebook (journald e métricas do host):** o role `otel_host_agent` instala o `otelcol-contrib` como serviço. Ligue-o no `local.yaml`, como var de host, com `otel_host_agent_enabled: true` e `otel_host_agent_endpoint: otel:4317`, e rode `make apply`.
-- **NAS (pela UI do OMV, uma vez):**
-  1. Instale o omv-extras e o plugin `openmediavault-compose`. Em *Services → Compose → Settings*, aponte *Compose Files* e o *Docker storage* para pastas no SSD, **não** no pendrive do sistema.
-  2. Em *Services → Compose → Files*, crie o stack `otel-collector` colando o conteúdo de [`hosts/nas/otel-collector/compose.yaml`](hosts/nas/otel-collector/compose.yaml) (a configuração vai embutida) e clique em *Up*. Se o NAS não usar o MagicDNS da tailnet, defina `OTEL_GATEWAY=otel.<sua-tailnet>:4317` no `.env` do stack. Para os alertas de capacidade (`base/alerts/nas.yaml`), defina também no `.env` `NAS_PRIMARY_MOUNT` (disco com os dados) e `NAS_REPLICA_MOUNT` (disco da réplica do backup), com o caminho de montagem de *Storage → File Systems* (ex.: `/srv/dev-disk-by-uuid-...`). O mesmo stack sobe o `smartctl-exporter` (SMART dos discos, inclusive o SSD no case USB) e lê o `/var/log/rsync.log` das tarefas Rsync do OMV: o histórico das réplicas fica 30 dias no Loki (`service_name="nas-rsync"`) e aparece no dashboard *Hosts → NAS - Replicação e discos*. O alerta "réplica sem execução bem-sucedida em 26h" dispara até a primeira tarefa rodar depois do deploy.
-  3. Em *Diagnostics → System Logs → Remote* (o nome varia com a versão do OMV), envie o syslog para `127.0.0.1`, porta `5140`, TCP.
-  4. O NAS aparece no Grafana com `job="nas-host"` (métricas) e `service_name="nas-host"` (logs). Depois disso, os gráficos do OMV (*System → Monitoring*) podem ser desligados: o collectd/rrd só gravaria no pendrive à toa.
-- **Custos (OpenCost):** `https://opencost.<sua-tailnet>` mostra o custo por namespace, pod e nó, e o dashboard *Custos → OpenCost / Overview* do Grafana usa as mesmas métricas. A UI não tem login: só quem está na tailnet a acessa. Os preços são os padrões on-prem do OpenCost (referência de nuvem): vale a proporção entre os apps, não o valor em reais.
-- **Dashboards e alertas da comunidade:** o Grafana já traz pastas prontas: *Hosts* (notebook e NAS), *Kubernetes* (namespaces e pods), *Custos* (OpenCost), *Apps* (ArgoCD, CloudNativePG e Immich), *Observabilidade* (coletores OTel, Loki, Tempo e Prometheus), *Rede* (CoreDNS) e *Logs*. Eles ficam versionados em `kubernetes/workloads/observability/base/dashboards/`, com versão e sha256 em `dashboards.lock`; os da comunidade são ajustados por patches jq às nossas métricas OTel. As regras de alerta (`base/alerts/`) derivam de regras da comunidade, com `severity` `critical`, `warning` ou `info`.
+  Push. Then, under *Alerting → Contact points → email*, use *Test* to confirm. The rules live in `kubernetes/workloads/observability/base/alerts/`.
+- **Laptop (journald and host metrics):** the `otel_host_agent` role installs `otelcol-contrib` as a service. Enable it in `local.yaml`, as a host var, with `otel_host_agent_enabled: true` and `otel_host_agent_endpoint: otel:4317`, and run `make apply`.
+- **NAS (through the OMV UI, once):**
+  1. Install omv-extras and the `openmediavault-compose` plugin. Under *Services → Compose → Settings*, point *Compose Files* and the *Docker storage* to folders on the SSD, **not** on the system USB stick.
+  2. Under *Services → Compose → Files*, create the `otel-collector` stack by pasting the contents of [`hosts/nas/otel-collector/compose.yaml`](hosts/nas/otel-collector/compose.yaml) (the config is embedded) and click *Up*. If the NAS does not use the tailnet's MagicDNS, set `OTEL_GATEWAY=otel.<your-tailnet>:4317` in the stack's `.env`. For the capacity alerts (`base/alerts/nas.yaml`), also set `NAS_PRIMARY_MOUNT` (data disk) and `NAS_REPLICA_MOUNT` (backup replica disk) in the `.env`, with the mount path from *Storage → File Systems* (e.g. `/srv/dev-disk-by-uuid-...`). The same stack runs `smartctl-exporter` (disk SMART) and reads `/var/log/rsync.log` from the OMV Rsync jobs: the replica history stays 30 days in Loki (`service_name="nas-rsync"`) and shows up in the *Hosts → NAS - Replication and disks* dashboard. The alert "replica without a successful run in 26h" fires until the first job runs after the deploy.
+  3. Under *Diagnostics → System Logs → Remote* (the name varies with the OMV version), send syslog to `127.0.0.1`, port `5140`, TCP.
+  4. The NAS shows up in Grafana with `job="nas-host"` (metrics) and `service_name="nas-host"` (logs). After that, the OMV graphs (*System → Monitoring*) can be turned off: collectd/rrd would only write to the USB stick for nothing.
+- **Costs (OpenCost):** `https://opencost.<your-tailnet>` shows the cost per namespace, pod and node, and the Grafana dashboard *Costs → OpenCost / Overview* uses the same metrics. The UI has no login: only devices on the tailnet can reach it. Prices come from OpenCost's `default.json` (GCP us-central1 reference, in USD): what matters is the proportion between apps, not the absolute amount.
+- **Community dashboards and alerts:** Grafana comes with ready-made folders: *Hosts* (laptop and NAS), *Kubernetes* (namespaces and pods), *Costs* (OpenCost), *Apps* (ArgoCD, CloudNativePG and Immich), *Observability* (OTel collectors, Loki, Tempo and Prometheus), *Network* (CoreDNS) and *Logs*. They are versioned in `kubernetes/workloads/observability/base/dashboards/`, with version and sha256 in `dashboards.lock`; the community ones are adjusted to our metrics by jq patches. The alert rules (`base/alerts/`) derive from community rules, with `severity` `critical`, `warning` or `info`.
   ```bash
-  scripts/vendor-dashboards.sh --check        # offline: o que está versionado bate com o lock
-  scripts/vendor-dashboards.sh --update       # sobe a versão de um dashboard (edite o lock antes)
+  scripts/vendor-dashboards.sh --check        # offline: what is versioned matches the lock
+  scripts/vendor-dashboards.sh --update       # bump a dashboard version (edit the lock first)
   scripts/check-dashboard-metrics.py kubernetes/workloads/observability/base/dashboards --prometheus http://localhost:9090
   ```
-  O último comando (rode com `kubectl port-forward` no Prometheus) lista as métricas usadas nos dashboards que o Prometheus não tem. Rode-o também a cada upgrade do coletor: os nomes OTel mudam entre versões.
-- **Retenção:** métricas por 30 dias (ou 6 GB), logs por 14 dias e traces por 7 dias, tudo no disco do notebook.
-- **Instrumentar um app:** envie OTLP para `otel-agent.observability.svc:4317` (gRPC) ou `:4318` (HTTP).
+  The last command (run it with `kubectl port-forward` to Prometheus) lists the metrics used by the dashboards that Prometheus does not have. Run it after every collector upgrade too: OTel names change between versions.
+- **Retention:** metrics for 30 days (or 6 GB), logs for 14 days and traces for 7 days, all on the laptop disk.
+- **Instrumenting an app:** send OTLP to `otel-agent.observability.svc:4317` (gRPC) or `:4318` (HTTP).
 
-## Segredos de apps (KSOPS)
+## App secrets (KSOPS)
 
-1. Crie o Secret em texto claro ao lado do app, por exemplo `kubernetes/workloads/<app>/base/<nome>.sops.yaml`, e criptografe **no lugar**:
+1. Create the Secret in plain text next to the app, for example `kubernetes/workloads/<app>/base/<name>.sops.yaml`, and encrypt it **in place**:
    ```bash
-   sops encrypt --in-place kubernetes/workloads/<app>/base/<nome>.sops.yaml
+   sops encrypt --in-place kubernetes/workloads/<app>/base/<name>.sops.yaml
    ```
-   O `.sops.yaml` escolhe os destinatários pelo caminho (WSL + cluster) e criptografa só `data`/`stringData`.
-2. Declare um generator KSOPS na kustomization. O modelo é [secret-generator.yaml](kubernetes/workloads/hello-world/base/secret-generator.yaml):
+   `.sops.yaml` picks the recipients by path (WSL + cluster) and encrypts only `data`/`stringData`.
+2. Declare a KSOPS generator in the kustomization. The template is [secret-generator.yaml](kubernetes/workloads/hello-world/base/secret-generator.yaml):
    ```yaml
    generators:
      - secret-generator.yaml
    ```
-3. Commit e push. O ArgoCD descriptografa no render e aplica o Secret.
+3. Commit and push. ArgoCD decrypts while rendering and applies the Secret.
 
-Para editar depois, use `sops kubernetes/workloads/<app>/base/<nome>.sops.yaml`. No pre-commit e no CI, que não têm chave, o `scripts/ksops-stub.py` faz o papel do KSOPS: gera o Secret com valores placeholder só para validar a estrutura.
+To edit it later, use `sops kubernetes/workloads/<app>/base/<name>.sops.yaml`. In pre-commit and CI, which have no key, `scripts/ksops-stub.py` stands in for KSOPS: it generates the Secret with placeholder values only to validate the structure.
 
-A chave `tests/ci-age.key` é **pública** e só serve para o demo do hello-world rodar no e2e. O hook `sops-encrypted` barra qualquer outro arquivo criptografado para ela.
+The `tests/ci-age.key` key is **public** and only exists so the hello-world demo runs in the e2e. The `sops-encrypted` hook blocks any other file encrypted to it.
 
-## Apps de outros repos
+## Apps from other repos
 
-Apps próprias ficam em repos separados da org, gerados a partir do template [bernats-homelab/repotpl-k8s-app](https://github.com/bernats-homelab/repotpl-k8s-app). O repo da app tem código, `Dockerfile` e kustomize em `deploy/`. Aqui fica só a Application, fixada numa tag, como fazemos com as versões dos charts (veja o [ADR 007](docs/adr/007-external-apps.md)).
+Own apps live in separate repos, generated from the template [bernats-homelab/repotpl-k8s-app](https://github.com/bernats-homelab/repotpl-k8s-app). The app repo holds the code, the `Dockerfile` and kustomize in `deploy/`. This repo only holds the Application, pinned to a tag, the same way we pin chart versions (see [ADR 007](docs/adr/007-external-apps.md)).
 
-### Publicar uma app
+### Publishing an app
 
-1. No repo da app, siga o README do template: `scripts/init.sh <nome>` e depois *Actions → release* com `vX.Y.Z`.
-2. Aqui, abra um PR com a app em [kubernetes/apps/values.yaml](kubernetes/apps/values.yaml). O resumo do job de release mostra o trecho pronto:
+1. In the app repo, follow the template's README: `scripts/init.sh <name>`, then *Actions → release* with `vX.Y.Z`.
+2. Here, open a PR adding the app to [kubernetes/apps/values.yaml](kubernetes/apps/values.yaml). The release job summary shows the snippet ready to paste:
    ```yaml
    apps:
-     <nome>:
-       repoURL: https://github.com/bernats-homelab/<repo>
+     <name>:
+       repoURL: https://github.com/<owner>/<repo>
        targetRevision: v0.1.0
    ```
-3. Depois do merge, o ArgoCD cria o namespace `<nome>` e sincroniza `deploy/overlays/tailscale`, que fica em `https://<nome>.<sua-tailnet>`.
+3. After the merge, ArgoCD creates the `<name>` namespace and syncs `deploy/overlays/tailscale`, which ends up at `https://<name>.<your-tailnet>`.
 
-Para uma versão nova, rode o release no repo da app e abra o PR trocando o `targetRevision`. O `values.schema.json` só aceita repos `bernats-homelab/*` ou `Bemesko/*` e tags `vX.Y.Z`.
+For a new version, run the release in the app repo and open a PR changing `targetRevision`. `values.schema.json` only accepts `bernats-homelab/*` or `Bemesko/*` repos and `vX.Y.Z` tags.
 
-Repos da conta pessoal `Bemesko` (por exemplo [grocery-ops](https://github.com/Bemesko/grocery-ops)) também são aceitos, mas precisam ser **públicos**, assim como o pacote GHCR deles: a credencial da GitHub App só cobre a org.
+Repos from the personal `Bemesko` account (for example [grocery-ops](https://github.com/Bemesko/grocery-ops)) must be **public**, and so must their GHCR package: the GitHub App credential only covers the org.
 
-As Applications rodam no AppProject `homelab-apps`. Ele não permite recursos cluster-scoped (fora `Namespace`) nem os namespaces do sistema e da plataforma. O e2e sincroniza o próprio template (`smokeApp`, Ansible `external_apps_smoke_enabled=true`) para cobrir esse caminho.
+The Applications run in the `homelab-apps` AppProject. It does not allow cluster-scoped resources (other than `Namespace`) nor the system and platform namespaces. The e2e syncs the template itself (`smokeApp`, Ansible `external_apps_smoke_enabled=true`) to cover that path.
 
-### Repos e imagens privados (uma vez)
+### Private repos and images (once)
 
 1. **GitHub App** (org → *Settings → Developer settings → GitHub Apps → New*):
-   - *Repository permissions → Contents: Read-only*, sem webhook;
-   - instale na org em *All repositories*. A credencial vale para todo repo com o prefixo `https://github.com/bernats-homelab`, inclusive este;
-   - gere uma *private key*.
-2. **PAT classic** só com `read:packages` (o GHCR não aceita GitHub App nem fine-grained para pull).
-3. Preencha em `sops ansible/secrets/secrets.sops.yaml`:
-   - `argocd_github_app_id`, `argocd_github_app_installation_id` e `argocd_github_app_private_key` (o PEM inteiro);
-   - `ghcr_pull_username` e `ghcr_pull_token`.
+   - *Repository permissions → Contents: Read-only*, no webhook;
+   - install it on the org with *All repositories*. The credential covers every repo with the `https://github.com/bernats-homelab` prefix;
+   - generate a *private key*.
+2. **Classic PAT** with only `read:packages` (GHCR does not accept a GitHub App or a fine-grained token for pulls).
+3. Fill in with `sops ansible/secrets/secrets.sops.yaml`:
+   - `argocd_github_app_id`, `argocd_github_app_installation_id` and `argocd_github_app_private_key` (the whole PEM);
+   - `ghcr_pull_username` and `ghcr_pull_token`.
 
-   Depois rode `make plan` → `make apply`. O Ansible cria o Secret `argocd/repo-creds-bernats-homelab` e o `/etc/rancher/k3s/registries.yaml`; a criação do `registries.yaml` reinicia o k3s uma vez.
+   Then run `make plan` → `make apply`. Ansible creates the `argocd/repo-creds-bernats-homelab` Secret and `/etc/rancher/k3s/registries.yaml`; creating `registries.yaml` restarts k3s once.
 
-Os dois são opcionais: sem eles, apps de repos públicos com imagens públicas já funcionam.
+Both are optional: without them, apps from public repos with public images already work.
 
-## Uso
+## Usage
 
-| Comando | O que faz |
+| Command | What it does |
 |---|---|
-| `make plan` | Dry-run (`--check --diff`) contra o notebook |
-| `make apply` | Roda `lint` e depois aplica |
-| `make idempotency` | Reaplica e falha se algo mudar |
-| `make kernel-upgrade` | Instala o kernel novo, reinicia o notebook e só remove o antigo se nó, Applications, Postgres e AppArmor estiverem ok ([ADR 010](docs/adr/010-notebook-os-updates.md)) |
-| `make kubeconfig` | Grava `~/.kube/notebook.yaml` apontando para `https://<host>.<tailnet>:6443` |
-| `make reset` | Remove o k3s (pede confirmação; não toca Tailscale nem SSH) |
+| `make plan` | Dry-run (`--check --diff`) against the laptop |
+| `make apply` | Runs `lint`, then applies |
+| `make idempotency` | Re-applies and fails if anything changes |
+| `make kernel-upgrade` | Installs the new kernel, reboots the laptop and only removes the old one if the node, Applications, Postgres and AppArmor are OK ([ADR 010](docs/adr/010-notebook-os-updates.md)) |
+| `make kubeconfig` | Writes `~/.kube/notebook.yaml` pointing at `https://<host>.<tailnet>:6443` |
+| `make reset` | Removes k3s (asks for confirmation; does not touch Tailscale or SSH) |
 | `make test` | lint + helm unittest + render/kubeconform/kube-linter |
 
-Fluxo normal: `make plan` → revisar o diff → `make apply`.
+Normal flow: `make plan` → review the diff → `make apply`.
 
-Por padrão os targets pedem a senha do sudo (`--ask-become-pass`). Se o sudo do notebook não pede senha (`NOPASSWD`), passe `ASK_BECOME_PASS=0`, por exemplo `make apply ASK_BECOME_PASS=0`.
+By default the targets ask for the sudo password (`--ask-become-pass`). If sudo on the laptop does not ask for a password (`NOPASSWD`), pass `ASK_BECOME_PASS=0`, for example `make apply ASK_BECOME_PASS=0`.
 
 ```bash
 export KUBECONFIG=~/.kube/notebook.yaml
@@ -312,58 +312,58 @@ kubectl -n argocd get applications
 kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d
 ```
 
-Depois do bootstrap, tudo dentro do cluster é **GitOps**: altere `kubernetes/` e faça push. O ArgoCD sincroniza sozinho.
+After the bootstrap, everything inside the cluster is **GitOps**: change `kubernetes/` and push. ArgoCD syncs on its own.
 
 ## Safety nets
 
-### Pre-commit (WSL e CI)
+### Pre-commit (WSL and CI)
 
-| Hook | Garante |
+| Hook | Ensures |
 |---|---|
-| `trailing-whitespace`, `end-of-file-fixer`, `mixed-line-ending`, `check-yaml`, `check-json`, `check-merge-conflict`, `detect-private-key` | Higiene básica e LF |
-| `gitleaks` (+ regras `AGE-SECRET-KEY` e `*.ts.net`) | Nenhum segredo nem o nome da tailnet no repo |
-| `sops-encrypted` | Todo `*.sops.yaml` está criptografado (só `apiVersion`/`kind`/`metadata`/`type` podem ficar em claro, via `unencrypted_regex`); a chave pública de teste do CI não é usada fora do demo |
-| `no-local-inventory`, `no-kubeconfig` | Hostname/usuário e kubeconfigs não são commitados |
-| `no-lockout` | Nenhuma task altera Tailscale, SSH, firewall ou rede do host |
-| `yamllint --strict`, `ansible-lint` (profile `production`) | Qualidade de YAML/Ansible, FQCN, `changed_when`, permissões |
+| `trailing-whitespace`, `end-of-file-fixer`, `mixed-line-ending`, `check-yaml`, `check-json`, `check-merge-conflict`, `detect-private-key` | Basic hygiene and LF |
+| `gitleaks` (+ `AGE-SECRET-KEY` and `*.ts.net` rules) | No secrets and no tailnet name in the repo |
+| `sops-encrypted` | Every `*.sops.yaml` is encrypted (only `apiVersion`/`kind`/`metadata`/`type` may stay in plain text, via `unencrypted_regex`); the CI's public test key is not used outside the demo |
+| `no-local-inventory`, `no-kubeconfig` | Hostname/user and kubeconfigs are not committed |
+| `no-lockout` | No task changes Tailscale, SSH, the firewall or the host network |
+| `yamllint --strict`, `ansible-lint` (profile `production`) | YAML/Ansible quality, FQCN, `changed_when`, permissions |
 | `shellcheck`, `shfmt` | Scripts |
-| `actionlint` | Workflow do CI |
-| `helm-lint` (com `values.schema.json`), `helm-unittest` | Chart app-of-apps |
-| `validate-manifests` | `kubeconform -strict` (k8s 1.37 + CRD Application) e `kube-linter` |
+| `actionlint` | CI workflow |
+| `helm-lint` (with `values.schema.json`), `helm-unittest` | app-of-apps chart |
+| `validate-manifests` | `kubeconform -strict` (k8s 1.37 + Application CRD) and `kube-linter` |
 
-O `validate-manifests` baixa os schemas na primeira execução e os guarda em cache em `.cache/kubeconform`.
+`validate-manifests` downloads the schemas on the first run and caches them in `.cache/kubeconform`.
 
 ### CI ([.github/workflows/ci.yaml](.github/workflows/ci.yaml))
 
-- **lint**: roda o pre-commit em todos os arquivos.
-- **render**: roda `helm unittest` e renderiza os charts upstream (argo-cd, tailscale-operator, cloudnative-pg, immich, prometheus, loki, tempo, grafana, otel-agent/otel-gateway, opencost) com os nossos values, validando tudo com kubeconform.
-- **e2e**: no runner `ubuntu-26.04`:
-  1. gera uma chave age efêmera com segredos dummy;
-  2. roda o `site.yaml` completo com `tailscale_enabled=false`, sincronizando o próprio SHA do PR;
-  3. roda o playbook de novo e exige **changed=0**;
-  4. confere que as Applications estão Synced/Healthy, que o hello-world responde, que o Secret demo foi descriptografado pelo KSOPS, que o Postgres (CNPG + VectorChord) está pronto que o Immich responde `/api/server/ping` e que a app externa de smoke (o template `repotpl-k8s-app`, no AppProject `homelab-apps`) responde `/healthz`. No CI, o Immich usa `local-path` em vez do NAS;
-  5. roda `reset.yaml`.
+- **lint**: runs pre-commit on every file.
+- **render**: runs `helm unittest` and renders the upstream charts (argo-cd, tailscale-operator, cloudnative-pg, immich, prometheus, loki, tempo, grafana, otel-agent/otel-gateway, opencost) with our values, validating everything with kubeconform.
+- **e2e**: on the `ubuntu-26.04` runner:
+  1. generates an ephemeral age key with dummy secrets;
+  2. runs the full `site.yaml` with `tailscale_enabled=false`, syncing the PR's own SHA;
+  3. runs the playbook again and requires **changed=0**;
+  4. checks that the Applications are Synced/Healthy, that hello-world answers, that the demo Secret was decrypted by KSOPS, that Postgres (CNPG + VectorChord) is ready, that Immich answers `/api/server/ping`, that the external smoke app (the `repotpl-k8s-app` template, in the `homelab-apps` AppProject) answers `/healthz`, and that the Kubernetes metrics and the OpenCost node cost reach Prometheus. In CI, Immich uses `local-path` instead of the NAS;
+  5. runs `reset.yaml`.
 
-Recomendado: proteção de branch na `main` exigindo os jobs `lint`, `render` e `e2e`.
+Recommended: branch protection on `main` requiring the `lint`, `render` and `e2e` jobs.
 
 ## Troubleshooting
 
-- **Firewall ativo no notebook.** O preflight avisa, mas não altera nada. Se pods não alcançarem a API, libere manualmente os ranges do k3s (`10.42.0.0/16` pods, `10.43.0.0/16` services).
-- **O ArgoCD não abre em `https://argocd.<tailnet>`.** Confira a policy e as tags do Tailscale e rode `kubectl -n tailscale logs deploy/operator`.
-- **Postgres trava na subida, "too many clients" ou pod preso em `Terminating`** (Ubuntu 26.04, kernel 7.0.0-42+). O `dmesg` mostra `apparmor="DENIED" operation="signal" ... peer="cri-containerd.apparmor.d//&unconfined"`. O role `base` instala um perfil AppArmor corrigido para os containers (workaround de [containerd#14485](https://github.com/containerd/containerd/issues/14485)). Rode `make apply`; o perfil é substituído no kernel e vale também para os containers em execução.
-- **Ansible ignora `ansible.cfg`.** Use os targets do `make`, ou exporte `ANSIBLE_CONFIG=$PWD/ansible/ansible.cfg`.
+- **Firewall enabled on the laptop.** The preflight warns but changes nothing. If pods cannot reach the API, open the k3s ranges manually (`10.42.0.0/16` pods, `10.43.0.0/16` services).
+- **ArgoCD does not open at `https://argocd.<tailnet>`.** Check the Tailscale policy and tags and run `kubectl -n tailscale logs deploy/operator`.
+- **Postgres hangs on startup, "too many clients" or a pod stuck in `Terminating`** (Ubuntu 26.04, kernel 7.0.0-42+). `dmesg` shows `apparmor="DENIED" operation="signal" ... peer="cri-containerd.apparmor.d//&unconfined"`. The `base` role installs a fixed AppArmor profile for the containers (workaround for [containerd#14485](https://github.com/containerd/containerd/issues/14485)). Run `make apply`; the profile is replaced in the kernel and also applies to running containers.
+- **Ansible ignores `ansible.cfg`.** Use the `make` targets, or export `ANSIBLE_CONFIG=$PWD/ansible/ansible.cfg`.
 
-## Estrutura
+## Layout
 
 ```
-ansible/              playbooks (site, reset), roles, inventário de exemplo/CI, segredos SOPS
-kubernetes/apps/      Helm chart app-of-apps (Applications do ArgoCD) + testes
-kubernetes/values/    values dos charts upstream
-kubernetes/workloads/ manifests (kustomize) dos workloads
-kubernetes/bootstrap/ Application raiz (template renderizado pelo Ansible)
-hosts/nas/            arquivos aplicados à mão no NAS pela UI do OMV (coletor OTel)
-infra/hetzner/        OpenTofu do Storage Box do backup off-site (state criptografado no git)
-scripts/              setup do controle e checagens usadas pelo pre-commit/CI (inclui o stub do KSOPS)
-tests/ci-age.key      chave age PÚBLICA de teste do CI (só o demo do hello-world)
-docs/adr/             decisões de arquitetura
+ansible/              playbooks (site, reset), roles, example/CI inventory, SOPS secrets
+kubernetes/apps/      app-of-apps Helm chart (ArgoCD Applications) + tests
+kubernetes/values/    values for the upstream charts
+kubernetes/workloads/ workload manifests (kustomize)
+kubernetes/bootstrap/ root Application (template rendered by Ansible)
+hosts/nas/            files applied by hand on the NAS through the OMV UI (OTel collector)
+infra/hetzner/        OpenTofu for the off-site backup Storage Box (state encrypted in git)
+scripts/              control-node setup and checks used by pre-commit/CI (includes the KSOPS stub)
+tests/ci-age.key      PUBLIC age test key for CI (only the hello-world demo)
+docs/adr/             architecture decisions
 ```

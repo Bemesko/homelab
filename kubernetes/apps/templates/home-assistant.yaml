@@ -4,18 +4,18 @@ metadata:
   name: home-assistant
   namespace: argocd
   annotations:
-    # Depois do banco (home-assistant-database, wave 2): o recorder conecta na subida.
+    # After the database (home-assistant-database, wave 2): the recorder connects at startup.
     argocd.argoproj.io/sync-wave: "3"
   finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:
   project: default
   sources:
-    # Ingress "casa", hostNetwork e D-Bus do host só no notebook; o CI usa base.
+    # "casa" Ingress, hostNetwork and the host's D-Bus only on the laptop; CI uses base.
     - repoURL: {{ .Values.repoURL }}
       targetRevision: {{ .Values.targetRevision }}
       path: kubernetes/workloads/home-assistant/{{ ternary "overlays/tailscale" "base" .Values.tailscaleOperator.enabled }}
-    # PVC do /config na mesma Application do Deployment que a monta.
+    # The /config PVC lives in the same Application as the Deployment that mounts it.
     - repoURL: {{ .Values.repoURL }}
       targetRevision: {{ .Values.targetRevision }}
       path: kubernetes/workloads/home-assistant/storage/{{ ternary "overlays/nas" "base" .Values.nasStorage.enabled }}

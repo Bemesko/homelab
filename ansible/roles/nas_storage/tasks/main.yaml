@@ -1,24 +1,24 @@
-# O NAS é configurado pelo openmediavault (dono da configuração). Este role só
-# VERIFICA os exports a partir do notebook e cria os PVs que apontam para eles.
-- name: Verificar se o cliente NFS (nfs-common) já está instalado
+# The NAS is configured through openmediavault (which owns the configuration). This role only
+# VERIFIES the exports from the laptop and creates the PVs pointing at them.
+- name: Check whether the NFS client (nfs-common) is already installed
   ansible.builtin.stat:
     path: /usr/sbin/showmount
   register: nas_storage_nfs_client
 
-# No primeiro `make plan` o role base ainda não instalou o nfs-common (check mode
-# não instala nada); a verificação dos exports fica para o apply.
-- name: Exigir o cliente NFS fora do check mode
+# On the first `make plan` the base role has not installed nfs-common yet (check mode
+# installs nothing); checking the exports is left for the apply.
+- name: Require the NFS client outside check mode
   ansible.builtin.assert:
     that: nas_storage_nfs_client.stat.exists or ansible_check_mode
-    fail_msg: "showmount não encontrado: o role base deveria ter instalado o nfs-common."
+    fail_msg: "showmount not found: the base role should have installed nfs-common."
     quiet: true
 
-- name: Avisar que a verificação dos exports fica para o apply
+- name: Warn that checking the exports is left for the apply
   ansible.builtin.debug:
-    msg: "nfs-common ainda não instalado: o role base o instala no apply, que então verifica os exports."
+    msg: "nfs-common not installed yet: the base role installs it during the apply, which then checks the exports."
   when: not nas_storage_nfs_client.stat.exists
 
-- name: Listar exports NFS do NAS
+- name: List the NAS NFS exports
   ansible.builtin.command: showmount --no-headers -e {{ nas_storage_host }}
   register: nas_storage_showmount
   changed_when: false
@@ -26,7 +26,7 @@
   check_mode: false
   when: nas_storage_nfs_client.stat.exists
 
-- name: Garantir que os exports dos apps existem no NAS
+- name: Ensure the app exports exist on the NAS
   vars:
     nas_storage_exported: "{{ nas_storage_showmount.stdout_lines | map('split') | map('first') | list }}"
     nas_storage_wanted: "{{ nas_storage_volumes | map(attribute='export') | map('extract', nas_storage_exports) | list }}"
@@ -35,20 +35,20 @@
       - nas_storage_showmount.rc == 0
       - nas_storage_wanted | difference(nas_storage_exported) | length == 0
     fail_msg: >-
-      Exports NFS ausentes em {{ nas_storage_host }}
-      (encontrados: {{ nas_storage_exported | default([]) }};
-      erro: {{ nas_storage_showmount.stderr | default('', true) or nas_storage_showmount.msg | default('') }}).
-      Crie-os na UI do OpenMediaVault conforme o README (seção "NAS: exports NFS no OMV").
+      Missing NFS exports on {{ nas_storage_host }}
+      (found: {{ nas_storage_exported | default([]) }};
+      error: {{ nas_storage_showmount.stderr | default('', true) or nas_storage_showmount.msg | default('') }}).
+      Create them in the OpenMediaVault UI as described in the README (section "NAS: NFS exports in OMV").
   when: nas_storage_nfs_client.stat.exists
 
-# Montagem temporária com as mesmas opções dos PVs: pega squash/permissão errados
-# antes de virarem um pod do Immich em CrashLoopBackOff.
-- name: Testar montagem dos exports (temporária)
+# Temporary mount with the same options as the PVs: catches a wrong squash/permission
+# before it turns into an Immich pod in CrashLoopBackOff.
+- name: Test-mount the exports (temporary)
   ansible.builtin.shell: |
     set -euo pipefail
     dir="$(mktemp -d)"
-    # Na primeira montagem NFS do host o rpc-statd ainda está subindo e o umount
-    # pode falhar uma vez; tenta de novo antes de remover o diretório.
+    # On the first NFS mount of the host, rpc-statd is still starting and the umount
+    # can fail once; retry before removing the directory.
     trap 'umount "${dir}" 2>/dev/null || { sleep 2; umount "${dir}"; }; rmdir "${dir}"' EXIT
     mount -t nfs -o "{{ (nas_storage_mount_options + [item.read_only | ternary('ro', 'rw')]) | join(',') }}" \
       "{{ nas_storage_host }}:{{ nas_storage_exports[item.export] }}" "${dir}"
@@ -66,12 +66,12 @@
   check_mode: false
   when: nas_storage_nfs_client.stat.exists
 
-- name: PVs dos apps
+- name: App PVs
   when: not ansible_check_mode or k3s_installed_version | default('') | length > 0
   environment:
     K8S_AUTH_KUBECONFIG: "{{ nas_storage_kubeconfig }}"
   block:
-    - name: Criar PVs NFS pré-vinculados às PVCs dos apps
+    - name: Create NFS PVs pre-bound to the app PVCs
       kubernetes.core.k8s:
         state: present
         definition:
@@ -92,7 +92,7 @@
               server: "{{ nas_storage_host }}"
               path: "{{ nas_storage_exports[item.export] }}"
               readOnly: "{{ item.read_only }}"
-            # Só a PVC de mesmo nome, no namespace do app, pode usar este PV.
+            # Only the PVC with the same name, in the app's namespace, may use this PV.
             claimRef:
               namespace: "{{ item.namespace }}"
               name: "{{ item.name }}"

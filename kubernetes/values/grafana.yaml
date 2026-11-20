@@ -1,7 +1,7 @@
-# Values do chart grafana (grafana-community), versão em kubernetes/apps/values.yaml.
-# Datasources correlacionadas (métricas <-> logs <-> traces), regras de alerta e
-# dashboards vindos de ConfigMaps (kubernetes/workloads/observability) pelo sidecar.
-# No notebook o template da Application acrescenta Ingress, admin e SMTP (SOPS).
+# Values for the grafana chart (grafana-community), version in kubernetes/apps/values.yaml.
+# Correlated datasources (metrics <-> logs <-> traces), alert rules and
+# dashboards from ConfigMaps (kubernetes/workloads/observability) through the sidecar.
+# On the laptop the Application template adds the Ingress, admin and SMTP (SOPS).
 image:
   tag: 13.3.0-distroless
   sha: 540b8afb775bf34aefce417e4329039daa5d44b6f2fbda6881397b1b247ca7df
@@ -11,7 +11,7 @@ persistence:
   type: pvc
   storageClassName: local-path
   size: 1Gi
-# fsGroup do securityContext padrão (472) já ajusta o dono do volume.
+# The default securityContext fsGroup (472) already fixes the volume owner.
 initChownData:
   enabled: false
 
@@ -19,7 +19,7 @@ resources:
   requests:
     cpu: 50m
     memory: 192Mi
-  # 256Mi dava OOMKilled já na subida (migrações do banco do Grafana 13).
+  # 256Mi got OOMKilled right at startup (Grafana 13 database migrations).
   limits:
     memory: 512Mi
 
@@ -29,8 +29,8 @@ grafana.ini:
     reporting_enabled: false
   auth.anonymous:
     enabled: false
-  # SQLite em WAL: leitores (login, datasources, regras) não esperam as escritas.
-  # Sem isso, um pico de I/O no notebook deu SQLITE_BUSY por ~7 min (ADR 010).
+  # SQLite in WAL mode: readers (login, datasources, rules) do not wait for writes.
+  # Without it, an I/O spike on the laptop caused SQLITE_BUSY for ~7 min (ADR 010).
   database:
     wal: true
   users:
@@ -62,7 +62,7 @@ datasources:
         isDefault: true
         jsonData:
           httpMethod: POST
-          # Coleta a cada 30-60 s: sem isso o $__rate_interval deixa rate() vazio.
+          # Collection every 30-60 s: without this $__rate_interval leaves rate() empty.
           timeInterval: 60s
           exemplarTraceIdDestinations:
             - name: trace_id
@@ -72,7 +72,7 @@ datasources:
         type: loki
         url: http://loki.observability.svc:3100
         jsonData:
-          # trace_id vem como structured metadata nos logs OTLP.
+          # trace_id comes as structured metadata in the OTLP logs.
           derivedFields:
             - name: trace_id
               matcherType: label

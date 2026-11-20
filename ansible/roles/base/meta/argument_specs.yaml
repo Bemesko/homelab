@@ -1,6 +1,6 @@
 argument_specs:
   main:
-    short_description: Pacotes, sysctl e helm no host
+    short_description: Packages, sysctl and helm on the host
     options:
       helm_version:
         type: str

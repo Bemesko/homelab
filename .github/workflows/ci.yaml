@@ -21,7 +21,7 @@ jobs:
     runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@v5
-      - name: Ferramentas da máquina de controle
+      - name: Control machine tools
         run: ./scripts/setup-control-node.sh && echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - uses: actions/cache@v4
         with:
@@ -30,18 +30,18 @@ jobs:
             .cache/kubeconform
             .cache/tofu-plugins
           key: lint-${{ hashFiles('.pre-commit-config.yaml', 'infra/**/.terraform.lock.hcl') }}
-      - name: pre-commit (mesma config do WSL)
+      - name: pre-commit (same config as WSL)
         run: pre-commit run --all-files --show-diff-on-failure
 
   render:
     runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@v5
-      - name: Ferramentas da máquina de controle
+      - name: Control machine tools
         run: ./scripts/setup-control-node.sh && echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - name: helm lint + unittest
         run: make test-unit
-      - name: Render + kubeconform/kube-linter (inclui charts upstream)
+      - name: Render + kubeconform/kube-linter (includes upstream charts)
         run: make test-render
 
   e2e:
@@ -50,13 +50,13 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v5
-      - name: Ferramentas da máquina de controle
+      - name: Control machine tools
         run: ./scripts/setup-control-node.sh && echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
-      # Chave age efêmera + segredos dummy: exercita o caminho real de descriptografia
-      # sem nenhum segredo verdadeiro no CI. A chave do cluster (KSOPS) é a de teste
-      # do repo (tests/ci-age.key, pública), única que descriptografa o demo do hello-world.
-      - name: Segredos dummy criptografados com chave efêmera
+      # Ephemeral age key + dummy secrets: exercises the real decryption path
+      # without any real secret in CI. The cluster key (KSOPS) is the repo's test
+      # key (tests/ci-age.key, public), the only one that decrypts the hello-world demo.
+      - name: Dummy secrets encrypted with an ephemeral key
         working-directory: ${{ runner.temp }}
         run: |
           age-keygen -o ci.agekey 2>/dev/null
@@ -65,7 +65,7 @@ jobs:
           sops --encrypt --age "$(age-keygen -y ci.agekey)" --in-place ci.sops.yaml
           echo "SOPS_AGE_KEY_FILE=${{ runner.temp }}/ci.agekey" >> "$GITHUB_ENV"
 
-      - name: Bootstrap (1ª execução)
+      - name: Bootstrap (1st run)
         working-directory: ansible
         run: >-
           ansible-playbook site.yaml -i inventory/ci.yaml
@@ -75,7 +75,7 @@ jobs:
           -e git_revision=${{ github.event.pull_request.head.sha || github.sha }}
           -e git_repo_url=https://github.com/${{ github.event.pull_request.head.repo.full_name || github.repository }}
 
-      - name: Idempotência (2ª execução sem mudanças)
+      - name: Idempotency (2nd run without changes)
         working-directory: ansible
         run: >-
           ../scripts/assert-idempotent.sh site.yaml -i inventory/ci.yaml
@@ -85,10 +85,10 @@ jobs:
           -e git_revision=${{ github.event.pull_request.head.sha || github.sha }}
           -e git_repo_url=https://github.com/${{ github.event.pull_request.head.repo.full_name || github.repository }}
 
-      - name: Asserções do cluster
+      - name: Cluster assertions
         run: ./scripts/e2e-assert.sh
 
-      - name: Diagnóstico
+      - name: Diagnostics
         if: failure()
         run: |
           sudo k3s kubectl get nodes,pods -A -o wide || true
@@ -99,7 +99,7 @@ jobs:
           sudo k3s kubectl -n k8s-app-smoke get all -o wide || true
           sudo journalctl -u k3s --no-pager -n 200 || true
 
-      - name: Reset remove o k3s
+      - name: Reset removes k3s
         working-directory: ansible
         run: |
           ansible-playbook reset.yaml -i inventory/ci.yaml -e reset_confirm=yes

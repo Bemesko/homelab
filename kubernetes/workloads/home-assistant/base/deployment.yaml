@@ -1,17 +1,17 @@
-# Home Assistant Container. O configuration.yaml vem do Git (ConfigMap, subPath); o
-# resto do /config (.storage: integrações, usuários e tokens criados na UI) fica na
-# PVC home-assistant-config (NFS do NAS; local-path no CI). O histórico vai para o
-# Postgres (CNPG) pelo recorder.
+# Home Assistant Container. configuration.yaml comes from Git (ConfigMap, subPath); the
+# rest of /config (.storage: integrations, users and tokens created in the UI) lives in the
+# home-assistant-config PVC (NFS on the NAS; local-path in CI). The history goes to
+# Postgres (CNPG) through the recorder.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: home-assistant
   annotations:
-    ignore-check.kube-linter.io/run-as-non-root: "a imagem oficial do HA roda como root (s6-overlay)"
-    ignore-check.kube-linter.io/no-read-only-root-fs: "o HA instala dependências de integrações em tempo de execução"
+    ignore-check.kube-linter.io/run-as-non-root: "the official HA image runs as root (s6-overlay)"
+    ignore-check.kube-linter.io/no-read-only-root-fs: "HA installs integration dependencies at runtime"
 spec:
   replicas: 1
-  # /config é RWO e o HA não suporta duas instâncias no mesmo banco.
+  # /config is RWO and HA does not support two instances on the same database.
   strategy:
     type: Recreate
   selector:
@@ -19,17 +19,22 @@ spec:
   template:
     spec:
       automountServiceAccountToken: false
-      # Com o ndots:5 padrão, nomes externos (api.amazon.com) passam antes pelos 4
-      # domínios de busca, em A e AAAA. O resolvedor assíncrono do HA (c-ares) estoura
-      # o timeout nessa cascata sem cache e a integração Alexa Devices falha. Com 2,
-      # nomes com 2+ pontos vão direto; os internos usam o FQDN (*.svc.cluster.local).
+      # With the default ndots:5, external names (api.amazon.com) first go through the 4
+      # search domains, in A and AAAA. HA's async resolver (c-ares) times out
+      # on that uncached cascade and the Alexa Devices integration fails. With 2,
+      # names with 2+ dots go straight out; internal ones use the FQDN (*.svc.cluster.local).
       dnsConfig:
         options:
           - name: ndots
             value: "2"
       initContainers:
-        # O configuration.yaml inclui estes arquivos, que a UI edita: cria vazios só
-        # na primeira vez (nunca sobrescreve o que a UI salvou).
+        # configuration.yaml includes these files, which the UI edits: creates them empty only
+        # the first time (never overwrites what the UI saved).
+        # Also deletes .ha_run.lock: HA removes it on shutdown, but a power outage
+        # or the NAS going away kills the container without cleaning up, and the next start thinks there is
+        # another instance ("Another Home Assistant instance is already running!", in a loop,
+        # because the recorded PID matches another process in the new container). It is safe:
+        # Recreate and RWO guarantee no other instance is using this /config.
         - name: init-includes
           image: ghcr.io/home-assistant/home-assistant:2026.11.0@sha256:c6c1ca9931036bf3a2c4cc088d8db25dfea3b33935a5ecc83c40349462e2f69e
           command:
@@ -39,6 +44,7 @@ spec:
               [ -e /config/automations.yaml ] || echo '[]' > /config/automations.yaml
               [ -e /config/scenes.yaml ] || echo '[]' > /config/scenes.yaml
               [ -e /config/scripts.yaml ] || echo '{}' > /config/scripts.yaml
+              rm -f /config/.ha_run.lock
           resources:
             requests:
               cpu: 10m
@@ -58,7 +64,7 @@ spec:
           env:
             - name: TZ
               value: America/Sao_Paulo
-            # Lido no configuration.yaml com !env_var DB_URL (recorder).
+            # Read in configuration.yaml with !env_var DB_URL (recorder).
             - name: DB_URL
               valueFrom:
                 secretKeyRef:
@@ -67,8 +73,8 @@ spec:
           ports:
             - name: http
               containerPort: 8123
-          # /manifest.json responde 200 sem login. O primeiro boot instala as
-          # dependências das integrações padrão (pip), em NFS pode passar de 5 min.
+          # /manifest.json answers 200 without login. The first boot installs the
+          # dependencies of the default integrations (pip); on NFS it can take more than 5 min.
           startupProbe:
             httpGet:
               path: /manifest.json

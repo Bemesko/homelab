@@ -1,4 +1,4 @@
-# DaemonSet: logs dos pods, kubelet, OTLP dos apps -> otel-gateway. Veja docs/adr/008.
+# DaemonSet: pod logs, Kubernetes metrics, OTLP from apps -> otel-gateway. See docs/adr/008 and 013.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:

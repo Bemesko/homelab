@@ -1,41 +1,41 @@
-- name: Ler versão instalada do k3s
+- name: Read the installed k3s version
   ansible.builtin.command: /usr/local/bin/k3s --version
   register: k3s_version_output
   changed_when: false
   failed_when: false
   check_mode: false
 
-- name: Registrar versão instalada
+- name: Record the installed version
   ansible.builtin.set_fact:
     k3s_installed_version: >-
       {{ (k3s_version_output.rc == 0)
          | ternary(k3s_version_output.stdout | default('') | regex_search('v[0-9]+\.[0-9]+\.[0-9]+\+k3s[0-9]+'), '') }}
 
-- name: Criar diretório de configuração do k3s
+- name: Create the k3s configuration directory
   ansible.builtin.file:
     path: /etc/rancher/k3s
     state: directory
     mode: "0755"
 
-- name: Configurar k3s
+- name: Configure k3s
   ansible.builtin.template:
     src: config.yaml.j2
     dest: /etc/rancher/k3s/config.yaml
     owner: root
     group: root
     mode: "0600"
-  notify: Reiniciar k3s
+  notify: Restart k3s
 
-# Pull das imagens privadas do GHCR (apps externas da org) sem imagePullSecret por app.
-# Sem token nos segredos (CI), o arquivo não existe.
-- name: Configurar credencial do ghcr.io no k3s
+# Pulls the private GHCR images (the org's external apps) without an imagePullSecret per app.
+# Without a token in the secrets (CI), the file does not exist.
+- name: Configure the ghcr.io credential in k3s
   ansible.builtin.copy:
     dest: /etc/rancher/k3s/registries.yaml
     owner: root
     group: root
     mode: "0600"
     content: |
-      # Gerenciado pelo Ansible (2026-kubernetes)
+      # Managed by Ansible (homelab)
       configs:
         ghcr.io:
           auth:
@@ -43,24 +43,24 @@
             password: {{ ghcr_pull_token | to_json }}
   no_log: true
   when: k3s_ghcr_auth_enabled | bool
-  notify: Reiniciar k3s
+  notify: Restart k3s
 
-- name: Remover credencial do ghcr.io do k3s
+- name: Remove the ghcr.io credential from k3s
   ansible.builtin.file:
     path: /etc/rancher/k3s/registries.yaml
     state: absent
   when: not (k3s_ghcr_auth_enabled | bool)
-  notify: Reiniciar k3s
+  notify: Restart k3s
 
-- name: Baixar instalador do k3s (versão e checksum fixados)
+- name: Download the k3s installer (pinned version and checksum)
   ansible.builtin.get_url:
     url: "https://raw.githubusercontent.com/k3s-io/k3s/{{ k3s_version | urlencode }}/install.sh"
     dest: "{{ k3s_install_script }}"
     checksum: "sha256:{{ k3s_install_script_sha256 }}"
     mode: "0755"
 
-# O instalador também valida o sha256 do binário contra a release do k3s.
-- name: Instalar k3s
+# The installer also validates the binary's sha256 against the k3s release.
+- name: Install k3s
   ansible.builtin.command: "{{ k3s_install_script }}"
   environment:
     INSTALL_K3S_VERSION: "{{ k3s_version }}"
@@ -68,17 +68,17 @@
   when: k3s_installed_version != k3s_version
   changed_when: true
 
-- name: Aplicar handlers pendentes antes de usar o cluster
+- name: Flush pending handlers before using the cluster
   ansible.builtin.meta: flush_handlers
 
-- name: Garantir k3s habilitado e rodando
+- name: Ensure k3s is enabled and running
   ansible.builtin.systemd_service:
     name: k3s
     enabled: true
     state: started
   when: not ansible_check_mode or k3s_installed_version | length > 0
 
-- name: Aguardar node Ready
+- name: Wait for the node to be Ready
   ansible.builtin.command: /usr/local/bin/k3s kubectl wait --for=condition=Ready node --all --timeout=300s
   changed_when: false
   check_mode: false

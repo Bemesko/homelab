@@ -19,7 +19,7 @@ templates:
   - templates/grafana.yaml
   - templates/opencost.yaml
 tests:
-  - it: toda Application tem sync automático com prune e selfHeal
+  - it: every Application has automated sync with prune and selfHeal
     asserts:
       - isKind:
           of: Application
@@ -33,7 +33,7 @@ tests:
           path: metadata.namespace
           value: argocd
 
-  - it: sync-waves seguem a ordem operator -> argocd -> workloads
+  - it: sync-waves follow the order operator -> argocd -> workloads
     asserts:
       - equal:
           path: metadata.annotations["argocd.argoproj.io/sync-wave"]
@@ -108,13 +108,13 @@ tests:
           value: "3"
         template: templates/opencost.yaml
 
-  - it: Application do ArgoCD não tem finalizer (não se auto-apaga)
+  - it: the ArgoCD Application has no finalizer (it does not delete itself)
     template: templates/argocd.yaml
     asserts:
       - notExists:
           path: metadata.finalizers
 
-  - it: versão do chart do ArgoCD vem do values (fonte única)
+  - it: the ArgoCD chart version comes from values (single source)
     template: templates/argocd.yaml
     set:
       charts.argocd.version: 9.9.9
@@ -126,7 +126,7 @@ tests:
           path: spec.sources[0].chart
           value: argo-cd
 
-  - it: repoURL e targetRevision propagam para as fontes do repo
+  - it: repoURL and targetRevision propagate to the repo sources
     set:
       repoURL: https://github.com/example/fork
       targetRevision: abc123
@@ -148,7 +148,7 @@ tests:
           value: abc123
         template: templates/argocd.yaml
 
-  - it: com Tailscale ligado usa overlay tailscale e expõe o ArgoCD
+  - it: with Tailscale on it uses the tailscale overlay and exposes ArgoCD
     asserts:
       - hasDocuments:
           count: 1
@@ -162,7 +162,7 @@ tests:
           value: tailscale
         template: templates/argocd.yaml
 
-  - it: com Tailscale desligado (CI) remove operator e Ingress
+  - it: with Tailscale off (CI) it removes the operator and the Ingresses
     set:
       tailscaleOperator.enabled: false
     asserts:
@@ -177,7 +177,7 @@ tests:
           path: spec.sources[0].helm.valuesObject
         template: templates/argocd.yaml
 
-  - it: Immich usa o chart OCI sem o prefixo oci:// (formato do ArgoCD)
+  - it: Immich uses the OCI chart without the oci:// prefix (ArgoCD format)
     template: templates/immich.yaml
     asserts:
       - equal:
@@ -187,7 +187,7 @@ tests:
           path: spec.sources[0].chart
           value: immich
 
-  - it: versões dos charts do Immich e do CNPG vêm do values (fonte única)
+  - it: the Immich and CNPG chart versions come from values (single source)
     set:
       charts.immich.version: 9.9.9
       charts.cloudnativePg.version: 8.8.8
@@ -201,7 +201,7 @@ tests:
           value: 8.8.8
         template: templates/cloudnative-pg.yaml
 
-  - it: banco do Immich não depende do toggle de NAS (só o Postgres)
+  - it: the Immich database does not depend on the NAS toggle (only Postgres)
     template: templates/immich-database.yaml
     set:
       nasStorage.enabled: false
@@ -210,14 +210,14 @@ tests:
           path: spec.source.path
           value: kubernetes/workloads/immich/database
 
-  - it: PVCs vão na Application do Immich (quem as monta), com NAS no overlay nas
+  - it: PVCs go in the Immich Application (which mounts them), with the NAS in the nas overlay
     template: templates/immich.yaml
     asserts:
       - equal:
           path: spec.sources[2].path
           value: kubernetes/workloads/immich/storage/overlays/nas
 
-  - it: sem NAS (CI) as PVCs do Immich usam base (local-path)
+  - it: without the NAS (CI) the Immich PVCs use base (local-path)
     template: templates/immich.yaml
     set:
       nasStorage.enabled: false
@@ -226,7 +226,7 @@ tests:
           path: spec.sources[2].path
           value: kubernetes/workloads/immich/storage/base
 
-  - it: Immich exposto como "fotos" só com Tailscale
+  - it: Immich exposed as "fotos" only with Tailscale
     template: templates/immich.yaml
     asserts:
       - equal:
@@ -236,7 +236,7 @@ tests:
           path: spec.sources[0].helm.valuesObject.server.ingress.main.hosts[0].host
           value: fotos
 
-  - it: sem Tailscale (CI) o Immich não tem Ingress
+  - it: without Tailscale (CI) Immich has no Ingress
     template: templates/immich.yaml
     set:
       tailscaleOperator.enabled: false
@@ -244,7 +244,7 @@ tests:
       - notExists:
           path: spec.sources[0].helm.valuesObject
 
-  - it: Obsidian com Tailscale usa o overlay (Ingress borbsidian + basic auth) e o vault do NAS
+  - it: Obsidian with Tailscale uses the overlay (borbsidian Ingress + basic auth) and the NAS vault
     template: templates/obsidian.yaml
     asserts:
       - equal:
@@ -254,7 +254,7 @@ tests:
           path: spec.sources[1].path
           value: kubernetes/workloads/obsidian/storage/overlays/nas
 
-  - it: sem Tailscale e sem NAS (CI) o Obsidian usa base nos dois
+  - it: without Tailscale and without the NAS (CI) Obsidian uses base for both
     template: templates/obsidian.yaml
     set:
       tailscaleOperator.enabled: false
@@ -267,7 +267,7 @@ tests:
           path: spec.sources[1].path
           value: kubernetes/workloads/obsidian/storage/base
 
-  - it: Home Assistant com Tailscale usa o overlay (Ingress casa, hostNetwork) e o /config do NAS
+  - it: Home Assistant with Tailscale uses the overlay (casa Ingress, hostNetwork) and the NAS /config
     template: templates/home-assistant.yaml
     asserts:
       - equal:
@@ -277,7 +277,7 @@ tests:
           path: spec.sources[1].path
           value: kubernetes/workloads/home-assistant/storage/overlays/nas
 
-  - it: sem Tailscale e sem NAS (CI) o Home Assistant usa base nos dois
+  - it: without Tailscale and without the NAS (CI) Home Assistant uses base for both
     template: templates/home-assistant.yaml
     set:
       tailscaleOperator.enabled: false
@@ -290,14 +290,14 @@ tests:
           path: spec.sources[1].path
           value: kubernetes/workloads/home-assistant/storage/base
 
-  - it: backup off-site com NAS usa o overlay nas (Storage Box + PV do NAS)
+  - it: the off-site backup with the NAS uses the nas overlay (Storage Box + NAS PV)
     template: templates/backup.yaml
     asserts:
       - equal:
           path: spec.source.path
           value: kubernetes/workloads/backup/overlays/nas
 
-  - it: sem NAS (CI) o backup usa base (repositório local, sem segredos)
+  - it: without the NAS (CI) the backup uses base (local repository, no secrets)
     template: templates/backup.yaml
     set:
       nasStorage.enabled: false
@@ -306,7 +306,7 @@ tests:
           path: spec.source.path
           value: kubernetes/workloads/backup/base
 
-  - it: versões dos charts de observabilidade vêm do values (fonte única; um chart, duas releases do coletor)
+  - it: the observability chart versions come from values (single source; one chart, two collector releases)
     set:
       charts.opentelemetryCollector.version: 7.7.7
       charts.grafana.version: 6.6.6
@@ -328,7 +328,7 @@ tests:
           value: 6.6.6
         template: templates/grafana.yaml
 
-  - it: Grafana com Tailscale tem Ingress e usa os Secrets SOPS de admin e SMTP
+  - it: Grafana with Tailscale has an Ingress and uses the admin and SMTP SOPS Secrets
     template: templates/grafana.yaml
     asserts:
       - equal:
@@ -344,7 +344,7 @@ tests:
           path: spec.sources[0].helm.valuesObject.envFromSecrets[0].name
           value: grafana-public-url
 
-  - it: versão do chart do OpenCost vem do values (fonte única) e ele roda no próprio namespace
+  - it: the OpenCost chart version comes from values (single source) and it runs in its own namespace
     template: templates/opencost.yaml
     set:
       charts.opencost.version: 5.5.5
@@ -359,7 +359,7 @@ tests:
           path: spec.destination.namespace
           value: opencost
 
-  - it: OpenCost com Tailscale expõe a UI como "opencost"
+  - it: OpenCost with Tailscale exposes the UI as "opencost"
     template: templates/opencost.yaml
     asserts:
       - equal:
@@ -369,7 +369,7 @@ tests:
           path: spec.sources[0].helm.valuesObject.opencost.ui.ingress.hosts[0].host
           value: opencost
 
-  - it: sem Tailscale (CI) o OpenCost não expõe a UI
+  - it: without Tailscale (CI) OpenCost does not expose the UI
     template: templates/opencost.yaml
     set:
       tailscaleOperator.enabled: false
@@ -377,7 +377,7 @@ tests:
       - notExists:
           path: spec.sources[0].helm.valuesObject
 
-  - it: sem Tailscale (CI) o Grafana não tem Ingress nem Secrets e o provisionamento usa base
+  - it: without Tailscale (CI) Grafana has no Ingress or Secrets and provisioning uses base
     set:
       tailscaleOperator.enabled: false
     asserts:

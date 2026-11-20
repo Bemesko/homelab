@@ -1,26 +1,26 @@
-# Inventário real (hostname/usuário do notebook) — nunca versionar
+# Real inventory (laptop hostname/user): never version it
 ansible/inventory/*
 !ansible/inventory/inventory.example.yaml
 !ansible/inventory/ci.yaml
 
-# Segredos descriptografados e chaves
+# Decrypted secrets and keys
 *.dec.yaml
 *.decrypted.*
 keys.txt
 *.agekey
 
-# Kubeconfigs (contêm o nome da tailnet e credenciais)
+# Kubeconfigs (contain the tailnet name and credentials)
 kubeconfig
 kubeconfig*.yaml
 kubeconfig*.yml
 *.kubeconfig
 
-# OpenTofu: o terraform.tfstate (criptografado) é versionado; providers e planos não
+# OpenTofu: the (encrypted) terraform.tfstate is versioned; providers and plans are not
 .terraform/
 *.tfstate.backup
 *.tfplan
 
-# Ferramentas
+# Tools
 .venv/
 .cache/
 *.retry

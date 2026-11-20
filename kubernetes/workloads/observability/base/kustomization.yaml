@@ -1,5 +1,5 @@
-# Provisionamento do Grafana (regras de alerta e dashboards) lido pelo sidecar do chart.
-# base = CI; overlays/tailscale = notebook (segredos, e-mail e Service "otel" na tailnet).
+# Grafana provisioning (alert rules and dashboards) read by the chart's sidecar.
+# base = CI; overlays/tailscale = laptop (secrets, email and the "otel" Service on the tailnet).
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: observability
@@ -7,7 +7,7 @@ labels:
   - pairs:
       app.kubernetes.io/part-of: observability
 resources:
-  # Dashboards da comunidade (scripts/vendor-dashboards.sh) e os próprios.
+  # Community dashboards (scripts/vendor-dashboards.sh) and our own.
   - dashboards
 generatorOptions:
   disableNameSuffixHash: true

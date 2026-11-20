@@ -1,4 +1,4 @@
-# Loki / Writes (mixin compilado): Loki roda como binário único.
+# Loki / Writes (compiled mixin): Loki runs as a single binary.
 include "_lib";
 drop_vars(["namespace"])
 | single_binary("loki")

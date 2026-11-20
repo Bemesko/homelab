@@ -1,4 +1,4 @@
-# Datasources, alertas e dashboards; provisionamento em kubernetes/workloads/observability. Veja docs/adr/008.
+# Datasources, alerts and dashboards; provisioning in kubernetes/workloads/observability. See docs/adr/008.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -19,9 +19,9 @@ spec:
         valueFiles:
           - $values/kubernetes/values/grafana.yaml
         {{- if .Values.tailscaleOperator.enabled }}
-        # Notebook: Ingress "grafana" na tailnet, admin e SMTP dos Secrets SOPS
-        # (kubernetes/workloads/observability/overlays/tailscale). No CI o chart
-        # gera a senha de admin e o SMTP fica desligado.
+        # Laptop: "grafana" Ingress on the tailnet, admin and SMTP from the SOPS Secrets
+        # (kubernetes/workloads/observability/overlays/tailscale). In CI the chart
+        # generates the admin password and SMTP stays off.
         valuesObject:
           ingress:
             enabled: true
@@ -34,8 +34,8 @@ spec:
           admin:
             existingSecret: grafana-admin
           envFromSecret: grafana-smtp
-          # GF_SERVER_ROOT_URL (links dos alertas) com a URL da Ingress; criado pelo
-          # role cluster_bootstrap com o nome da tailnet descoberto em runtime.
+          # GF_SERVER_ROOT_URL (links in alerts) with the Ingress URL; created by the
+          # cluster_bootstrap role with the tailnet name discovered at runtime.
           envFromSecrets:
             - name: grafana-public-url
               optional: true

@@ -1,5 +1,5 @@
 apiVersion: v2
 name: apps
-description: App-of-apps do cluster k3s do notebook (Applications do ArgoCD)
+description: App-of-apps for the laptop's k3s cluster (ArgoCD Applications)
 type: application
 version: 0.1.0

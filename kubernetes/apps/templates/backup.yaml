@@ -4,14 +4,14 @@ metadata:
   name: backup
   namespace: argocd
   annotations:
-    # Depois dos apps cujos dados ele copia (o dump do Immich é da wave 3).
+    # After the apps whose data it copies (the Immich dump is in wave 3).
     argocd.argoproj.io/sync-wave: "3"
   finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:
   project: default
   source:
-    # Storage Box e PV do NAS só no notebook; o CI usa base (repositório local).
+    # Storage Box and NAS PV only on the laptop; CI uses base (local repository).
     repoURL: {{ .Values.repoURL }}
     targetRevision: {{ .Values.targetRevision }}
     path: kubernetes/workloads/backup/{{ ternary "overlays/nas" "base" .Values.nasStorage.enabled }}

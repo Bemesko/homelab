@@ -1,4 +1,4 @@
-# Vault do Obsidian. Em base fica em local-path (CI, vault vazio).
+# Obsidian vault. In base it lives on local-path (CI, empty vault).
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:

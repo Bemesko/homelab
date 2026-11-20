@@ -12,7 +12,7 @@ spec:
   source:
     repoURL: {{ .Values.repoURL }}
     targetRevision: {{ .Values.targetRevision }}
-    # Só o Postgres (CNPG): fica Healthy sozinho. As PVCs vão na Application immich.
+    # Only Postgres (CNPG): it becomes Healthy on its own. The PVCs go in the immich Application.
     path: kubernetes/workloads/immich/database
   destination:
     server: https://kubernetes.default.svc
