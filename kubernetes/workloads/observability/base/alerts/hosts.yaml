@@ -214,8 +214,8 @@ groups:
               conditions:
                 - evaluator: {type: gt, params: [0]}
 
-      # Own (ADR 012): homelab-power-guard logs the switch to battery (the PT phrase stays until
-      # make apply updates the guard on every host). Without power the laptop shuts down at 10%.
+      # Own (ADR 012): homelab-power-guard logs the switch to battery. Without power the
+      # laptop shuts down at 10%; the warning gives time to act before that.
       - uid: host-on-battery
         title: Laptop on battery (no external power)
         condition: B
@@ -233,8 +233,8 @@ groups:
               refId: A
               queryType: instant
               expr: >-
-                sum by (service_name) (count_over_time({service_name=~"homelab-host|nas-host"} |= "homelab-power" |~
-                "energia externa caiu|external power lost" [10m]))
+                sum by (service_name) (count_over_time({service_name=~"homelab-host|nas-host"} |= "homelab-power" |=
+                "external power lost" [10m]))
           - refId: B
             datasourceUid: __expr__
             model:
