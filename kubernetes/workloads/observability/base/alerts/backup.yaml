@@ -1,0 +1,72 @@
+# NAS off-site backup: restic-backup CronJob (namespace backup) -> Hetzner Storage Box
+# (ADR 014). The pod logs reach Loki through otel-agent; restic logs a JSON line with
+# "message_type":"summary" when each backup finishes.
+apiVersion: 1
+groups:
+  - orgId: 1
+    name: backup
+    folder: Homelab
+    interval: 5m
+    rules:
+      # Runs every day at 04:00. During the initial upload (several days, each run cut
+      # at 22h) this alert fires until the first full backup finishes.
+      - uid: backup-offsite-stale
+        title: Off-site backup without a successful run in 26h
+        condition: B
+        for: 0s
+        noDataState: OK
+        execErrState: Error
+        labels: {severity: warning}
+        annotations:
+          summary: >-
+            No restic backup finished in the last 26h: the NAS copy on the Storage Box is
+            out of date (see the logs of k8s_namespace_name=backup)
+        data:
+          - refId: A
+            relativeTimeRange: {from: 93600, to: 0}
+            datasourceUid: loki
+            model:
+              refId: A
+              queryType: instant
+              expr: absent_over_time({k8s_namespace_name="backup"} |= `"message_type":"summary"` [26h])
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: {type: gt, params: [0]}
+
+      # k8s-job-failed (kubernetes.yaml) is only info; this one is warning so it arrives by
+      # email. Jobs are removed 20h after they finish (ttlSecondsAfterFinished), so the
+      # alert clears by itself. restic exit code 3 (unreadable file) also fails the Job.
+      - uid: backup-offsite-failed
+        title: Off-site backup failed
+        condition: B
+        for: 0s
+        noDataState: OK
+        execErrState: Error
+        labels: {severity: warning}
+        annotations:
+          summary: >-
+            {{ $labels.job_name }}: restic failed; see the Job logs (lines
+            "message_type":"homelab" and "error")
+        data:
+          - refId: A
+            relativeTimeRange: {from: 600, to: 0}
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              # kube-state-metrics (ADR 013); max merges the series split by `reason`.
+              expr: >-
+                max by (job_name) (kube_job_status_failed{namespace="backup"})
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: {type: gt, params: [0]}

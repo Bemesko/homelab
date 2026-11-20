@@ -35,3 +35,12 @@ nas_storage_volumes:
     read_only: false
     write_test: true
     capacity: 5Gi
+  # Same export as the photos (SSD root), read-only, for the off-site backup restic.
+  # Its own PV because the claimRef binds each PV to a single PVC.
+  - name: backup-source
+    export: photos
+    namespace: backup
+    access_mode: ReadOnlyMany
+    read_only: true
+    write_test: false
+    capacity: 1Ti
