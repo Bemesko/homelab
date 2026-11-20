@@ -27,10 +27,10 @@ apps:
   grocery-ops:
     repoURL: https://github.com/Bemesko/grocery-ops
     targetRevision: v0.6.0
-  # Household finances PWA (Nuxt 4 + DuckDB-WASM, prototype) → https://bernats-finances.<your-tailnet>
+  # Household finances PWA (Nuxt 4 + Postgres by CloudNativePG) → https://bernats-finances.<your-tailnet>
   bernats-finances:
     repoURL: https://github.com/bernats-homelab/bernats-finances-v4
-    targetRevision: v0.1.0
+    targetRevision: v0.2.0
 
 # The template itself as an external app, enabled only in CI (Ansible external_apps_smoke_enabled):
 # the e2e proves the external repo -> AppProject -> Application path. Use a published tag.
