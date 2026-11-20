@@ -1,6 +1,6 @@
 # Repositório e revisão que as Applications filhas sincronizam.
 # A Application raiz (kubernetes/bootstrap/root-app.yaml.j2) sobrescreve estes valores.
-repoURL: https://github.com/bernats-homelab/2026-kubernetes
+repoURL: https://github.com/Bemesko/homelab
 targetRevision: main
 
 tailscaleOperator:

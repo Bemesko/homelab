@@ -1,5 +1,5 @@
 # Repositório que o ArgoCD sincroniza (sobrescrito no CI com o repo/SHA do PR)
-git_repo_url: https://github.com/bernats-homelab/2026-kubernetes
+git_repo_url: https://github.com/Bemesko/homelab
 git_revision: main
 
 # false apenas no CI: pula a verificação do Tailscale do host e o Tailscale Operator
