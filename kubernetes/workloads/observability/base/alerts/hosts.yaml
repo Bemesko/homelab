@@ -232,9 +232,14 @@ groups:
             model:
               refId: A
               queryType: instant
+              # Filter by the program that wrote the line, not only by its text: on 2026-11-20 an
+              # Ansible ad-hoc command mentioning the phrase (logged by the NAS syslog) fired it.
+              # Laptop: journald JSON body; NAS: OMV syslog, where the tag becomes appname.
               expr: >-
-                sum by (service_name) (count_over_time({service_name=~"homelab-host|nas-host"} |= "homelab-power" |=
-                "external power lost" [10m]))
+                sum by (service_name) (count_over_time({service_name="homelab-host"}
+                |= `"SYSLOG_IDENTIFIER":"homelab-power"` |= "external power lost" [10m]))
+                or sum by (service_name) (count_over_time({service_name="nas-host"}
+                | appname="homelab-power" |= "external power lost" [10m]))
           - refId: B
             datasourceUid: __expr__
             model:
