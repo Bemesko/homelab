@@ -42,7 +42,8 @@ groups:
               conditions:
                 - evaluator: {type: gt, params: [0]}
 
-      # Own. Base backups run daily at 02:00 (ScheduledBackup). Only clusters that already
+      # Own. Base backups run daily at 02:00 (ScheduledBackup). The metric comes from the plugin
+      # (cnpg_collector_last_available_backup_timestamp stays 0 with plugin backups). Only clusters that already
       # had one: a cluster without backups reports 0 (the archiving alert covers setup errors).
       - uid: postgres-base-backup-stale
         title: Postgres base backup older than 26h
@@ -63,8 +64,8 @@ groups:
               refId: A
               instant: true
               expr: >-
-                max by (namespace) (time() - cnpg_collector_last_available_backup_timestamp
-                and cnpg_collector_last_available_backup_timestamp > 0)
+                max by (namespace) (time() - barman_cloud_cloudnative_pg_io_last_available_backup_timestamp
+                and barman_cloud_cloudnative_pg_io_last_available_backup_timestamp > 0)
           - refId: B
             datasourceUid: __expr__
             model:
