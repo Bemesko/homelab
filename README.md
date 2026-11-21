@@ -120,11 +120,33 @@ Server settings come from `kubernetes/values/immich.yaml` (`immich.configuration
 
 ### Database backup and restore
 
-Immich runs a daily `pg_dump` into `immich-data/backups` on the NAS and keeps 14 copies. To restore into a rebuilt cluster:
-```bash
-gunzip -c <dump>.sql.gz | kubectl -n immich exec -i immich-database-1 -- psql -U postgres -d postgres
-```
-The dump is a `pg_dumpall` and already recreates the `app` database. Run it with `immich-server` stopped (`kubectl -n immich scale deploy/immich-server --replicas=0`), then set `replicas` back to 1. The full procedure is in the Immich docs under *Backup and Restore*.
+Every Postgres (Immich, Home Assistant and the external apps) is backed up by CloudNativePG through the Barman Cloud plugin to RustFS, whose data lives on the NAS (`cnpg-backups`, inside the replicated area). See [ADR 014](docs/adr/014-postgres-backups-barman-rustfs.md).
+
+- **What is kept:**
+  - WAL archived continuously (at most every 5 min while there are writes);
+  - a base backup every day at 02:00;
+  - a 14-day window for restoring to any point in time.
+- **Status:**
+  - `kubectl -n <ns> get cluster <cluster> -o jsonpath='{.status.conditions[?(@.type=="ContinuousArchiving")].message}'`
+  - `kubectl -n <ns> get backups`
+  - The recovery window is in `kubectl -n <ns> get objectstore <cluster>-backup -o jsonpath='{.status}'`.
+- **Alerts:** archiving failing for 15 min (critical) and a base backup older than 26 h (warning), in `base/alerts/backups.yaml`.
+- **Restore into a new cluster:** create a `Cluster` in the same namespace with the source's spec (image, `postgresql`, storage) and, instead of the plugin:
+  ```yaml
+  bootstrap:
+    recovery:
+      source: origin
+      # recoveryTarget: {targetTime: "2026-11-21T16:53:25Z"}   # point in time (UTC); omit for the latest WAL
+  externalClusters:
+    - name: origin
+      plugin:
+        name: barman-cloud.cloudnative-pg.io
+        parameters: {barmanObjectName: <cluster>-backup, serverName: <cluster>}
+  ```
+  - Leave `spec.plugins` out of the new cluster: archiving to the same `serverName` would mix the histories.
+  - To replace the original, stop the app, delete the old `Cluster`, recreate it under the original name with `bootstrap.recovery` and the same `serverName`, then put the `plugins` back.
+  - Tested on 2026-11-21: Immich identical (72 tables, 252,198 rows); Home Assistant PITR stopped exactly at the target.
+- **Old Immich dumps:** Immich's own `pg_dump` (in `immich-data/backups`) is off. The files there are from before ADR 014 and can be removed by hand.
 
 ## Obsidian in the browser (vault on the NAS)
 

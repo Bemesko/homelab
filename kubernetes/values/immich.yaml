@@ -26,13 +26,12 @@ immich:
       acceptedVideoCodecs: [h264, hevc]
     backup:
       database:
-        # Daily pg_dump to /data/backups (on the NAS): Postgres lives on the laptop disk.
-        enabled: true
-        cronExpression: "0 3 * * *"
-        keepLastAmount: 14
+        # Off: the database is backed up by CNPG (Barman Cloud to RustFS, docs/adr/014).
+        # The dumps already in /data/backups stay on the NAS until removed by hand.
+        enabled: false
     library:
       # Without watch (NFS), new NAS photos show up on the next scan: every 2h,
-      # at minute 30, away from the database backup (3:00).
+      # at minute 30, away from the NAS replica rsync (3:00).
       scan:
         enabled: true
         cronExpression: "30 */2 * * *"
