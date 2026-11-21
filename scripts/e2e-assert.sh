@@ -123,8 +123,10 @@ echo "==> OpenCost: the exporter starts and computes the node cost"
 kubectl -n opencost rollout status deployment/opencost --timeout=600s
 retry "node_total_hourly_cost (OpenCost) no Prometheus" prom_has 'count(node_total_hourly_cost)'
 
+# sum(): without it the query returns one series per stream and Loki rejects it (400) past
+# 500 series, which a busy ArgoCD reaches in 10 min.
 loki_has_argocd_logs() {
-  kubectl get --raw '/api/v1/namespaces/observability/services/loki:3100/proxy/loki/api/v1/query?query=count_over_time(%7Bk8s_namespace_name%3D%22argocd%22%7D%5B10m%5D)' |
+  kubectl get --raw '/api/v1/namespaces/observability/services/loki:3100/proxy/loki/api/v1/query?query=sum(count_over_time(%7Bk8s_namespace_name%3D%22argocd%22%7D%5B10m%5D))' |
     grep -q '"result":\[{'
 }
 echo "==> Observability: ArgoCD pod logs reached Loki over OTLP"
