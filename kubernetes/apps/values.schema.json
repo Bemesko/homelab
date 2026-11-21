@@ -11,7 +11,7 @@
       "properties": {
         "repoURL": { "type": "string", "pattern": "^(https|oci)://" },
         "chart": { "type": "string", "minLength": 1 },
-        "version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" }
+        "version": { "type": "string", "pattern": "^v?[0-9]+\\.[0-9]+\\.[0-9]+$" }
       }
     },
     "dnsLabel": { "type": "string", "pattern": "^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?$" },
@@ -52,7 +52,7 @@
           { "$ref": "#/definitions/dnsLabel" },
           {
             "not": {
-              "enum": ["root", "argocd", "tailscale-operator", "hello-world", "cloudnative-pg", "immich-database", "immich", "obsidian", "home-assistant-database", "home-assistant", "k8s-app-smoke", "prometheus", "loki", "tempo", "grafana", "otel-agent", "otel-gateway", "observability", "opencost"]
+              "enum": ["root", "argocd", "tailscale-operator", "hello-world", "cloudnative-pg", "immich-database", "immich", "obsidian", "home-assistant-database", "home-assistant", "k8s-app-smoke", "prometheus", "loki", "tempo", "grafana", "otel-agent", "otel-gateway", "observability", "opencost", "cert-manager", "barman-cloud-plugin", "rustfs"]
             }
           }
         ]
@@ -72,11 +72,14 @@
     "charts": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["argocd", "tailscaleOperator", "cloudnativePg", "immich", "prometheus", "loki", "tempo", "grafana", "opentelemetryCollector", "opencost"],
+      "required": ["argocd", "tailscaleOperator", "cloudnativePg", "immich", "prometheus", "loki", "tempo", "grafana", "opentelemetryCollector", "opencost", "certManager", "barmanCloudPlugin", "rustfs"],
       "properties": {
         "argocd": { "$ref": "#/definitions/chart" },
         "tailscaleOperator": { "$ref": "#/definitions/chart" },
         "cloudnativePg": { "$ref": "#/definitions/chart" },
+        "barmanCloudPlugin": { "$ref": "#/definitions/chart" },
+        "certManager": { "$ref": "#/definitions/chart" },
+        "rustfs": { "$ref": "#/definitions/chart" },
         "immich": { "$ref": "#/definitions/chart" },
         "prometheus": { "$ref": "#/definitions/chart" },
         "loki": { "$ref": "#/definitions/chart" },

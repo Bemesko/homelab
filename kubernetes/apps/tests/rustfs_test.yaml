@@ -1,0 +1,30 @@
+suite: rustfs
+templates:
+  - templates/rustfs.yaml
+tests:
+  - it: RustFS (backup store) exists only with the NAS, before the databases
+    set:
+      nasStorage.enabled: true
+      charts.rustfs.version: 6.6.6
+    asserts:
+      - isKind:
+          of: Application
+      - equal:
+          path: metadata.annotations["argocd.argoproj.io/sync-wave"]
+          value: "1"
+      - equal:
+          path: spec.sources[0].targetRevision
+          value: 6.6.6
+      - equal:
+          path: spec.sources[2].path
+          value: kubernetes/workloads/rustfs
+      - equal:
+          path: spec.destination.namespace
+          value: rustfs
+
+  - it: without the NAS (CI) there is no RustFS Application
+    set:
+      nasStorage.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0

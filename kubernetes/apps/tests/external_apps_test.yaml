@@ -193,3 +193,14 @@ tests:
           content:
             server: https://kubernetes.default.svc
             namespace: "!immich"
+      # RustFS holds every app's Postgres backups (docs/adr/014): no external app may deploy there.
+      - contains:
+          path: spec.destinations
+          content:
+            server: https://kubernetes.default.svc
+            namespace: "!rustfs"
+      - contains:
+          path: spec.destinations
+          content:
+            server: https://kubernetes.default.svc
+            namespace: "!cert-manager"

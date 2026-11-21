@@ -17,6 +17,7 @@ all:
             data: </export/immich-data>
             obsidian: </export/borbsidian>
             home_assistant: </export/home-assistant>
+            backups: </export/cnpg-backups>
           # OpenTelemetry Collector on the host (journald + metrics) -> cluster gateway.
           otel_host_agent_enabled: true
           otel_host_agent_endpoint: <gateway-magicdns-name>:4317

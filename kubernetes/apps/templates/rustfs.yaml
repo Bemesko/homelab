@@ -1,0 +1,41 @@
+{{- if .Values.nasStorage.enabled }}
+# S3 store of the Postgres backups, with its data on the NAS (docs/adr/014). Only with the
+# NAS: in CI there is no NFS export, so neither RustFS nor the backups exist there.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: rustfs
+  namespace: argocd
+  annotations:
+    # Before the databases (wave 2), which archive WAL to it.
+    argocd.argoproj.io/sync-wave: "1"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  sources:
+    - repoURL: {{ .Values.charts.rustfs.repoURL }}
+      chart: {{ .Values.charts.rustfs.chart }}
+      targetRevision: {{ .Values.charts.rustfs.version | quote }}
+      helm:
+        releaseName: rustfs
+        valueFiles:
+          - $values/kubernetes/values/rustfs.yaml
+    - repoURL: {{ .Values.repoURL }}
+      targetRevision: {{ .Values.targetRevision }}
+      ref: values
+    # PVC bound to the NFS PV (nas_storage role), root credentials and the provisioning
+    # Job (bucket + one access key per Postgres cluster).
+    - repoURL: {{ .Values.repoURL }}
+      targetRevision: {{ .Values.targetRevision }}
+      path: kubernetes/workloads/rustfs
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: rustfs
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+{{- end }}

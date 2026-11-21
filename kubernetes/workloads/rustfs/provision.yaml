@@ -1,0 +1,108 @@
+# Provisioning of RustFS for the Postgres backups (docs/adr/014): the bucket "cnpg" and, for
+# each key cnpg-<namespace> of the Secret rustfs-cnpg-users, a user with that secret key and a
+# policy that only reaches s3://cnpg/<namespace>/. Runs after every sync and is idempotent.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rustfs-provision
+data:
+  provision.sh: |
+    #!/bin/sh
+    set -eu
+    # rc reads the alias from the environment: RC_HOST_<alias>=http://AK:SK@host:port
+    # (the keys are alphanumeric, so they need no URL encoding).
+    export RC_HOST_local="http://${RUSTFS_ACCESS_KEY}:${RUSTFS_SECRET_KEY}@rustfs-svc:9000"
+
+    # policy_for <namespace>: prints the IAM policy (JSON) of that cluster's user.
+    policy_for() {
+      ns=$1
+      # Bucket-level actions (HeadBucket counts as ListBucket) cannot be limited to a prefix
+      # without breaking barman's bucket check: each user sees object names, not contents.
+      cat <<EOF
+    {
+      "Version": "2012-10-17",
+      "Statement": [
+        {
+          "Effect": "Allow",
+          "Action": ["s3:ListBucket", "s3:GetBucketLocation", "s3:ListBucketMultipartUploads"],
+          "Resource": ["arn:aws:s3:::cnpg"]
+        },
+        {
+          "Effect": "Allow",
+          "Action": ["s3:GetObject", "s3:PutObject", "s3:DeleteObject",
+                     "s3:AbortMultipartUpload", "s3:ListMultipartUploadParts"],
+          "Resource": ["arn:aws:s3:::cnpg/$ns/*"]
+        }
+      ]
+    }
+    EOF
+    }
+
+    if rc ls local/cnpg >/dev/null 2>&1; then
+      echo "bucket cnpg: exists"
+    else
+      rc mb local/cnpg
+      echo "bucket cnpg: created"
+    fi
+
+    for f in /users/cnpg-*; do
+      user=$(basename "$f")
+      ns=${user#cnpg-}
+      policy_for "$ns" >"/tmp/$user.json"
+      # Re-applying the policy and the user's secret key keeps the store equal to the repo.
+      rc admin policy create local/ "$user" "/tmp/$user.json" >/dev/null 2>&1 ||
+        rc admin policy update local/ "$user" "/tmp/$user.json"
+      rc admin user add local/ "$user" "$(cat "$f")"
+      rc admin policy attach local/ "$user" --user "$user" >/dev/null 2>&1 || true
+      echo "user $user: ok (s3://cnpg/$ns/)"
+    done
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: rustfs-provision
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+    ignore-check.kube-linter.io/no-liveness-probe: "short-lived provisioning Job, nothing to probe"
+    ignore-check.kube-linter.io/no-readiness-probe: "short-lived provisioning Job, nothing to probe"
+spec:
+  backoffLimit: 6
+  # Keeps the finished Job (and its log) for a day; the next sync recreates it anyway.
+  ttlSecondsAfterFinished: 86400
+  template:
+    spec:
+      restartPolicy: OnFailure
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: provision
+          image: rustfs/rc:v0.1.38@sha256:3c080aff53f0d3b06554fd08711d05c80be40bd7e56001874d7df5e18d5ec88a
+          command: [/bin/sh, /scripts/provision.sh]
+          env:
+            - name: HOME
+              value: /tmp
+          envFrom:
+            - secretRef:
+                name: rustfs-root
+          resources:
+            requests: {cpu: 10m, memory: 32Mi}
+            limits: {memory: 128Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          volumeMounts:
+            - {name: scripts, mountPath: /scripts, readOnly: true}
+            - {name: users, mountPath: /users, readOnly: true}
+            - {name: tmp, mountPath: /tmp}
+      volumes:
+        - name: scripts
+          configMap: {name: rustfs-provision}
+        - name: users
+          secret: {secretName: rustfs-cnpg-users}
+        - name: tmp
+          emptyDir: {}
