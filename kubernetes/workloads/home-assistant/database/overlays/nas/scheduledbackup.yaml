@@ -1,12 +1,12 @@
-# Daily base backup at 02:00, before the NAS replica rsync (03:00). immediate: the first
-# one runs as soon as this is created.
+# Daily base backup at 02:00, before the NAS replica rsync (03:00). No `immediate`: it fires
+# while the Postgres pod still restarts to get the plugin sidecar and fails with "requested
+# plugin is not available". WAL is archived from the start anyway.
 apiVersion: postgresql.cnpg.io/v1
 kind: ScheduledBackup
 metadata:
   name: home-assistant-database-daily
 spec:
   schedule: "0 0 2 * * *"
-  immediate: true
   backupOwnerReference: self
   method: plugin
   pluginConfiguration:
