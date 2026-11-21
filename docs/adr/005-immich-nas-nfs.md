@@ -29,6 +29,7 @@ Immich runs on the laptop's k3s and has to show, **read-only**, the photos and v
   | Postgres (CNPG + VectorChord) | laptop disk (`local-path`) | a database on NFS corrupts easily |
 
 - **Database backup** with Immich's native job (daily dump to `immich-data/backups`, 14 copies). The database is gone after a `make reset`, but the dumps stay on the NAS.
+  Superseded by [014](014-postgres-backups-barman-rustfs.md): CNPG backups to RustFS on the NAS; the native dump is turned off once those are proven.
 - **HEVC accepted without transcoding** (`ffmpeg.acceptedVideoCodecs`) and **ML turned off**. Both avoid days of CPU on the i7-7500U and extra GBs on the NAS.
 
 ## Consequences

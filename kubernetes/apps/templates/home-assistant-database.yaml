@@ -13,7 +13,7 @@ spec:
     repoURL: {{ .Values.repoURL }}
     targetRevision: {{ .Values.targetRevision }}
     # Only the recorder's Postgres (CNPG): it becomes Healthy on its own, before HA (wave 3).
-    path: kubernetes/workloads/home-assistant/database
+    path: kubernetes/workloads/home-assistant/database/{{ ternary "overlays/nas" "base" .Values.nasStorage.enabled }}
   destination:
     server: https://kubernetes.default.svc
     namespace: home-assistant
