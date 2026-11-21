@@ -1,0 +1,14 @@
+# RustFS extras next to the chart (kubernetes/apps/templates/rustfs.yaml): the data PVC on
+# the NAS, the KSOPS secrets and the provisioning Job. Only synced with the NAS
+# (nasStorage.enabled), so this directory has no base/CI variant. See docs/adr/014.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: rustfs
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: rustfs
+resources:
+  - pvc.yaml
+  - provision.yaml
+generators:
+  - secret-generator.yaml

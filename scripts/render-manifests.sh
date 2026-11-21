@@ -58,6 +58,9 @@ render_upstream() {
     argocd:argocd:argocd
     tailscaleOperator:tailscale-operator:tailscale
     cloudnativePg:cloudnative-pg:cnpg-system
+    barmanCloudPlugin:barman-cloud-plugin:cnpg-system
+    certManager:cert-manager:cert-manager
+    rustfs:rustfs:rustfs
     immich:immich:immich
     prometheus:prometheus:observability
     loki:loki:observability

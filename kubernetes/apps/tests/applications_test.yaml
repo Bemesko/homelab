@@ -17,6 +17,8 @@ templates:
   - templates/otel-agent.yaml
   - templates/grafana.yaml
   - templates/opencost.yaml
+  - templates/cert-manager.yaml
+  - templates/barman-cloud-plugin.yaml
 tests:
   - it: every Application has automated sync with prune and selfHeal
     asserts:
@@ -102,6 +104,15 @@ tests:
           path: metadata.annotations["argocd.argoproj.io/sync-wave"]
           value: "3"
         template: templates/opencost.yaml
+      # Postgres backups (docs/adr/014): cert-manager -> plugin -> databases (wave 2).
+      - equal:
+          path: metadata.annotations["argocd.argoproj.io/sync-wave"]
+          value: "0"
+        template: templates/cert-manager.yaml
+      - equal:
+          path: metadata.annotations["argocd.argoproj.io/sync-wave"]
+          value: "1"
+        template: templates/barman-cloud-plugin.yaml
 
   - it: the ArgoCD Application has no finalizer (it does not delete itself)
     template: templates/argocd.yaml
@@ -367,3 +378,25 @@ tests:
           path: spec.source.path
           value: kubernetes/workloads/observability/base
         template: templates/observability.yaml
+
+  - it: the backup chart versions come from values (single source) and the plugin lives with the operator
+    set:
+      charts.certManager.version: v9.9.9
+      charts.barmanCloudPlugin.version: 7.7.7
+    asserts:
+      - equal:
+          path: spec.sources[0].targetRevision
+          value: v9.9.9
+        template: templates/cert-manager.yaml
+      - equal:
+          path: spec.destination.namespace
+          value: cert-manager
+        template: templates/cert-manager.yaml
+      - equal:
+          path: spec.sources[0].targetRevision
+          value: 7.7.7
+        template: templates/barman-cloud-plugin.yaml
+      - equal:
+          path: spec.destination.namespace
+          value: cnpg-system
+        template: templates/barman-cloud-plugin.yaml

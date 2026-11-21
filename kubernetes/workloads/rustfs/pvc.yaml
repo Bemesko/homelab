@@ -1,0 +1,13 @@
+# RustFS data: the NFS PV created by Ansible (nas_storage role, export "backups"),
+# pre-bound to this claim. The size is informational (NFS enforces no quota).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: rustfs-data
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: ""
+  volumeName: rustfs-data
+  resources:
+    requests:
+      storage: 50Gi
