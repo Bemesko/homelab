@@ -21,6 +21,9 @@ kubeconform_args=(
   -cache "${CACHE_DIR}"
   -schema-location default
   -schema-location "${CRD_SCHEMAS}"
+  # The catalog's ObjectStore (Barman Cloud plugin) predates v0.16: it lacks
+  # s3AddressingStyle and zstd for data. The CRD in the cluster validates it on apply.
+  -skip ObjectStore
 )
 
 case "${1:-local}" in

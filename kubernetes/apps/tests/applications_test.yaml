@@ -207,14 +207,31 @@ tests:
           value: 8.8.8
         template: templates/cloudnative-pg.yaml
 
-  - it: the Immich database does not depend on the NAS toggle (only Postgres)
-    template: templates/immich-database.yaml
+  - it: without the NAS (CI) the databases use base (no RustFS, so no backups)
     set:
       nasStorage.enabled: false
     asserts:
       - equal:
           path: spec.source.path
-          value: kubernetes/workloads/immich/database
+          value: kubernetes/workloads/immich/database/base
+        template: templates/immich-database.yaml
+      - equal:
+          path: spec.source.path
+          value: kubernetes/workloads/home-assistant/database/base
+        template: templates/home-assistant-database.yaml
+
+  - it: with the NAS the databases add the backups (ObjectStore + ScheduledBackup, docs/adr/014)
+    set:
+      nasStorage.enabled: true
+    asserts:
+      - equal:
+          path: spec.source.path
+          value: kubernetes/workloads/immich/database/overlays/nas
+        template: templates/immich-database.yaml
+      - equal:
+          path: spec.source.path
+          value: kubernetes/workloads/home-assistant/database/overlays/nas
+        template: templates/home-assistant-database.yaml
 
   - it: PVCs go in the Immich Application (which mounts them), with the NAS in the nas overlay
     template: templates/immich.yaml
