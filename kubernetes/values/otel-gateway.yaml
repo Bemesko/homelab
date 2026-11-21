@@ -47,6 +47,16 @@ config:
         - key: k8s.cluster.name
           value: homelab
           action: insert
+    # Loki stores the OTLP ObservedTimestamp as the observed_timestamp structured metadata,
+    # unique per line. Unaggregated metric queries group by structured metadata too, so
+    # count_over_time({k8s_namespace_name="argocd"}[10m]) returned one series per line and
+    # hit the 500-series limit. Zero it (Loki skips the field when it is 0), keeping it as
+    # the timestamp only for records that have none (Loki's own fallback order).
+    transform/drop_observed_time:
+      error_mode: ignore
+      log_statements:
+        - set(log.time, log.observed_time) where log.time_unix_nano == 0
+        - set(log.observed_time_unix_nano, 0)
   exporters:
     debug: null
     otlphttp/prometheus:
@@ -77,7 +87,7 @@ config:
     pipelines:
       logs:
         receivers: [otlp]
-        processors: [memory_limiter, resource, batch]
+        processors: [memory_limiter, resource, transform/drop_observed_time, batch]
         exporters: [otlphttp/loki]
       metrics:
         receivers: [otlp]
