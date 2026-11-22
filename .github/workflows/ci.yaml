@@ -1,5 +1,8 @@
 name: ci
 
+# Design and required checks: docs/adr/015-ci-flow-and-required-checks.md.
+# The only check meant to be REQUIRED in the branch protection is `ci-ok`: the e2e is skipped
+# when the change cannot affect the host bootstrap, and a skipped job must not block a PR.
 on:
   push:
     branches: [main]
@@ -10,19 +13,36 @@ permissions:
 
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  # Never cancel a run on main: each commit there keeps its own result.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   ANSIBLE_CONFIG: ${{ github.workspace }}/ansible/ansible.cfg
   ANSIBLE_FORCE_COLOR: "1"
 
 jobs:
+  # Decides whether the e2e (k3s + ArgoCD on the runner) is worth its minutes for this change.
+  changes:
+    runs-on: ubuntu-26.04
+    outputs:
+      e2e: ${{ steps.classify.outputs.e2e }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0 # the base commit must be present for the diff
+      - name: Classify the change
+        id: classify
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: ./scripts/ci-changes.sh >> "$GITHUB_OUTPUT"
+
   lint:
     runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@v5
       - name: Control machine tools
-        run: ./scripts/setup-control-node.sh && echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+        uses: ./.github/actions/setup-tools
       - uses: actions/cache@v4
         with:
           path: |
@@ -37,69 +57,37 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - name: Control machine tools
-        run: ./scripts/setup-control-node.sh && echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+        uses: ./.github/actions/setup-tools
       - name: helm lint + unittest
         run: make test-unit
       - name: Render + kubeconform/kube-linter (includes upstream charts)
         run: make test-render
 
+  # Runs in parallel with lint/render: a failing lint should not hide an e2e result (or the reverse).
   e2e:
-    needs: [lint, render]
+    needs: [changes]
+    if: needs.changes.outputs.e2e == 'true'
+    uses: ./.github/workflows/e2e.yaml
+    with:
+      profile: lite
+
+  # Stable aggregate for the branch protection. Skipped is fine (e2e not needed); failed or cancelled is not.
+  ci-ok:
+    if: always()
+    needs: [changes, lint, render, e2e]
     runs-on: ubuntu-26.04
-    timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v5
-      - name: Control machine tools
-        run: ./scripts/setup-control-node.sh && echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-
-      # Ephemeral age key + dummy secrets: exercises the real decryption path
-      # without any real secret in CI. The cluster key (KSOPS) is the repo's test
-      # key (tests/ci-age.key, public), the only one that decrypts the hello-world demo.
-      - name: Dummy secrets encrypted with an ephemeral key
-        working-directory: ${{ runner.temp }}
+      - name: Every required job passed or was skipped
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
         run: |
-          age-keygen -o ci.agekey 2>/dev/null
-          printf 'tailscale_oauth_client_id: ci-dummy\ntailscale_oauth_client_secret: ci-dummy\n' > ci.sops.yaml
-          printf 'sops_age_cluster_key: %s\n' "$(grep '^AGE-SECRET-KEY-' "${{ github.workspace }}/tests/ci-age.key")" >> ci.sops.yaml
-          sops --encrypt --age "$(age-keygen -y ci.agekey)" --in-place ci.sops.yaml
-          echo "SOPS_AGE_KEY_FILE=${{ runner.temp }}/ci.agekey" >> "$GITHUB_ENV"
-
-      - name: Bootstrap (1st run)
-        working-directory: ansible
-        run: >-
-          ansible-playbook site.yaml -i inventory/ci.yaml
-          -e tailscale_enabled=false
-          -e external_apps_smoke_enabled=true
-          -e secrets_file=${{ runner.temp }}/ci.sops.yaml
-          -e git_revision=${{ github.event.pull_request.head.sha || github.sha }}
-          -e git_repo_url=https://github.com/${{ github.event.pull_request.head.repo.full_name || github.repository }}
-
-      - name: Idempotency (2nd run without changes)
-        working-directory: ansible
-        run: >-
-          ../scripts/assert-idempotent.sh site.yaml -i inventory/ci.yaml
-          -e tailscale_enabled=false
-          -e external_apps_smoke_enabled=true
-          -e secrets_file=${{ runner.temp }}/ci.sops.yaml
-          -e git_revision=${{ github.event.pull_request.head.sha || github.sha }}
-          -e git_repo_url=https://github.com/${{ github.event.pull_request.head.repo.full_name || github.repository }}
-
-      - name: Cluster assertions
-        run: ./scripts/e2e-assert.sh
-
-      - name: Diagnostics
-        if: failure()
-        run: |
-          sudo k3s kubectl get nodes,pods -A -o wide || true
-          sudo k3s kubectl -n argocd get applications -o yaml || true
-          sudo k3s kubectl -n argocd logs deploy/argocd-repo-server --all-containers --tail=100 || true
-          sudo k3s kubectl -n immich get cluster,database,pvc,pods -o wide || true
-          sudo k3s kubectl -n immich logs deploy/immich-server --tail=100 || true
-          sudo k3s kubectl -n k8s-app-smoke get all -o wide || true
-          sudo journalctl -u k3s --no-pager -n 200 || true
-
-      - name: Reset removes k3s
-        working-directory: ansible
-        run: |
-          ansible-playbook reset.yaml -i inventory/ci.yaml -e reset_confirm=yes
-          test ! -e /usr/local/bin/k3s
+          echo "results: ${RESULTS}"
+          for result in ${RESULTS}; do
+            case "${result}" in
+              success | skipped) ;;
+              *)
+                echo "ERROR: a job finished as '${result}'" >&2
+                exit 1
+                ;;
+            esac
+          done

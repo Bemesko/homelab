@@ -1,0 +1,16 @@
+suite: minimal profile keeps the bootstrap essentials
+templates:
+  - templates/argocd.yaml
+  - templates/hello-world.yaml
+  - templates/tailscale-operator.yaml
+set:
+  minimal: true
+  tailscaleOperator:
+    enabled: true
+tests:
+  - it: still renders argocd, hello-world and the Tailscale operator
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: Application

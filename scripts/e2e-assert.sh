@@ -1,13 +1,31 @@
 #!/usr/bin/env bash
 # e2e (CI) assertions against the runner's local k3s.
+# Usage: scripts/e2e-assert.sh [lite|full]   (default: full)
+#   lite: what the host bootstrap owns (node, ArgoCD, root app, KSOPS). Runs on PRs that touch the bootstrap.
+#   full: also every Application Healthy and the apps/observability pipeline. Runs nightly (docs/adr/015).
+# Per-app health is not a merge gate: ArgoCD already follows `main`, and an unhealthy app shows up as an alert.
 set -euo pipefail
+
+profile="${1:-full}"
+case "${profile}" in
+  lite | full) ;;
+  *)
+    echo "Usage: $0 [lite|full]" >&2
+    exit 2
+    ;;
+esac
 
 kubectl() { sudo /usr/local/bin/k3s kubectl "$@"; }
 
+echo "==> profile: ${profile}"
 echo "==> node Ready"
 kubectl wait --for=condition=Ready node --all --timeout=300s
 
-for app in root argocd hello-world cloudnative-pg cert-manager barman-cloud-plugin immich-database immich obsidian home-assistant-database home-assistant k8s-app-smoke grocery-ops prometheus loki tempo observability otel-gateway otel-agent grafana opencost; do
+apps=(root argocd hello-world)
+if [[ "${profile}" == "full" ]]; then
+  apps=(root argocd hello-world cloudnative-pg cert-manager barman-cloud-plugin immich-database immich obsidian home-assistant-database home-assistant k8s-app-smoke grocery-ops prometheus loki tempo observability otel-gateway otel-agent grafana opencost)
+fi
+for app in "${apps[@]}"; do
   echo "==> Application ${app} Synced + Healthy"
   kubectl -n argocd wait "application/${app}" --for=create --timeout=300s
   kubectl -n argocd wait "application/${app}" --for=jsonpath='{.status.sync.status}'=Synced --timeout=600s
@@ -34,6 +52,12 @@ if [[ "${message}" != "hello from KSOPS" ]]; then
   echo "ERROR: unexpected hello-world-demo.message: '${message}'" >&2
   exit 1
 fi
+
+if [[ "${profile}" == "lite" ]]; then
+  echo "OK: e2e (lite) passed."
+  exit 0
+fi
+
 echo "==> Immich Postgres (CNPG) ready with the extensions"
 kubectl -n immich wait cluster.postgresql.cnpg.io/immich-database --for=condition=Ready --timeout=600s
 kubectl -n immich wait database.postgresql.cnpg.io/immich-database --for=jsonpath='{.status.applied}'=true --timeout=300s

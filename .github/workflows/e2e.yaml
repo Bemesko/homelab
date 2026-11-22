@@ -1,0 +1,84 @@
+name: e2e
+
+# Reusable: brings up k3s + ArgoCD on the runner with the real playbook (docs/adr/015).
+# Called by ci.yaml (profile lite, on PRs that touch the host bootstrap) and by e2e-full.yaml
+# (profile full, nightly / on demand / PRs labeled e2e-full).
+on:
+  workflow_call:
+    inputs:
+      profile:
+        description: "lite (bootstrap + idempotency + minimal assertions) or full (every Application and the observability pipeline)"
+        type: string
+        default: lite
+
+permissions:
+  contents: read
+
+env:
+  ANSIBLE_CONFIG: ${{ github.workspace }}/ansible/ansible.cfg
+  ANSIBLE_FORCE_COLOR: "1"
+
+jobs:
+  e2e:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+      - name: Control machine tools
+        uses: ./.github/actions/setup-tools
+
+      # Ephemeral age key + dummy secrets: exercises the real decryption path
+      # without any real secret in CI. The cluster key (KSOPS) is the repo's test
+      # key (tests/ci-age.key, public), the only one that decrypts the hello-world demo.
+      - name: Dummy secrets encrypted with an ephemeral key
+        working-directory: ${{ runner.temp }}
+        run: |
+          age-keygen -o ci.agekey 2>/dev/null
+          printf 'tailscale_oauth_client_id: ci-dummy\ntailscale_oauth_client_secret: ci-dummy\n' > ci.sops.yaml
+          printf 'sops_age_cluster_key: %s\n' "$(grep '^AGE-SECRET-KEY-' "${{ github.workspace }}/tests/ci-age.key")" >> ci.sops.yaml
+          sops --encrypt --age "$(age-keygen -y ci.agekey)" --in-place ci.sops.yaml
+          echo "SOPS_AGE_KEY_FILE=${{ runner.temp }}/ci.agekey" >> "$GITHUB_ENV"
+
+      - name: Bootstrap (1st run)
+        working-directory: ansible
+        run: >-
+          ansible-playbook site.yaml -i inventory/ci.yaml
+          -e tailscale_enabled=false
+          -e external_apps_smoke_enabled=${{ inputs.profile == 'full' }}
+          -e apps_minimal=${{ inputs.profile == 'lite' }}
+          -e secrets_file=${{ runner.temp }}/ci.sops.yaml
+          -e git_revision=${{ github.event.pull_request.head.sha || github.sha }}
+          -e git_repo_url=https://github.com/${{ github.event.pull_request.head.repo.full_name || github.repository }}
+
+      - name: Idempotency (2nd run without changes)
+        working-directory: ansible
+        run: >-
+          ../scripts/assert-idempotent.sh site.yaml -i inventory/ci.yaml
+          -e tailscale_enabled=false
+          -e external_apps_smoke_enabled=${{ inputs.profile == 'full' }}
+          -e apps_minimal=${{ inputs.profile == 'lite' }}
+          -e secrets_file=${{ runner.temp }}/ci.sops.yaml
+          -e git_revision=${{ github.event.pull_request.head.sha || github.sha }}
+          -e git_repo_url=https://github.com/${{ github.event.pull_request.head.repo.full_name || github.repository }}
+
+      - name: Cluster assertions (${{ inputs.profile }})
+        env:
+          E2E_PROFILE: ${{ inputs.profile }}
+        run: ./scripts/e2e-assert.sh "${E2E_PROFILE}"
+
+      - name: Diagnostics
+        if: failure()
+        run: |
+          sudo k3s kubectl get nodes,pods -A -o wide || true
+          sudo k3s kubectl -n argocd get applications -o yaml || true
+          sudo k3s kubectl -n argocd logs deploy/argocd-repo-server --all-containers --tail=100 || true
+          sudo k3s kubectl -n immich get cluster,database,pvc,pods -o wide || true
+          sudo k3s kubectl -n immich logs deploy/immich-server --tail=100 || true
+          sudo k3s kubectl -n k8s-app-smoke get all -o wide || true
+          sudo journalctl -u k3s --no-pager -n 200 || true
+
+      - name: Reset removes k3s
+        working-directory: ansible
+        run: |
+          ansible-playbook reset.yaml -i inventory/ci.yaml -e reset_confirm=yes
+          test ! -e /usr/local/bin/k3s

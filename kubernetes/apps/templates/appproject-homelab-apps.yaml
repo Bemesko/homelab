@@ -1,3 +1,4 @@
+{{- if not .Values.minimal }}
 apiVersion: argoproj.io/v1alpha1
 kind: AppProject
 metadata:
@@ -24,3 +25,4 @@ spec:
   clusterResourceWhitelist:
     - group: ""
       kind: Namespace
+{{- end }}
