@@ -3,9 +3,10 @@
 - name: Ensure every control node key is a well-formed public key
   ansible.builtin.assert:
     that:
-      # TODO(human): tighten this check (accepted key types, single line, no options prefix).
-      - item is string
-      - item | length > 0
+      # The line must start with a key type (so no options such as command= or from=),
+      # carry the base64 body and an optional comment, and be a single line.
+      - item is match(control_node_access_key_pattern)
+      - (item | string).splitlines() | length == 1
     fail_msg: "Invalid public key in control_node_access_public_keys: {{ item | truncate(40) }}"
     quiet: true
   loop: "{{ control_node_access_public_keys }}"
