@@ -1,24 +1,33 @@
-# Chaves PÚBLICAS age. A primeira regra que casar com o caminho vence.
-#   wsl     age1fskv...  privada só no WSL (~/.config/sops/age/keys.txt, backup no gerenciador de senhas)
-#   cluster age1kn09...  privada no Secret argocd/sops-age (criado pelo Ansible a partir de ansible/secrets)
-#   ci      age13jef...  privada PÚBLICA em tests/ci-age.key; só para o demo do hello-world (e2e)
-# Ao mudar destinatários: `sops updatekeys <arquivo>` em cada *.sops.yaml afetado.
+# PUBLIC age keys. The first rule that matches the path wins.
+#   wsl       age1fskv...  private only on WSL (~/.config/sops/age/keys.txt, backup in KeePass); goes away when the PC is discarded (issue #32)
+#   pi        age1r4vw...  private only on the control node (Raspberry Pi), created by the control_node_keys role
+#   recovery  age129cs...  private only in KeePass; opens everything if the Pi or the PC is lost
+#   cluster   age1kn09...  private in the Secret argocd/sops-age (created by Ansible from ansible/secrets)
+#   ci        age13jef...  PUBLIC private key in tests/ci-age.key; only for the hello-world demo (e2e)
+# When recipients change: `sops updatekeys <file>` on every affected *.sops.yaml.
 creation_rules:
-  # Segredos do bootstrap (Ansible): só o WSL descriptografa.
+  # Bootstrap secrets (Ansible): only the people/machines that run it and the recovery key.
   - path_regex: (^|/)ansible/secrets/[^/]+\.sops\.yaml$
-    age: age1fskvnv59jkjddglqvsllm3d54qtd6xl0u00utexhd0t0vddlfp8qe2plxs
+    age: >-
+      age1fskvnv59jkjddglqvsllm3d54qtd6xl0u00utexhd0t0vddlfp8qe2plxs,
+      age1r4vwme89tzzh35xnzavk3lh03ytkhrzy59vf75a9fhp8z6nr4ewq4z8z2t,
+      age129csa3f9ejq6l3dgh5h6nkcyw2d8k06dsugfvwzmzrfzc5y93yustvsrln
 
-  # Demo do KSOPS, exercitado no e2e: conteúdo sem valor, legível pelo CI.
+  # KSOPS demo, exercised in the e2e: content without value, readable by the CI.
   - path_regex: (^|/)kubernetes/workloads/hello-world/.+\.sops\.yaml$
     unencrypted_regex: ^(apiVersion|metadata|kind|type)$
     age: >-
       age1fskvnv59jkjddglqvsllm3d54qtd6xl0u00utexhd0t0vddlfp8qe2plxs,
+      age1r4vwme89tzzh35xnzavk3lh03ytkhrzy59vf75a9fhp8z6nr4ewq4z8z2t,
+      age129csa3f9ejq6l3dgh5h6nkcyw2d8k06dsugfvwzmzrfzc5y93yustvsrln,
       age1kn09fr57m2vz4jhpw6e8k9qswm0sl702h6kecry5rn0kpjyyuf4sf33yde,
       age13jefle8t0y6t6a2epfjm3tpdczy79qlljxjhme6xttwfkw9309zq5m7v6m
 
-  # Secrets dos apps (KSOPS no ArgoCD): WSL para editar, cluster para sincronizar.
+  # App secrets (KSOPS in ArgoCD): the editors and the recovery key, plus the cluster to sync.
   - path_regex: (^|/)kubernetes/.+\.sops\.yaml$
     unencrypted_regex: ^(apiVersion|metadata|kind|type)$
     age: >-
       age1fskvnv59jkjddglqvsllm3d54qtd6xl0u00utexhd0t0vddlfp8qe2plxs,
+      age1r4vwme89tzzh35xnzavk3lh03ytkhrzy59vf75a9fhp8z6nr4ewq4z8z2t,
+      age129csa3f9ejq6l3dgh5h6nkcyw2d8k06dsugfvwzmzrfzc5y93yustvsrln,
       age1kn09fr57m2vz4jhpw6e8k9qswm0sl702h6kecry5rn0kpjyyuf4sf33yde
