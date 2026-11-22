@@ -1,0 +1,70 @@
+# The control node's own identities (issue #32): an SSH key to reach the laptop and the NAS,
+# and an age identity to decrypt the SOPS secrets. Both stay in clear on the SD card, owned by
+# the connection user, so these tasks run without become (the play has become: true).
+- name: Look up the key owner's home directory
+  ansible.builtin.getent:
+    database: passwd
+    key: "{{ control_node_keys_user }}"
+
+- name: Remember the key owner's home directory
+  ansible.builtin.set_fact:
+    control_node_keys_home: "{{ ansible_facts['getent_passwd'][control_node_keys_user][4] }}"
+
+# Debian's package is enough to create the identity; the pinned binaries come with the toolchain.
+- name: Install age to create the age identity
+  ansible.builtin.apt:
+    name: age
+    state: present
+
+- name: Ensure the key directories exist
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0700"
+  loop:
+    - "{{ control_node_keys_home }}/.ssh"
+    - "{{ control_node_keys_home }}/.config/sops/age"
+  become: false
+
+- name: Generate the control node SSH key (ed25519, no passphrase)
+  ansible.builtin.command: >-
+    ssh-keygen -q -t ed25519 -N "" -C control-node -f {{ control_node_keys_home }}/.ssh/id_ed25519
+  args:
+    creates: "{{ control_node_keys_home }}/.ssh/id_ed25519"
+  become: false
+
+- name: Generate the control node age identity
+  ansible.builtin.command: age-keygen -o {{ control_node_keys_home }}/.config/sops/age/keys.txt
+  args:
+    creates: "{{ control_node_keys_home }}/.config/sops/age/keys.txt"
+  become: false
+
+- name: Read the SSH public key
+  ansible.builtin.slurp:
+    src: "{{ control_node_keys_home }}/.ssh/id_ed25519.pub"
+  register: control_node_keys_ssh_pub
+  become: false
+  when: not ansible_check_mode
+
+- name: Read the age public key
+  ansible.builtin.command: age-keygen -y {{ control_node_keys_home }}/.config/sops/age/keys.txt
+  register: control_node_keys_age_pub
+  changed_when: false
+  check_mode: false
+  become: false
+  when: not ansible_check_mode
+
+# Facts live in hostvars for the later plays (the keys are authorized on the other hosts there).
+- name: Expose the public keys
+  ansible.builtin.set_fact:
+    control_node_keys_ssh_public_key: "{{ control_node_keys_ssh_pub.content | b64decode | trim }}"
+    control_node_keys_age_public_key: "{{ control_node_keys_age_pub.stdout | trim }}"
+  when: not ansible_check_mode
+
+- name: Show the age public key (the recipient for .sops.yaml; not a secret)
+  ansible.builtin.debug:
+    msg: "age public key: {{ control_node_keys_age_public_key }}"
+  when: not ansible_check_mode
+
+- name: Trust the managed hosts' SSH host keys
+  ansible.builtin.import_tasks: known_hosts.yaml

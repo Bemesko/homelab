@@ -1,0 +1,21 @@
+# host_key_checking stays on. The names are on the tailnet, which is already authenticated,
+# so the keys are collected from there instead of being typed in by hand.
+- name: Collect the SSH host keys over the tailnet
+  ansible.builtin.command: ssh-keyscan -T 10 -t ed25519 {{ item }}
+  loop: "{{ control_node_keys_known_hosts }}"
+  register: control_node_keys_scanned
+  changed_when: false
+  check_mode: false
+  failed_when: "'ssh-ed25519' not in control_node_keys_scanned.stdout"
+  become: false
+
+- name: Trust the collected host keys
+  ansible.builtin.known_hosts:
+    path: "{{ control_node_keys_home }}/.ssh/known_hosts"
+    name: "{{ item.item }}"
+    key: "{{ item.stdout }}"
+    state: present
+  loop: "{{ control_node_keys_scanned.results }}"
+  loop_control:
+    label: "{{ item.item }}"
+  become: false

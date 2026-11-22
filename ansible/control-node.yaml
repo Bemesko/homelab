@@ -16,3 +16,19 @@
     - role: control_node_tailscale
       when: tailscale_enabled | bool
       tags: [tailscale]
+    - role: control_node_keys
+      tags: [keys]
+
+# Authorizes the Pi's SSH key on the laptop and the NAS: add only, run from a machine that still
+# has access (`make control-access`). The key is the fact the keys role set on the Pi above.
+- name: Authorize the control node's SSH key on the managed hosts
+  hosts: k3s_server:nas
+  become: false
+  gather_facts: true
+  roles:
+    - role: control_node_access
+      vars:
+        control_node_access_public_keys:
+          - "{{ hostvars[groups['control_node'][0]]['control_node_keys_ssh_public_key'] }}"
+      when: groups['control_node'] | default([]) | length > 0
+      tags: [control_access]

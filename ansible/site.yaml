@@ -34,17 +34,6 @@
       when: tailscale_enabled | bool
       tags: [kubeconfig]
 
-# Authorizes the control node (Raspberry Pi) over SSH on the laptop and the NAS: add only,
-# run from a machine that still has access (`make control-access`). Issue #32.
-- name: Authorize the control node's SSH keys
-  hosts: k3s_server:nas
-  become: false
-  gather_facts: true
-  roles:
-    - role: control_node_access
-      when: control_node_access_public_keys | length > 0
-      tags: [control_access]
-
 # The exceptions to "Ansible does not change the NAS": Syncthing (ADR 011), which
 # the openmediavault UI cannot manage, and power (ADR 012). Without a `nas` group (CI), it does not run.
 - name: NAS Syncthing and power

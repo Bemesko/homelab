@@ -1,0 +1,13 @@
+argument_specs:
+  main:
+    short_description: The control node's own SSH key and age identity, and the host keys it trusts
+    options:
+      control_node_keys_user:
+        type: str
+        required: false
+        description: Owner of the keys; the connection user.
+      control_node_keys_known_hosts:
+        type: list
+        elements: str
+        required: false
+        description: Hosts whose SSH host keys are collected over the tailnet and trusted.
