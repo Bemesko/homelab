@@ -284,6 +284,7 @@ Both are optional: without them, apps from public repos with public images alrea
 | `make kubeconfig` | Writes `~/.kube/notebook.yaml` pointing at `https://<host>.<tailnet>:6443` |
 | `make reset` | Removes k3s (asks for confirmation; does not touch Tailscale or SSH) |
 | `make test` | lint + helm unittest + render/kubeconform/kube-linter |
+| `make test-changed` | Only the pre-commit hooks that match the files the branch changed vs `origin/main` (quick check before pushing) |
 
 Normal flow: `make plan` → review the diff → `make apply`.
 
@@ -318,16 +319,20 @@ After the bootstrap, everything inside the cluster is **GitOps**: change `kubern
 
 ### CI ([.github/workflows/ci.yaml](.github/workflows/ci.yaml))
 
+Design, measurements and the reasoning: [ADR 015](docs/adr/015-ci-flow-and-required-checks.md). The control machine tools are installed once and cached (`.github/actions/setup-tools`).
+
 - **lint**: runs pre-commit on every file.
 - **render**: runs `helm unittest` and renders the upstream charts (argo-cd, tailscale-operator, cloudnative-pg, immich, prometheus, loki, tempo, grafana, otel-agent/otel-gateway, opencost) with our values, validating everything with kubeconform.
-- **e2e**: on the `ubuntu-26.04` runner:
+- **e2e** ([e2e.yaml](.github/workflows/e2e.yaml), `lite` profile): runs on a PR only when the change can affect the host bootstrap (Ansible, `kubernetes/bootstrap`, the e2e scripts, the CI definition, the hello-world demo, the ArgoCD chart version; see `scripts/ci-changes.sh`). On the `ubuntu-26.04` runner:
   1. generates an ephemeral age key with dummy secrets;
   2. runs the full `site.yaml` with `tailscale_enabled=false`, syncing the PR's own SHA;
   3. runs the playbook again and requires **changed=0**;
-  4. checks that the Applications are Synced/Healthy, that hello-world answers, that the demo Secret was decrypted by KSOPS, that Postgres (CNPG + VectorChord) is ready, that Immich answers `/api/server/ping`, that the external smoke app (the `repotpl-k8s-app` template, in the `homelab-apps` AppProject) answers `/healthz`, and that the Kubernetes metrics and the OpenCost node cost reach Prometheus. In CI, Immich uses `local-path` instead of the NAS;
+  4. checks the node, that `argocd`, `root` and hello-world are Synced/Healthy, and that the demo Secret was decrypted by KSOPS;
   5. runs `reset.yaml`.
+- **e2e-full** ([e2e-full.yaml](.github/workflows/e2e-full.yaml)): the same, but step 4 also checks every Application, that Postgres (CNPG + VectorChord) is ready, that Immich answers `/api/server/ping`, that the external smoke app (the `repotpl-k8s-app` template, in the `homelab-apps` AppProject) answers `/healthz`, and that the Kubernetes metrics and the OpenCost node cost reach Prometheus (in CI, Immich uses `local-path` instead of the NAS). It runs nightly, on demand and on a PR labeled `e2e-full`; it is a canary, not a merge gate.
+- **ci-ok**: the aggregate of the jobs above (a skipped `e2e` counts as passed).
 
-Recommended: branch protection on `main` requiring the `lint`, `render` and `e2e` jobs.
+Recommended: branch protection on `main` requiring only `ci-ok` (a skipped e2e must not block a PR; the ruleset itself is issue #39). Before pushing, `make test-changed` runs the hooks only on what the branch changed.
 
 ## Troubleshooting
 

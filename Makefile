@@ -13,7 +13,10 @@ BECOME_FLAGS := $(if $(filter 1,$(ASK_BECOME_PASS)),--ask-become-pass,)
 PLAYBOOK := ansible-playbook $(BECOME_FLAGS)
 INVENTORY := ansible/inventory/local.yaml
 
-.PHONY: help deps lint test-unit test-render test check-inventory plan apply idempotency kernel-upgrade kubeconfig control-access control-node reset
+# Base for `make test-changed` (the branch is compared against it).
+BASE_REF ?= origin/main
+
+.PHONY: help deps lint test-changed test-unit test-render test check-inventory plan apply idempotency kernel-upgrade kubeconfig control-access control-node reset
 
 help: ## List the targets
 	@grep -hE '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}'
@@ -23,6 +26,9 @@ deps: ## Install the control machine tools (pinned versions)
 
 lint: ## All pre-commit hooks on all files
 	pre-commit run --all-files
+
+test-changed: ## pre-commit only on the files this branch changed vs $(BASE_REF) (quick check before pushing)
+	pre-commit run --from-ref $(BASE_REF) --to-ref HEAD
 
 test-unit: ## helm lint + helm unittest of the app-of-apps chart
 	helm lint --strict kubernetes/apps

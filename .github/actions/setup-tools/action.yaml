@@ -1,0 +1,29 @@
+name: setup-tools
+description: >-
+  Installs the control machine tools (pinned versions + sha256, scripts/setup-control-node.sh)
+  and caches them, so a cache hit costs seconds instead of about a minute per job.
+
+runs:
+  using: composite
+  steps:
+    # Everything the script produces lives in these paths. The key covers the script (versions and
+    # sha256 pins), the Ansible collections and the runner image (the pipx venvs link to the image's Python).
+    - name: Restore the tools cache
+      id: cache
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.local/bin
+          ~/.local/share/pipx
+          ~/.local/share/helm/plugins
+          ~/.ansible/collections
+        key: tools-${{ runner.os }}-${{ env.ImageVersion }}-${{ hashFiles('scripts/setup-control-node.sh', 'ansible/requirements.yml') }}
+
+    - name: Install the tools (cache miss)
+      if: steps.cache.outputs.cache-hit != 'true'
+      shell: bash
+      run: ./scripts/setup-control-node.sh
+
+    - name: Add the tools to the PATH
+      shell: bash
+      run: echo "$HOME/.local/bin" >> "$GITHUB_PATH"

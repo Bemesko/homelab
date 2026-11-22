@@ -32,5 +32,6 @@
 # Tests
 
 - `make test`: pre-commit + helm unittest + render/kubeconform/kube-linter
-- CI `e2e`: brings up k3s + ArgoCD on the runner, checks idempotency, Applications Healthy and the reset
+- `make test-changed`: pre-commit only on what the branch changed vs `origin/main`
+- CI `e2e` (lite, only when the change can affect the bootstrap; `scripts/ci-changes.sh`): brings up k3s + ArgoCD on the runner, checks idempotency, the root Application, KSOPS and the reset. `e2e-full` (nightly, on demand or label `e2e-full`) also waits for every Application Healthy. The only check meant to be required on `main` is `ci-ok` (ADR 015)
 - Against the laptop: `make plan` (check/diff) before `make apply`
