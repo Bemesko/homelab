@@ -1,0 +1,7 @@
+# User that owns the keys: the connection user of the control node (the tasks run without become).
+control_node_keys_user: "{{ ansible_user | default(lookup('ansible.builtin.env', 'USER')) }}"
+# Managed hosts whose SSH host keys the control node trusts (the laptop and the NAS), by the
+# names the inventory uses to reach them (short MagicDNS names).
+control_node_keys_known_hosts: >-
+  {{ (groups['k3s_server'] | default([]) + groups['nas'] | default([]))
+  | map('extract', hostvars, 'ansible_host') | list }}

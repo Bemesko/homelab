@@ -53,7 +53,7 @@ kubeconfig: check-inventory ## Update ~/.kube/notebook.yaml
 	cd ansible && $(PLAYBOOK) site.yaml --tags kubeconfig
 
 control-access: check-inventory ## Authorize the control node's SSH keys on the hosts (add only; issue #32)
-	cd ansible && $(PLAYBOOK) site.yaml --tags control_access
+	cd ansible && $(PLAYBOOK) control-node.yaml --tags keys,control_access
 
 control-node: check-inventory ## Configure the control node (Raspberry Pi; base + Tailscale, issue #32)
 	cd ansible && $(PLAYBOOK) control-node.yaml

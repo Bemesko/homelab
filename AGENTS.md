@@ -7,7 +7,7 @@
 
 # Repository Layout
 
-- `ansible/`: `site.yaml` (preflight → base → power → tailscale_check → k3s → cluster_bootstrap → otel_host_agent → nas_storage → kubeconfig; then a `hosts: nas` play with `power` and `nas_syncthing`), `reset.yaml`, and `control-node.yaml` (the Raspberry Pi control node, `make control-node`: `control_node_base` + `control_node_tailscale`, arm64 Debian)
+- `ansible/`: `site.yaml` (preflight → base → power → tailscale_check → k3s → cluster_bootstrap → otel_host_agent → nas_storage → kubeconfig; then a `hosts: nas` play with `power` and `nas_syncthing`), `reset.yaml`, and `control-node.yaml` (the Raspberry Pi control node, `make control-node`: `control_node_base`, `control_node_tailscale` and `control_node_keys` on the Pi, then `control_node_access` on the laptop and NAS via `make control-access`; arm64 Debian)
 - `kubernetes/apps/`: app-of-apps chart; `values.yaml` is the SINGLE SOURCE of chart versions (Ansible reads it too)
 - `kubernetes/workloads/<app>/{base,overlays/tailscale}`: `base` is what CI uses (no Tailscale)
 - Apps from other repos in the org or the personal `Bemesko` account, public only (template `bernats-homelab/repotpl-k8s-app`): only the entry under `apps:` in `kubernetes/apps/values.yaml`; the kustomize lives in the app repo's `deploy/`
