@@ -13,6 +13,10 @@ nas_storage_enabled: false
 # as an external app (smokeApp in kubernetes/apps/values.yaml), testing the homelab-apps AppProject.
 external_apps_smoke_enabled: false
 
+# true only in the CI lite e2e: the root Application renders just argocd, hello-world and the
+# Tailscale operator (chart value `minimal`, docs/adr/015).
+apps_minimal: false
+
 # Secrets encrypted with SOPS; decrypted on the controller
 secrets_file: "{{ playbook_dir }}/secrets/secrets.sops.yaml"
 

@@ -17,6 +17,9 @@ argument_specs:
       external_apps_smoke_enabled:
         type: bool
         required: true
+      apps_minimal:
+        type: bool
+        required: true
       apps_values:
         type: dict
         required: true

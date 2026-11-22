@@ -1,3 +1,4 @@
+{{- if not .Values.minimal }}
 # Datasources, alerts and dashboards; provisioning in kubernetes/workloads/observability. See docs/adr/008.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -52,3 +53,4 @@ spec:
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
+{{- end }}

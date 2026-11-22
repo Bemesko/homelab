@@ -1,3 +1,4 @@
+{{- if not .Values.minimal }}
 # Grafana provisioning (alert rules) and, on the laptop, the Grafana Secrets,
 # the email contact point and the otel-gateway on the tailnet ("otel").
 # Wave 2: the Secrets exist before Grafana (wave 3). See docs/adr/008.
@@ -27,3 +28,4 @@ spec:
       - CreateNamespace=true
       # Large dashboards: the client-side apply last-applied annotation exceeds 256 KB.
       - ServerSideApply=true
+{{- end }}

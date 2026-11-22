@@ -1,3 +1,4 @@
+{{- if not .Values.minimal }}
 # Issues the mTLS certificates of the Barman Cloud plugin (docs/adr/014).
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -33,3 +34,4 @@ spec:
       - CreateNamespace=true
       # The cert-manager CRDs exceed the client-side apply annotation limit.
       - ServerSideApply=true
+{{- end }}

@@ -3,6 +3,10 @@
 repoURL: https://github.com/Bemesko/homelab
 targetRevision: main
 
+# true only in the CI lite e2e (docs/adr/015): only argocd, hello-world and the Tailscale operator
+# are rendered, so the runner is not busy syncing Immich, Postgres or the observability stack.
+minimal: false
+
 tailscaleOperator:
   # false only in CI (no tailnet): removes the operator and the Tailscale Ingresses.
   enabled: true
@@ -30,7 +34,7 @@ apps:
   # Household finances PWA (Nuxt 4 + Postgres by CloudNativePG) → https://bernats-finances.<your-tailnet>
   bernats-finances:
     repoURL: https://github.com/bernats-homelab/bernats-finances-v4
-    targetRevision: v0.7.0
+    targetRevision: v0.8.0
 
 # The template itself as an external app, enabled only in CI (Ansible external_apps_smoke_enabled):
 # the e2e proves the external repo -> AppProject -> Application path. Use a published tag.

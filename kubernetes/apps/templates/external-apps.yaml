@@ -1,3 +1,4 @@
+{{- if not .Values.minimal }}
 {{- /*
 Apps from other repos (template bernats-homelab/repotpl-k8s-app), declared under `apps`
 in values.yaml. The app repo holds the kustomize in deploy/; only the Application lives here,
@@ -34,4 +35,5 @@ spec:
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
+{{- end }}
 {{- end }}
