@@ -16,6 +16,7 @@ spec:
       valuesObject:
         repoURL: {{ git_repo_url | to_json }}
         targetRevision: {{ git_revision | to_json }}
+        minimal: {{ apps_minimal | bool | to_json }}
         tailscaleOperator:
           enabled: {{ tailscale_enabled | bool | to_json }}
         nasStorage:

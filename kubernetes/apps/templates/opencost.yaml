@@ -1,3 +1,4 @@
+{{- if not .Values.minimal }}
 # Cost per namespace, pod and node, computed from the Prometheus metrics
 # (cAdvisor + kube-state-metrics). See docs/adr/013.
 apiVersion: argoproj.io/v1alpha1
@@ -46,3 +47,4 @@ spec:
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
+{{- end }}

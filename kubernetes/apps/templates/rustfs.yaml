@@ -1,3 +1,4 @@
+{{- if not .Values.minimal }}
 {{- if .Values.nasStorage.enabled }}
 # S3 store of the Postgres backups, with its data on the NAS (docs/adr/014). Only with the
 # NAS: in CI there is no NFS export, so neither RustFS nor the backups exist there.
@@ -38,4 +39,5 @@ spec:
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
+{{- end }}
 {{- end }}

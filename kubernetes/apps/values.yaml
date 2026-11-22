@@ -3,6 +3,10 @@
 repoURL: https://github.com/Bemesko/homelab
 targetRevision: main
 
+# true only in the CI lite e2e (docs/adr/015): only argocd, hello-world and the Tailscale operator
+# are rendered, so the runner is not busy syncing Immich, Postgres or the observability stack.
+minimal: false
+
 tailscaleOperator:
   # false only in CI (no tailnet): removes the operator and the Tailscale Ingresses.
   enabled: true

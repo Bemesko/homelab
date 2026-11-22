@@ -44,7 +44,8 @@ jobs:
         run: >-
           ansible-playbook site.yaml -i inventory/ci.yaml
           -e tailscale_enabled=false
-          -e external_apps_smoke_enabled=true
+          -e external_apps_smoke_enabled=${{ inputs.profile == 'full' }}
+          -e apps_minimal=${{ inputs.profile == 'lite' }}
           -e secrets_file=${{ runner.temp }}/ci.sops.yaml
           -e git_revision=${{ github.event.pull_request.head.sha || github.sha }}
           -e git_repo_url=https://github.com/${{ github.event.pull_request.head.repo.full_name || github.repository }}
@@ -54,7 +55,8 @@ jobs:
         run: >-
           ../scripts/assert-idempotent.sh site.yaml -i inventory/ci.yaml
           -e tailscale_enabled=false
-          -e external_apps_smoke_enabled=true
+          -e external_apps_smoke_enabled=${{ inputs.profile == 'full' }}
+          -e apps_minimal=${{ inputs.profile == 'lite' }}
           -e secrets_file=${{ runner.temp }}/ci.sops.yaml
           -e git_revision=${{ github.event.pull_request.head.sha || github.sha }}
           -e git_repo_url=https://github.com/${{ github.event.pull_request.head.repo.full_name || github.repository }}

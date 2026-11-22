@@ -325,7 +325,7 @@ Design, measurements and the reasoning: [ADR 015](docs/adr/015-ci-flow-and-requi
 - **render**: runs `helm unittest` and renders the upstream charts (argo-cd, tailscale-operator, cloudnative-pg, immich, prometheus, loki, tempo, grafana, otel-agent/otel-gateway, opencost) with our values, validating everything with kubeconform.
 - **e2e** ([e2e.yaml](.github/workflows/e2e.yaml), `lite` profile): runs on a PR only when the change can affect the host bootstrap (Ansible, `kubernetes/bootstrap`, the e2e scripts, the CI definition, the hello-world demo, the ArgoCD chart version; see `scripts/ci-changes.sh`). On the `ubuntu-26.04` runner:
   1. generates an ephemeral age key with dummy secrets;
-  2. runs the full `site.yaml` with `tailscale_enabled=false`, syncing the PR's own SHA;
+  2. runs the full `site.yaml` with `tailscale_enabled=false`, syncing the PR's own SHA; the `root` Application renders only `argocd` and `hello-world` (`apps_minimal`, chart value `minimal`);
   3. runs the playbook again and requires **changed=0**;
   4. checks the node, that `argocd`, `root` and hello-world are Synced/Healthy, and that the demo Secret was decrypted by KSOPS;
   5. runs `reset.yaml`.

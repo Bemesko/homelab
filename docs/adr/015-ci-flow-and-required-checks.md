@@ -33,6 +33,8 @@ Three tiers.
 
 1. **Every PR and every push to `main`: `lint` and `render`**, in parallel, with the tools cached.
 2. **PRs that can affect the bootstrap: `e2e` with the `lite` profile.** `scripts/ci-changes.sh` classifies the diff in a `changes` job (no third-party action). The lite profile runs the bootstrap, the idempotency check, the minimal assertions (node Ready, `argocd`, `root` and `hello-world` Synced/Healthy, KSOPS Secret decrypted, Tailscale operator absent) and the reset. It runs in parallel with `lint` and `render`. Pushes to `main` do not run it.
+
+   The first run of this design (PR #52) showed that cutting only the assertions was not enough: the `lite` e2e took 541 s, with the assertions at 345 s, because the `root` Application still synced every heavy app (Immich, Postgres, observability), and they competed for the runner's CPU and I/O with the three apps the profile waits for. So the profile also sets the chart value `minimal` (Ansible `apps_minimal`), and the `root` Application renders only `argocd`, `hello-world` and the Tailscale operator.
 3. **`e2e-full`: every Application Healthy, Immich, Obsidian, Home Assistant, the external apps and the observability pipeline.** It runs nightly (`schedule`), on demand (`workflow_dispatch`) and on a PR that gets the `e2e-full` label. It is a canary for drift, such as a chart or image that disappeared upstream, not a merge gate.
 
 Supporting changes:
