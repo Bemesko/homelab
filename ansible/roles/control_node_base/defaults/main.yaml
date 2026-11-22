@@ -1,0 +1,4 @@
+# Debian release the control node runs (Raspberry Pi OS Lite, trixie).
+control_node_base_release: trixie
+# log2ram keeps /var/log in RAM to spare the SD card. Debian archive package, version as installed on the Pi.
+control_node_base_log2ram_version: 1.7.2+ds-1

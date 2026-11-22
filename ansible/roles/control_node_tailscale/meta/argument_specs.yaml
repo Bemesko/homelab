@@ -1,0 +1,26 @@
+argument_specs:
+  main:
+    short_description: Tailscale on the control node (pinned arm64 binary, joins the tailnet with a tagged pre-auth key)
+    options:
+      control_node_tailscale_version:
+        type: str
+        required: false
+        default: 1.104.7
+      control_node_tailscale_arm64_sha256:
+        type: str
+        required: false
+      control_node_tailscale_archive_url:
+        type: str
+        required: false
+      control_node_tailscale_port:
+        type: int
+        required: false
+        default: 41641
+      control_node_tailscale_tag:
+        type: str
+        required: false
+        default: tag:control-node
+      control_node_tailscale_auth_key:
+        type: str
+        required: false
+        no_log: true

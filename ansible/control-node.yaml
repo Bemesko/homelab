@@ -1,0 +1,18 @@
+# Configures the control node (Raspberry Pi 3B, Debian trixie aarch64; issue #32).
+# Run by hand from the Pi with `make control-node`. Separate from site.yaml: the CI does not have this group.
+- name: Configure the control node
+  hosts: control_node
+  become: true
+  gather_facts: true
+  pre_tasks:
+    - name: Load the SOPS secrets (decrypted on the controller)
+      community.sops.load_vars:
+        file: "{{ secrets_file }}"
+      no_log: true
+      tags: [always]
+  roles:
+    - role: control_node_base
+      tags: [base]
+    - role: control_node_tailscale
+      when: tailscale_enabled | bool
+      tags: [tailscale]

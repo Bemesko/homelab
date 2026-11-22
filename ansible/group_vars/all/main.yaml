@@ -40,6 +40,10 @@ nas_syncthing_enabled: false
 # on the NAS (lid, sleep, battery guard; ADR 012). CI has no `nas` group.
 nas_power_enabled: false
 
+# Public SSH keys of the control node (Raspberry Pi), set in ansible/inventory/local.yaml.
+# Empty (CI) = the control_node_access role does nothing. Add only; see issue #32.
+control_node_access_public_keys: []
+
 # Chart versions: single source in kubernetes/apps/values.yaml (read on the controller)
 apps_values: "{{ lookup('ansible.builtin.file', playbook_dir ~ '/../kubernetes/apps/values.yaml') | from_yaml }}"
 

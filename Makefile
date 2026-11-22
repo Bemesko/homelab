@@ -13,7 +13,7 @@ BECOME_FLAGS := $(if $(filter 1,$(ASK_BECOME_PASS)),--ask-become-pass,)
 PLAYBOOK := ansible-playbook $(BECOME_FLAGS)
 INVENTORY := ansible/inventory/local.yaml
 
-.PHONY: help deps lint test-unit test-render test check-inventory plan apply idempotency kernel-upgrade kubeconfig reset
+.PHONY: help deps lint test-unit test-render test check-inventory plan apply idempotency kernel-upgrade kubeconfig control-access control-node reset
 
 help: ## List the targets
 	@grep -hE '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}'
@@ -51,6 +51,12 @@ kernel-upgrade: check-inventory ## Upgrade the kernel, reboot the laptop and val
 
 kubeconfig: check-inventory ## Update ~/.kube/notebook.yaml
 	cd ansible && $(PLAYBOOK) site.yaml --tags kubeconfig
+
+control-access: check-inventory ## Authorize the control node's SSH keys on the hosts (add only; issue #32)
+	cd ansible && $(PLAYBOOK) site.yaml --tags control_access
+
+control-node: check-inventory ## Configure the control node (Raspberry Pi; base + Tailscale, issue #32)
+	cd ansible && $(PLAYBOOK) control-node.yaml
 
 reset: check-inventory ## Remove k3s from the laptop (asks for confirmation)
 	cd ansible && $(PLAYBOOK) reset.yaml

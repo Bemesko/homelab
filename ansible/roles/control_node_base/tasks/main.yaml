@@ -1,0 +1,45 @@
+- name: Ensure the expected board (Debian trixie, aarch64)
+  ansible.builtin.assert:
+    that:
+      - ansible_facts['distribution'] == 'Debian'
+      - ansible_facts['distribution_release'] == control_node_base_release
+      - ansible_facts['architecture'] == 'aarch64'
+    fail_msg: >-
+      Host is {{ ansible_facts['distribution'] }} {{ ansible_facts['distribution_release'] }}
+      ({{ ansible_facts['architecture'] }}); expected Debian {{ control_node_base_release }} aarch64.
+
+- name: Update the package lists (cached for an hour)
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Upgrade the installed packages
+  ansible.builtin.apt:
+    upgrade: safe
+
+- name: Install unattended-upgrades
+  ansible.builtin.apt:
+    name: unattended-upgrades
+    state: present
+
+- name: Enable the daily package list refresh and security upgrades
+  ansible.builtin.copy:
+    dest: /etc/apt/apt.conf.d/20auto-upgrades
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      APT::Periodic::Update-Package-Lists "1";
+      APT::Periodic::Unattended-Upgrade "1";
+
+- name: Remove the swap file (no swap on the SD card, issue 32)
+  ansible.builtin.apt:
+    name: dphys-swapfile
+    state: absent
+    purge: true
+
+# Debian archive package (trixie main), verified by apt's signature; pinned to the version the Pi runs.
+- name: Install log2ram from the Debian archive
+  ansible.builtin.apt:
+    name: "log2ram={{ control_node_base_log2ram_version }}"
+    state: present
