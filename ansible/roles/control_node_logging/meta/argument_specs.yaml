@@ -1,0 +1,17 @@
+argument_specs:
+  main:
+    short_description: Local logs of the control node (persistent journal, Ansible log and its rotation)
+    options:
+      control_node_logging_user:
+        type: str
+        required: false
+        description: Owner of the Ansible log directory; the connection user.
+      control_node_logging_journal_max_use:
+        type: str
+        required: false
+        default: 32M
+      control_node_logging_ansible_log:
+        type: str
+        required: false
+        default: .ansible/log/ansible.log
+        description: Path of the Ansible log, relative to the owner's home.

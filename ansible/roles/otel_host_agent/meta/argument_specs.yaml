@@ -6,10 +6,30 @@ argument_specs:
         description: otelcol-contrib version (set in group_vars/all)
         type: str
         required: true
-      otel_host_agent_deb_sha256:
-        description: sha256 of the amd64 .deb published in the release
+      otel_host_agent_deb_sha256_amd64:
+        description: sha256 of the amd64 .deb published in the release (set in group_vars/all)
         type: str
         required: true
+      otel_host_agent_deb_sha256_arm64:
+        description: sha256 of the arm64 .deb published in the release (set in group_vars/all)
+        type: str
+        required: true
+      otel_host_agent_service_name:
+        description: service.name of everything the collector sends (job in Prometheus, service_name in Loki)
+        type: str
+        default: homelab-host
+      otel_host_agent_otlp_receiver_enabled:
+        description: also accept OTLP/gRPC traces on localhost and forward them to the gateway
+        type: bool
+        default: false
+      otel_host_agent_otlp_receiver_endpoint:
+        type: str
+        default: 127.0.0.1:4317
+      otel_host_agent_journald_matches:
+        description: only forward journald entries matching one of these field/value maps; empty forwards all
+        type: list
+        elements: dict
+        default: []
       otel_host_agent_endpoint:
         description: OTLP/gRPC host:port of the gateway (short MagicDNS name)
         type: str

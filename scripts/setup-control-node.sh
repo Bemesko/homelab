@@ -20,6 +20,8 @@ readonly ANSIBLE_CORE_VERSION="2.21.5"
 readonly ANSIBLE_LINT_VERSION="26.10.1"
 readonly PRE_COMMIT_VERSION="4.7.0"
 readonly KUBERNETES_PY_VERSION="37.0.1"
+# For the Ansible OpenTelemetry callback, enabled only on the control node (see the Makefile).
+readonly OTEL_PY_VERSION="1.45.2"
 
 readonly SOPS_VERSION="v3.13.3"
 readonly SOPS_SHA256_AMD64="e5bec3346a873ae91d871550f3e698c1aad962aff462a080e40f25fde17fef6b"
@@ -153,6 +155,9 @@ main() {
   if [[ "${MODE}" == "full" ]]; then
     pipx install --force "ansible-lint==${ANSIBLE_LINT_VERSION}" >/dev/null
     pipx install --force "pre-commit==${PRE_COMMIT_VERSION}" >/dev/null
+  else
+    pipx inject ansible-core "opentelemetry-api==${OTEL_PY_VERSION}" "opentelemetry-sdk==${OTEL_PY_VERSION}" \
+      "opentelemetry-exporter-otlp-proto-grpc==${OTEL_PY_VERSION}" >/dev/null
   fi
 
   install_bin sops "${SOPS_VERSION}" \
