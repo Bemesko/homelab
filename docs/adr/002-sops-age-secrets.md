@@ -1,6 +1,6 @@
 # 002 — Secrets with SOPS + age, decrypted by Ansible
 
-- **Status:** accepted; app secrets evolved to KSOPS in [004](004-ksops.md)
+- **Status:** accepted; app secrets evolved to KSOPS in [004](004-ksops.md); who holds the key and the recipients changed in [016](016-control-node-raspberry-pi.md) (the control node is a Raspberry Pi, plus a recovery key)
 - **Date:** 2026-10-31
 
 ## Context
