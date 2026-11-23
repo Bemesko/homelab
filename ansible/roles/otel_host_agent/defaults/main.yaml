@@ -1,3 +1,14 @@
+# Architecture of the .deb: the laptop is amd64, the control node (Raspberry Pi) arm64.
+otel_host_agent_arch: "{{ 'arm64' if ansible_facts['architecture'] == 'aarch64' else 'amd64' }}"
+otel_host_agent_deb_sha256: >-
+  {{ otel_host_agent_deb_sha256_arm64 if otel_host_agent_arch == 'arm64' else otel_host_agent_deb_sha256_amd64 }}
+# Becomes the job (Prometheus) and service_name (Loki) the alert rules filter on.
+otel_host_agent_service_name: homelab-host
+# Local OTLP/gRPC receiver for traces (the Ansible OpenTelemetry callback on the control node).
+otel_host_agent_otlp_receiver_enabled: false
+otel_host_agent_otlp_receiver_endpoint: 127.0.0.1:4317
+# Only these journald entries (field: value, OR between items); empty = everything above the priority.
+otel_host_agent_journald_matches: []
 # Cluster OTLP/gRPC gateway (Service "otel" on the tailnet). It lives in the private
 # inventory (ansible/inventory/local.yaml), as a host var.
 otel_host_agent_endpoint: otel:4317

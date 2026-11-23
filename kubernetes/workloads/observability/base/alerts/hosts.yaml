@@ -214,6 +214,64 @@ groups:
               conditions:
                 - evaluator: {type: gt, params: [0]}
 
+      # Own (issue #32): the control node (Raspberry Pi) writes every Ansible run to its journal as
+      # homelab-ansible; the PLAY RECAP lines carry failed=N and unreachable=N per host.
+      - uid: control-node-apply-failed
+        title: Ansible run failed on the control node
+        condition: B
+        for: 0s
+        noDataState: OK
+        execErrState: Error
+        labels: {severity: warning}
+        annotations:
+          summary: "A playbook run on the control node ended with failed or unreachable hosts in the last 15 min"
+        data:
+          - refId: A
+            relativeTimeRange: {from: 900, to: 0}
+            datasourceUid: loki
+            model:
+              refId: A
+              queryType: instant
+              expr: >-
+                sum(count_over_time({service_name="control-node"} |= `"SYSLOG_IDENTIFIER":"homelab-ansible"`
+                |~ `(failed|unreachable)=[1-9]` [15m]))
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: {type: gt, params: [0]}
+
+      # Source: same design as host-silent, for the control node (its own job, see group_vars/control_node.yaml)
+      - uid: control-node-silent
+        title: Control node without metrics
+        condition: B
+        for: 0s
+        noDataState: OK
+        execErrState: Error
+        labels: {severity: warning}
+        annotations:
+          summary: "The control node has not sent metrics for 10 minutes (the host collector stopped, the Pi is down or the gateway does not answer)"
+        data:
+          - refId: A
+            relativeTimeRange: {from: 600, to: 0}
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              expr: >-
+                absent_over_time(system_cpu_load_average_1m{job="control-node"}[10m])
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: {type: gt, params: [0]}
+
       # Own (ADR 012): homelab-power-guard logs the switch to battery. Without power the
       # laptop shuts down at 10%; the warning gives time to act before that.
       - uid: host-on-battery
