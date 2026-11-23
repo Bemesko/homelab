@@ -1,6 +1,15 @@
 # Every `make plan/apply` on the control node is also written to the journal as `homelab-ansible`
 # (the Makefile tees it), so a copy stays on the Pi even when the cluster is down. The host
 # collector forwards that identifier to Loki (see group_vars/control_node.yaml).
+# Debian does not ship the drop-in directory, and copy does not create parent directories.
+- name: Ensure the journald drop-in directory exists
+  ansible.builtin.file:
+    path: /etc/systemd/journald.conf.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
 - name: Keep the journal on disk, capped for the SD card and log2ram
   ansible.builtin.copy:
     dest: /etc/systemd/journald.conf.d/10-control-node.conf
