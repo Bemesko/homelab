@@ -156,8 +156,10 @@ main() {
     pipx install --force "ansible-lint==${ANSIBLE_LINT_VERSION}" >/dev/null
     pipx install --force "pre-commit==${PRE_COMMIT_VERSION}" >/dev/null
   else
+    # The callback imports both the gRPC and the HTTP exporter in one block: without either, it is disabled.
     pipx inject ansible-core "opentelemetry-api==${OTEL_PY_VERSION}" "opentelemetry-sdk==${OTEL_PY_VERSION}" \
-      "opentelemetry-exporter-otlp-proto-grpc==${OTEL_PY_VERSION}" >/dev/null
+      "opentelemetry-exporter-otlp-proto-grpc==${OTEL_PY_VERSION}" \
+      "opentelemetry-exporter-otlp-proto-http==${OTEL_PY_VERSION}" >/dev/null
   fi
 
   install_bin sops "${SOPS_VERSION}" \
