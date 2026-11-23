@@ -18,6 +18,8 @@
       tags: [tailscale]
     - role: control_node_keys
       tags: [keys]
+    - role: control_node_toolchain
+      tags: [toolchain]
 
 # Authorizes the Pi's SSH key on the laptop and the NAS: add only, run from a machine that still
 # has access (`make control-access`). The key is the fact the keys role set on the Pi above.

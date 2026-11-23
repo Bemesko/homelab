@@ -1,0 +1,22 @@
+argument_specs:
+  main:
+    short_description: The control node's checkout of this repo and its runtime tools (ansible, sops, age, helm, kubectl)
+    options:
+      control_node_toolchain_user:
+        type: str
+        required: false
+        description: Owner of the checkout and the tools; the connection user.
+      control_node_toolchain_repo_url:
+        type: str
+        required: false
+      control_node_toolchain_repo_version:
+        type: str
+        required: false
+      control_node_toolchain_repo_dir:
+        type: str
+        required: false
+        description: Checkout directory, relative to the owner's home.
+      control_node_toolchain_apt_packages:
+        type: list
+        elements: str
+        required: false
