@@ -21,7 +21,7 @@ BASE_REF ?= origin/main
 help: ## List the targets
 	@grep -hE '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}'
 
-deps: ## Install the control machine tools (pinned versions)
+deps: ## Install the control machine tools (pinned versions; runtime tools only on aarch64)
 	./scripts/setup-control-node.sh
 
 lint: ## All pre-commit hooks on all files
@@ -46,7 +46,8 @@ check-inventory:
 plan: check-inventory ## Dry run (--check --diff) against the laptop
 	cd ansible && $(PLAYBOOK) site.yaml --check --diff
 
-apply: check-inventory lint ## Apply to the laptop (runs lint first)
+# The control node (Raspberry Pi, aarch64) only has the runtime tools, so lint runs where pre-commit exists.
+apply: check-inventory $(if $(shell PATH="$(HOME)/.local/bin:$$PATH" command -v pre-commit),lint,) ## Apply to the laptop (runs lint first when pre-commit is installed)
 	cd ansible && $(PLAYBOOK) site.yaml
 
 idempotency: check-inventory ## Re-apply and fail if anything changes
@@ -61,8 +62,11 @@ kubeconfig: check-inventory ## Update ~/.kube/notebook.yaml
 control-access: check-inventory ## Authorize the control node's SSH keys on the hosts (add only; issue #32)
 	cd ansible && $(PLAYBOOK) control-node.yaml --tags keys,control_access
 
-control-node: check-inventory ## Configure the control node (Raspberry Pi; base + Tailscale, issue #32)
-	cd ansible && $(PLAYBOOK) control-node.yaml
+# On the Pi itself the control node is the local machine: no SSH to itself, and only its own play.
+CONTROL_NODE_ARGS ?= $(if $(filter aarch64,$(shell uname -m)),--connection local --limit control_node,)
+
+control-node: check-inventory ## Configure the control node (Raspberry Pi; base, Tailscale, keys, toolchain; issue #32)
+	cd ansible && $(PLAYBOOK) control-node.yaml $(CONTROL_NODE_ARGS)
 
 reset: check-inventory ## Remove k3s from the laptop (asks for confirmation)
 	cd ansible && $(PLAYBOOK) reset.yaml

@@ -1,0 +1,91 @@
+# The control node runs `make plan/apply` from its own checkout of this repo (issue #32). The tools
+# come from scripts/setup-control-node.sh --runtime, so the pins and sha256 live in one place.
+# Everything but apt runs as the connection user (the play has become: true).
+- name: Install the packages the setup script needs
+  ansible.builtin.apt:
+    name: "{{ control_node_toolchain_apt_packages }}"
+    state: present
+
+- name: Look up the owner's home directory
+  ansible.builtin.getent:
+    database: passwd
+    key: "{{ control_node_toolchain_user }}"
+
+- name: Remember the checkout and state paths
+  ansible.builtin.set_fact:
+    control_node_toolchain_home: "{{ ansible_facts['getent_passwd'][control_node_toolchain_user][4] }}"
+    control_node_toolchain_repo_path: "{{ ansible_facts['getent_passwd'][control_node_toolchain_user][4] }}/{{ control_node_toolchain_repo_dir }}"
+
+- name: Clone or fast-forward the repo
+  ansible.builtin.git:
+    repo: "{{ control_node_toolchain_repo_url }}"
+    dest: "{{ control_node_toolchain_repo_path }}"
+    version: "{{ control_node_toolchain_repo_version }}"
+    update: true
+  become: false
+
+# The script is idempotent but reinstalls the pipx tools every time, so a stamp keyed on what it
+# installs (the script and the collections) keeps a second run at changed=0.
+- name: Fingerprint what the setup installs
+  ansible.builtin.stat:
+    path: "{{ control_node_toolchain_repo_path }}/{{ item }}"
+    checksum_algorithm: sha256
+  loop:
+    - scripts/setup-control-node.sh
+    - ansible/requirements.yml
+  register: control_node_toolchain_inputs
+  become: false
+
+- name: Remember the stamp path
+  ansible.builtin.set_fact:
+    control_node_toolchain_stamp: >-
+      {{ control_node_toolchain_home }}/.local/share/homelab/toolchain-{{
+      control_node_toolchain_inputs.results | map(attribute='stat.checksum') | join('') | hash('sha256') | truncate(16, true, '') }}
+
+- name: Ensure the stamp directory exists
+  ansible.builtin.file:
+    path: "{{ control_node_toolchain_home }}/.local/share/homelab"
+    state: directory
+    mode: "0755"
+  become: false
+
+- name: Install the runtime tools (pinned, sha256-checked)
+  ansible.builtin.command: ./scripts/setup-control-node.sh --runtime
+  args:
+    chdir: "{{ control_node_toolchain_repo_path }}"
+    creates: "{{ control_node_toolchain_stamp }}"
+  environment:
+    SETUP_SKIP_APT: "1"
+    PATH: "{{ control_node_toolchain_home }}/.local/bin:{{ ansible_facts['env']['PATH'] | default('/usr/local/bin:/usr/bin:/bin') }}"
+  become: false
+
+- name: Record that this toolchain was installed
+  ansible.builtin.copy:
+    dest: "{{ control_node_toolchain_stamp }}"
+    content: "{{ control_node_toolchain_repo_version }}\n"
+    mode: "0644"
+    force: false
+  become: false
+
+# The private inventory is not in git: the PC pushes its copy. On the Pi itself (local connection)
+# the inventory already is the checkout's, so there is nothing to copy.
+- name: Copy the private inventory to the checkout
+  ansible.builtin.copy:
+    src: "{{ inventory_dir }}/local.yaml"
+    dest: "{{ control_node_toolchain_repo_path }}/ansible/inventory/local.yaml"
+    mode: "0600"
+  become: false
+  when: (ansible_connection | default('ssh')) != 'local'
+
+- name: Check the installed tools run
+  ansible.builtin.command: "{{ control_node_toolchain_home }}/.local/bin/{{ item }}"
+  loop:
+    - sops --version
+    - age --version
+    - helm version --short
+    - kubectl version --client
+    - ansible --version
+  changed_when: false
+  check_mode: false
+  become: false
+  when: not ansible_check_mode

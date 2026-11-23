@@ -3,11 +3,11 @@
 - Ansible (ansible-core 2.21, collections pinned in `ansible/requirements.yml`) for the host bootstrap
 - Single-node k3s; ArgoCD (app-of-apps in Helm) for everything inside the cluster; kustomize for workloads
 - SOPS + age for secrets; the private key lives only on the control machine (WSL)
-- Control-machine tools with version + sha256 pinned in `scripts/setup-control-node.sh`
+- Control-machine tools with version + sha256 pinned in `scripts/setup-control-node.sh`, one sha256 per architecture (x86_64 and aarch64); `--runtime` (the Pi's default) skips the dev/test tools
 
 # Repository Layout
 
-- `ansible/`: `site.yaml` (preflight → base → power → tailscale_check → k3s → cluster_bootstrap → otel_host_agent → nas_storage → kubeconfig; then a `hosts: nas` play with `power` and `nas_syncthing`), `reset.yaml`, and `control-node.yaml` (the Raspberry Pi control node, `make control-node`: `control_node_base`, `control_node_tailscale` and `control_node_keys` on the Pi, then `control_node_access` on the laptop and NAS via `make control-access`; arm64 Debian)
+- `ansible/`: `site.yaml` (preflight → base → power → tailscale_check → k3s → cluster_bootstrap → otel_host_agent → nas_storage → kubeconfig; then a `hosts: nas` play with `power` and `nas_syncthing`), `reset.yaml`, and `control-node.yaml` (the Raspberry Pi control node, `make control-node`: `control_node_base`, `control_node_tailscale`, `control_node_keys` and `control_node_toolchain` on the Pi, then `control_node_access` on the laptop and NAS via `make control-access`; arm64 Debian)
 - `kubernetes/apps/`: app-of-apps chart; `values.yaml` is the SINGLE SOURCE of chart versions (Ansible reads it too)
 - `kubernetes/workloads/<app>/{base,overlays/tailscale}`: `base` is what CI uses (no Tailscale)
 - Apps from other repos in the org or the personal `Bemesko` account, public only (template `bernats-homelab/repotpl-k8s-app`): only the entry under `apps:` in `kubernetes/apps/values.yaml`; the kustomize lives in the app repo's `deploy/`

@@ -1,0 +1,17 @@
+# User that owns the checkout and the tools: the connection user (these tasks run without become).
+control_node_toolchain_user: "{{ ansible_user | default(lookup('ansible.builtin.env', 'USER')) }}"
+# The repo the control node runs from. git_repo_url and git_revision come from group_vars/all.
+control_node_toolchain_repo_url: "{{ git_repo_url }}"
+control_node_toolchain_repo_version: "{{ git_revision }}"
+# Checkout directory, relative to the owner's home.
+control_node_toolchain_repo_dir: homelab
+# What scripts/setup-control-node.sh --runtime needs from apt (the role installs it, the script skips apt).
+control_node_toolchain_apt_packages:
+  - curl
+  - git
+  - jq
+  - make
+  - openssh-client
+  - pipx
+  - python3
+  - python3-venv
