@@ -17,6 +17,29 @@
       netplan has no ethernet ID {{ host_network_netplan_id }}. Set host_network_netplan_id to the ID
       that /etc/netplan/*.yaml uses for {{ host_network_wired_interface }}, so the two files merge.
 
+# A wrong fixed address would cut the laptop off its LAN: check the format before any change.
+- name: Ensure the fixed address and gateway are valid
+  ansible.builtin.assert:
+    that:
+      - host_network_static_address is match('^([0-9]{1,3}\.){3}[0-9]{1,3}/[0-9]{1,2}$')
+      - host_network_static_gateway is match('^([0-9]{1,3}\.){3}[0-9]{1,3}$')
+    fail_msg: >-
+      host_network_static_address must be a CIDR (192.168.1.13/24) and host_network_static_gateway an IPv4
+      address (192.168.1.1).
+  when: host_network_static_address | length > 0
+
+# The control node wakes the laptop and pings wol_sender_address, so both must be the same address.
+- name: Ensure the Wake-on-LAN address is the fixed address
+  ansible.builtin.assert:
+    that:
+      - host_network_static_address | split('/') | first == wol_sender_address
+    fail_msg: >-
+      wol_sender_address ({{ wol_sender_address }}) differs from host_network_static_address
+      ({{ host_network_static_address }}): the control node would ping the wrong address.
+  when:
+    - host_network_static_address | length > 0
+    - wol_sender_address is defined
+
 - name: Create the state directory for the rollback
   ansible.builtin.file:
     path: "{{ host_network_state_dir }}"
