@@ -1,0 +1,41 @@
+# RustFS: the S3 store of the Postgres backups (docs/adr/014). A single server whose
+# data is the PVC rustfs-data, an NFS PV on the NAS created by the nas_storage role.
+# Reached only inside the cluster: http://rustfs-svc.rustfs.svc:9000.
+replicaCount: 1
+mode:
+  standalone:
+    enabled: true
+    existingClaim:
+      dataClaim: rustfs-data
+  distributed:
+    enabled: false
+
+image:
+  rustfs:
+    tag: 1.0.6@sha256:ee717072290bec9b11abfc0365f8310b00df1cd9b3639943edae47bdef05044a
+  initImage:
+    repository: busybox
+    tag: 1.37.0@sha256:a7dbc319b1438115a207e11930dc4bb3e643dcb3ec0bdd694bb36cd8fad289ec
+
+# Root credentials (RUSTFS_ACCESS_KEY/RUSTFS_SECRET_KEY) from a KSOPS Secret in
+# kubernetes/workloads/rustfs. Only the provisioning Job uses them; each Postgres
+# cluster gets its own access key.
+secret:
+  existingSecret: rustfs-root
+
+config:
+  rustfs:
+    volumes: /data
+    # Logs to stdout (otel-agent ships them to Loki), not to a separate PVC.
+    obs_log_directory: ""
+    # No web console: the buckets are managed with rc (provisioning Job).
+    console_enable: "false"
+    # NFS adds latency: the scanner and drive timeouts get the relaxed profile.
+    timeout_profile: high_latency
+
+ingress:
+  enabled: false
+
+resources:
+  requests: {cpu: 20m, memory: 128Mi}
+  limits: {memory: 512Mi}

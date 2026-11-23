@@ -17,9 +17,16 @@ all:
             data: </export/immich-data>
             obsidian: </export/borbsidian>
             home_assistant: </export/home-assistant>
+            backups: </export/cnpg-backups>
           # OpenTelemetry Collector on the host (journald + metrics) -> cluster gateway.
           otel_host_agent_enabled: true
           otel_host_agent_endpoint: <gateway-magicdns-name>:4317
+    # Control node (Raspberry Pi 3B, issue #32): runs `make control-node` by hand.
+    control_node:
+      hosts:
+        control:
+          ansible_host: <control-node-magicdns-hostname>
+          ansible_user: <user>
     # NAS: Ansible only manages Syncthing (ADR 011) and power (ADR 012); the rest is done in the OMV UI.
     nas:
       hosts:

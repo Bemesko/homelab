@@ -1,0 +1,76 @@
+# Pinned static binary (not the apt repo), so the version and sha256 live in this repo like the other tools.
+- name: Download the Tailscale arm64 archive
+  ansible.builtin.get_url:
+    url: "{{ control_node_tailscale_archive_url }}"
+    dest: "/var/cache/tailscale_{{ control_node_tailscale_version }}_arm64.tgz"
+    checksum: "sha256:{{ control_node_tailscale_arm64_sha256 }}"
+    mode: "0644"
+
+- name: Unpack the Tailscale archive
+  ansible.builtin.unarchive:
+    src: "/var/cache/tailscale_{{ control_node_tailscale_version }}_arm64.tgz"
+    dest: /var/cache
+    remote_src: true
+    creates: "/var/cache/tailscale_{{ control_node_tailscale_version }}_arm64/tailscale"
+
+- name: Install the tailscale and tailscaled binaries
+  ansible.builtin.copy:
+    src: "/var/cache/tailscale_{{ control_node_tailscale_version }}_arm64/{{ item.src }}"
+    dest: "{{ item.dest }}"
+    remote_src: true
+    owner: root
+    group: root
+    mode: "0755"
+  loop:
+    - { src: tailscale, dest: /usr/bin/tailscale }
+    - { src: tailscaled, dest: /usr/sbin/tailscaled }
+  notify: Restart tailscaled
+
+- name: Install the tailscaled systemd unit
+  ansible.builtin.copy:
+    src: "/var/cache/tailscale_{{ control_node_tailscale_version }}_arm64/systemd/tailscaled.service"
+    dest: /etc/systemd/system/tailscaled.service
+    remote_src: true
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart tailscaled
+
+# The static archive has no /etc/default/tailscaled, but the unit loads it (the apt package ships it).
+- name: Create the tailscaled defaults file the unit loads
+  ansible.builtin.copy:
+    dest: /etc/default/tailscaled
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      PORT="{{ control_node_tailscale_port }}"
+      FLAGS=""
+  notify: Restart tailscaled
+
+- name: Enable and start tailscaled
+  ansible.builtin.systemd_service:
+    name: tailscaled
+    enabled: true
+    state: started
+    daemon_reload: true
+
+- name: Read the Tailscale state (read-only)
+  ansible.builtin.command: tailscale status --json
+  register: control_node_tailscale_status
+  changed_when: false
+
+- name: Ensure a pre-auth key is set when the node must log in
+  ansible.builtin.assert:
+    that:
+      - control_node_tailscale_auth_key | length > 0
+    fail_msg: "tailscale_auth_key is empty; add it to ansible/secrets/secrets.sops.yaml (issue #32)."
+    quiet: true
+  when: (control_node_tailscale_status.stdout | from_json).BackendState != 'Running'
+
+- name: Join the tailnet with the tagged pre-auth key (only when not Running)
+  ansible.builtin.command: >-
+    tailscale up --auth-key={{ control_node_tailscale_auth_key }} --advertise-tags={{ control_node_tailscale_tag }}
+  no_log: true
+  changed_when: true
+  when: (control_node_tailscale_status.stdout | from_json).BackendState != 'Running'

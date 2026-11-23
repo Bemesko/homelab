@@ -4,15 +4,15 @@
   vars:
     otel_host_agent_release: https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download
   ansible.builtin.get_url:
-    url: "{{ otel_host_agent_release }}/v{{ otel_host_agent_version }}/otelcol-contrib_{{ otel_host_agent_version }}_linux_amd64.deb"
-    dest: "/var/cache/otelcol-contrib_{{ otel_host_agent_version }}_linux_amd64.deb"
+    url: "{{ otel_host_agent_release }}/v{{ otel_host_agent_version }}/otelcol-contrib_{{ otel_host_agent_version }}_linux_{{ otel_host_agent_arch }}.deb"
+    dest: "/var/cache/otelcol-contrib_{{ otel_host_agent_version }}_linux_{{ otel_host_agent_arch }}.deb"
     checksum: "sha256:{{ otel_host_agent_deb_sha256 }}"
     mode: "0644"
   register: otel_host_agent_deb
 
 - name: Install otelcol-contrib
   ansible.builtin.apt:
-    deb: "/var/cache/otelcol-contrib_{{ otel_host_agent_version }}_linux_amd64.deb"
+    deb: "/var/cache/otelcol-contrib_{{ otel_host_agent_version }}_linux_{{ otel_host_agent_arch }}.deb"
   # In check mode get_url does not download the file, so there is nothing to install.
   when: not (ansible_check_mode and otel_host_agent_deb is changed)
   notify: Restart otelcol-contrib

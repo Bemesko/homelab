@@ -1,0 +1,6 @@
+# User that runs the playbooks: the connection user (the log directory belongs to it).
+control_node_logging_user: "{{ ansible_user | default(lookup('ansible.builtin.env', 'USER')) }}"
+# journald keeps its journal under /var/log/journal (log2ram holds /var/log in RAM, so it is capped).
+control_node_logging_journal_max_use: 32M
+# Ansible's own log (ANSIBLE_LOG_PATH, set by the Makefile on the control node), relative to the home.
+control_node_logging_ansible_log: .ansible/log/ansible.log

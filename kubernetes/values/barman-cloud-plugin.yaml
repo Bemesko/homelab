@@ -1,0 +1,13 @@
+# CNPG Barman Cloud plugin (docs/adr/014): base backups + WAL archiving of every CNPG
+# cluster to RustFS. Lives in cnpg-system next to the operator (required). The chart
+# creates its own Issuer and certificates through cert-manager.
+# The chart has no digest key: the tag carries it ("tag@sha256:...").
+image:
+  tag: v0.16.0@sha256:6404a416718bd7aad943c67a25a7bb20d0558b43edfeab0bf167f013ca435882
+# Injected by the plugin into every Postgres pod that uses it (the barman-cloud sidecar).
+sidecarImage:
+  tag: v0.16.0@sha256:c669259e20ed1e11fad821f735c396c19d929985aa05b9544b13ecc8b5a386d0
+
+resources:
+  requests: {cpu: 10m, memory: 64Mi}
+  limits: {memory: 256Mi}

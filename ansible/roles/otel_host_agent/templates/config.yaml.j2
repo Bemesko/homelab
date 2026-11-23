@@ -3,6 +3,12 @@
 receivers:
   journald:
     priority: {{ otel_host_agent_journald_priority }}
+{% if otel_host_agent_journald_matches | length > 0 %}
+    matches:
+{% for match in otel_host_agent_journald_matches %}
+      - {{ match | to_json }}
+{% endfor %}
+{% endif %}
   hostmetrics:
     collection_interval: {{ otel_host_agent_collection_interval }}
     scrapers:
@@ -20,6 +26,12 @@ receivers:
           # Pod volumes and kubelet NFS mounts already show up through the cluster.
           mount_points: ["/var/lib/kubelet/*", "/run/k3s/*", "/snap/*"]
           match_type: regexp
+{% if otel_host_agent_otlp_receiver_enabled | bool %}
+  otlp:
+    protocols:
+      grpc:
+        endpoint: {{ otel_host_agent_otlp_receiver_endpoint }}
+{% endif %}
 
 processors:
   memory_limiter:
@@ -33,7 +45,7 @@ processors:
   resource:
     attributes:
       - key: service.name
-        value: homelab-host
+        value: {{ otel_host_agent_service_name }}
         action: upsert
   batch: {}
 
@@ -60,3 +72,10 @@ service:
       receivers: [hostmetrics]
       processors: [memory_limiter, resourcedetection, resource, batch]
       exporters: [otlp]
+{% if otel_host_agent_otlp_receiver_enabled | bool %}
+    # Traces keep the service.name of their producer (the `resource` processor would overwrite it).
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [otlp]
+{% endif %}

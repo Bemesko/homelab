@@ -1,0 +1,37 @@
+# Where the barman-cloud sidecar of immich-database writes: RustFS inside the cluster, with its data
+# on the NAS. The user cnpg-immich only reaches s3://cnpg/immich/ (kubernetes/workloads/rustfs).
+apiVersion: barmancloud.cnpg.io/v1
+kind: ObjectStore
+metadata:
+  name: immich-database-backup
+  annotations:
+    # The CRD comes from the barman-cloud-plugin Application (wave 1).
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  # Recovery window: keeps the newest base backup older than 14 days and everything after it.
+  retentionPolicy: 14d
+  configuration:
+    destinationPath: s3://cnpg/immich/
+    endpointURL: http://rustfs-svc.rustfs.svc:9000
+    s3AddressingStyle: path
+    s3Credentials:
+      accessKeyId:
+        name: immich-database-s3
+        key: ACCESS_KEY_ID
+      secretAccessKey:
+        name: immich-database-s3
+        key: ACCESS_SECRET_KEY
+    wal:
+      compression: zstd
+    data:
+      compression: zstd
+  instanceSidecarConfiguration:
+    env:
+      # Recent boto3 sends checksums that non-AWS S3 servers may reject (plugin docs).
+      - name: AWS_REQUEST_CHECKSUM_CALCULATION
+        value: when_required
+      - name: AWS_RESPONSE_CHECKSUM_VALIDATION
+        value: when_required
+    resources:
+      requests: {cpu: 10m, memory: 64Mi}
+      limits: {memory: 256Mi}

@@ -1,0 +1,36 @@
+{{- if not .Values.minimal }}
+# CNPG Barman Cloud plugin: base backups + WAL archiving to RustFS (docs/adr/014).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: barman-cloud-plugin
+  namespace: argocd
+  annotations:
+    # After the operator and cert-manager (wave 0), before the databases (wave 2).
+    argocd.argoproj.io/sync-wave: "1"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  sources:
+    - repoURL: {{ .Values.charts.barmanCloudPlugin.repoURL }}
+      chart: {{ .Values.charts.barmanCloudPlugin.chart }}
+      targetRevision: {{ .Values.charts.barmanCloudPlugin.version | quote }}
+      helm:
+        releaseName: barman-cloud-plugin
+        valueFiles:
+          - $values/kubernetes/values/barman-cloud-plugin.yaml
+    - repoURL: {{ .Values.repoURL }}
+      targetRevision: {{ .Values.targetRevision }}
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    # The plugin must live in the operator's namespace.
+    namespace: cnpg-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+{{- end }}

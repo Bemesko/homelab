@@ -1,5 +1,5 @@
 # NAS off-site backup: restic-backup CronJob (namespace backup) -> Hetzner Storage Box
-# (ADR 014). The pod logs reach Loki through otel-agent; restic logs a JSON line with
+# (ADR 017). The pod logs reach Loki through otel-agent; restic logs a JSON line with
 # "message_type":"summary" when each backup finishes.
 apiVersion: 1
 groups:

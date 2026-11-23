@@ -1,3 +1,4 @@
+{{- if not .Values.minimal }}
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -13,7 +14,7 @@ spec:
     repoURL: {{ .Values.repoURL }}
     targetRevision: {{ .Values.targetRevision }}
     # Only Postgres (CNPG): it becomes Healthy on its own. The PVCs go in the immich Application.
-    path: kubernetes/workloads/immich/database
+    path: kubernetes/workloads/immich/database/{{ ternary "overlays/nas" "base" .Values.nasStorage.enabled }}
   destination:
     server: https://kubernetes.default.svc
     namespace: immich
@@ -23,3 +24,4 @@ spec:
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
+{{- end }}

@@ -1,10 +1,10 @@
 # homelab
 
 Bootstrap and configuration of a **single-node k3s** cluster on a personal laptop (Ubuntu 26.04).
-Everything is applied **remotely**: Ansible runs in WSL on this machine and connects to the laptop over SSH through the tailnet.
+Everything is applied **remotely**: Ansible runs on the **control node**, a Raspberry Pi ([ADR 016](docs/adr/016-control-node-raspberry-pi.md)), and connects to the laptop over SSH through the tailnet.
 
 ```
-WSL (control)  ──ssh over Tailscale──▶  laptop (Ubuntu 26.04)
+Pi (control)   ──ssh over Tailscale──▶  laptop (Ubuntu 26.04)
   ansible + sops/age                      k3s
                                            └─ ArgoCD (app-of-apps, GitOps from this repo)
                                                ├─ tailscale-operator  → Ingress on the tailnet
@@ -22,7 +22,7 @@ WSL (control)  ──ssh over Tailscale──▶  laptop (Ubuntu 26.04)
 
 - **No lockout.** The playbook never touches Tailscale, SSH, the firewall or the host network. The `tailscale_check` role only reads the status, and the `no-lockout` hook blocks any task that tries to change those things.
 - **Nothing identifiable in the repo.** The real inventory lives in `ansible/inventory/local.yaml` (ignored by git and blocked by a hook). The tailnet name (`*.ts.net`) is discovered at runtime and blocked by gitleaks. Kubeconfigs live in `~/.kube/`.
-- **Secrets with SOPS + age.** The private key lives only in WSL. Ansible decrypts on the controller and creates the bootstrap Secrets with `no_log` (see [ADR 002](docs/adr/002-sops-age-secrets.md)). App secrets are committed encrypted next to the app, and ArgoCD decrypts them with KSOPS using the cluster's own age key (see [ADR 004](docs/adr/004-ksops.md)).
+- **Secrets with SOPS + age.** The control node holds its own age key, and a separate recovery key lives only in the password manager (see [ADR 016](docs/adr/016-control-node-raspberry-pi.md)). Ansible decrypts on the controller and creates the bootstrap Secrets with `no_log` (see [ADR 002](docs/adr/002-sops-age-secrets.md)). App secrets are committed encrypted next to the app, and ArgoCD decrypts them with KSOPS using the cluster's own age key (see [ADR 004](docs/adr/004-ksops.md)).
 - **The laptops never suspend, and a power outage never takes anything down without warning.** The `power` role (cluster laptop and NAS; see [ADR 012](docs/adr/012-power-management.md)):
   - ignores the lid in `systemd-logind` and masks the sleep targets;
   - locks GNOME so it does not suspend on inactivity;
@@ -30,35 +30,40 @@ WSL (control)  ──ssh over Tailscale──▶  laptop (Ubuntu 26.04)
   - powering back on is manual (open the Acer lid, press the NAS button): both BIOSes ignore the RTC alarm. Wake-on-LAN automation is tracked in issue #23.
   - Charge limit: neither firmware supports one (the ADR records what was tried).
 - **Ubuntu updates without surprises.** The `os_updates` role runs unattended-upgrades at 05:15 with idle CPU and I/O priority, and takes the kernel (`linux-*`) out of the automatic run: kernels only through `make kernel-upgrade`, which reboots and validates the cluster. See [ADR 010](docs/adr/010-notebook-os-updates.md).
-- **Versions pinned with sha256** for k3s (installer), helm, kubectl, sops, age, kubeconform, kube-linter and kustomize. The hello-world image is pinned by digest.
+- **Versions pinned with sha256** for k3s (installer), helm, kubectl, sops, age, Tailscale, the OpenTelemetry collector, kubeconform, kube-linter and kustomize (one sha256 per architecture, x86_64 and aarch64). The hello-world image is pinned by digest.
 - **One source per version.** Chart versions live only in [kubernetes/apps/values.yaml](kubernetes/apps/values.yaml), which Ansible also reads during the bootstrap.
 
 ## Prerequisites (once)
 
-### 1. WSL on this machine
+### 1. Tools
+
+On the control node, `make control-node` installs the runtime tools for you (see [Control node](#control-node-raspberry-pi)). On a development machine (WSL today):
 
 ```bash
 make deps                 # tools with pinned version/sha256 in ~/.local/bin + Ansible collections
 pre-commit install
 ```
 
-The repo can live under `/mnt/c/...`. The `Makefile` exports `ANSIBLE_CONFIG`, because under `/mnt/c` Ansible ignores the `ansible.cfg` of a world-writable directory. Commit **from WSL** so the hooks run; if one slips through, the CI `lint` job runs the same hooks.
+`make deps` installs everything on x86_64 and only the runtime tools (no pre-commit, ansible-lint or kubeconform) on aarch64. The repo can live under `/mnt/c/...`. The `Makefile` exports `ANSIBLE_CONFIG`, because under `/mnt/c` Ansible ignores the `ansible.cfg` of a world-writable directory. Commit **from WSL** so the hooks run; if one slips through, the CI `lint` job runs the same hooks.
 
 ### 2. SSH access to the laptop
+
+The control node's own SSH key is authorized by Ansible (`make control-access`, add only; see [Control node](#control-node-raspberry-pi)). For a first machine that has no key on the hosts yet, `ssh-copy-id` still works:
 
 ```bash
 ssh-copy-id <user>@<magicdns-hostname>
 cp ansible/inventory/inventory.example.yaml ansible/inventory/local.yaml   # and fill it in
 ```
 
-### 3. age key
+### 3. age keys
+
+Each machine that edits secrets has its own age identity, and one **recovery** key exists only in the password manager. The control node creates its identity itself (`make control-node` prints its public key). Create the recovery key once:
 
 ```bash
-age-keygen -o ~/.config/sops/age/keys.txt
-age-keygen -y ~/.config/sops/age/keys.txt   # public key → replace it in .sops.yaml
+age-keygen   # public key (age1...) → .sops.yaml, `recovery`; private key (AGE-SECRET-KEY-1...) → password manager only
 ```
 
-Keep `keys.txt` in your password manager. Without that file the secrets cannot be decrypted.
+Never commit or paste the private part. Every public key goes in `.sops.yaml`, followed by `sops updatekeys <file>` on each `*.sops.yaml`. Without a private key that is a recipient, the secrets cannot be decrypted.
 
 ### 4. Tailscale (admin console)
 
@@ -69,17 +74,46 @@ Keep `keys.txt` in your password manager. Without that file the secrets cannot b
    ```
 2. Under Trust credentials, create an **OAuth client** with the *Devices Core* and *Auth Keys* (write) scopes and the `tag:k8s-operator` tag.
 3. Under DNS, keep **MagicDNS** and **HTTPS Certificates** enabled.
+4. For the control node, add `"tag:control-node": ["autogroup:admin"]` under `tagOwners`, then create a **tagged, pre-authorized auth key** (Settings → Keys) with that tag. It goes in `ansible/secrets/secrets.sops.yaml` as `tailscale_auth_key`; it is only used while the Pi is not logged in.
 
 ### 5. Secrets
 
 ```bash
 cp ansible/secrets/secrets.example.yaml ansible/secrets/secrets.sops.yaml
-sops ansible/secrets/secrets.sops.yaml   # fill in the OAuth client id/secret
+sops ansible/secrets/secrets.sops.yaml   # fill in the OAuth client id/secret and the control node's tailscale_auth_key
 ```
 
 If the file already exists in plain text, encrypt it with `sops --encrypt --in-place ...`. The `sops-encrypted` hook blocks committing a decrypted file.
 
 Also fill in `sops_age_cluster_key` with the cluster's age private key, which KSOPS uses. Generate it with `age-keygen` and put the matching public key in `.sops.yaml`, in the `kubernetes/` rule.
+
+## Control node (Raspberry Pi)
+
+The playbooks run from a Raspberry Pi 3B (Debian 13, aarch64, wired, on the tailnet with `tag:control-node`). Why and what it costs: [ADR 016](docs/adr/016-control-node-raspberry-pi.md). Everything on it is Ansible (`ansible/control-node.yaml`):
+
+| Role | What it sets up |
+|---|---|
+| `control_node_base` | system updates, `unattended-upgrades`, `log2ram`, no swap |
+| `control_node_tailscale` | pinned arm64 Tailscale; joins the tailnet with `tailscale_auth_key` |
+| `control_node_keys` | the Pi's SSH key and age identity; trusts the laptop's and the NAS's SSH host keys over the tailnet |
+| `control_node_toolchain` | a checkout of this repo, the runtime tools, a copy of `local.yaml` |
+| `control_node_logging` | persistent journal (32 MB) and rotation of the Ansible log |
+| `otel_host_agent` | collector that ships the Ansible runs to the cluster stack |
+
+### Day to day
+
+SSH into the Pi over the tailnet and run the usual targets from its checkout (`~/homelab`): `make plan`, `make apply`, `make idempotency`, `make kubeconfig`. Edit secrets there too (`sops ansible/secrets/secrets.sops.yaml`). Every run is also written to the journal as `homelab-ansible` and traced; a run that ends with `failed=` or `unreachable=` above zero raises the `control-node-apply-failed` alert, and `control-node-silent` fires if the Pi stops reporting.
+
+`make control-node` also refreshes the Pi's checkout (`git_revision`, `main`) and the tools. On the Pi it runs on the local machine; from another machine it connects over SSH.
+
+### Rebuild runbook
+
+Rebuilding the Pi needs only this repo and the password manager (`local.yaml`, the recovery key, 2FA codes). **This runbook has not been executed end to end yet** (ADR 016); fix it where reality differs.
+
+1. Flash Raspberry Pi OS Lite 64-bit (Debian 13) with Raspberry Pi Imager: hostname, user, SSH by public key of the machine that will bootstrap it, ethernet connected.
+2. On a machine that has this repo, `local.yaml` (from the password manager) and a private age key that is a recipient (the recovery key from the password manager works: `export SOPS_AGE_KEY_FILE=<file with the recovery key>`), run `make control-node`. It sets everything up and joins the tailnet. If `tailscale_auth_key` is used or expired, create a new tagged key (see [Tailscale](#4-tailscale-admin-console)) and store it with `sops ansible/secrets/secrets.sops.yaml`.
+3. The new Pi has a **new** age identity and SSH key. Take the age public key printed by the play, replace the old Pi's in `.sops.yaml`, run `sops updatekeys <file>` on every `*.sops.yaml` (with the recovery key), then `make control-access` to authorize the new SSH key. Remove the old Pi's key from the hosts' `authorized_keys` by hand: Ansible never removes keys.
+4. On the new Pi: `make plan`.
 
 ## Immich (photos from the NAS)
 
@@ -120,11 +154,33 @@ Server settings come from `kubernetes/values/immich.yaml` (`immich.configuration
 
 ### Database backup and restore
 
-Immich runs a daily `pg_dump` into `immich-data/backups` on the NAS and keeps 14 copies. To restore into a rebuilt cluster:
-```bash
-gunzip -c <dump>.sql.gz | kubectl -n immich exec -i immich-database-1 -- psql -U postgres -d postgres
-```
-The dump is a `pg_dumpall` and already recreates the `app` database. Run it with `immich-server` stopped (`kubectl -n immich scale deploy/immich-server --replicas=0`), then set `replicas` back to 1. The full procedure is in the Immich docs under *Backup and Restore*.
+Every Postgres (Immich, Home Assistant and the external apps) is backed up by CloudNativePG through the Barman Cloud plugin to RustFS, whose data lives on the NAS (`cnpg-backups`, inside the replicated area). See [ADR 014](docs/adr/014-postgres-backups-barman-rustfs.md).
+
+- **What is kept:**
+  - WAL archived continuously (at most every 5 min while there are writes);
+  - a base backup every day at 02:00;
+  - a 14-day window for restoring to any point in time.
+- **Status:**
+  - `kubectl -n <ns> get cluster <cluster> -o jsonpath='{.status.conditions[?(@.type=="ContinuousArchiving")].message}'`
+  - `kubectl -n <ns> get backups`
+  - The recovery window is in `kubectl -n <ns> get objectstore <cluster>-backup -o jsonpath='{.status}'`.
+- **Alerts:** archiving failing for 15 min (critical) and a base backup older than 26 h (warning), in `base/alerts/backups.yaml`.
+- **Restore into a new cluster:** create a `Cluster` in the same namespace with the source's spec (image, `postgresql`, storage) and, instead of the plugin:
+  ```yaml
+  bootstrap:
+    recovery:
+      source: origin
+      # recoveryTarget: {targetTime: "2026-11-21T16:53:25Z"}   # point in time (UTC); omit for the latest WAL
+  externalClusters:
+    - name: origin
+      plugin:
+        name: barman-cloud.cloudnative-pg.io
+        parameters: {barmanObjectName: <cluster>-backup, serverName: <cluster>}
+  ```
+  - Leave `spec.plugins` out of the new cluster: archiving to the same `serverName` would mix the histories.
+  - To replace the original, stop the app, delete the old `Cluster`, recreate it under the original name with `bootstrap.recovery` and the same `serverName`, then put the `plugins` back.
+  - Tested on 2026-11-21: Immich identical (72 tables, 252,198 rows); Home Assistant PITR stopped exactly at the target.
+- **Old Immich dumps:** Immich's own `pg_dump` (in `immich-data/backups`) is off. The files there are from before ADR 014 and can be removed by hand.
 
 ## Obsidian in the browser (vault on the NAS)
 
@@ -168,7 +224,7 @@ Home Assistant runs in the cluster and opens at `https://casa.<your-tailnet>`. I
 
 ## NAS off-site backup (restic → Hetzner Storage Box)
 
-Every day at 04:00 the `restic-backup` CronJob (namespace `backup`) sends the root of the NAS SSD to a Hetzner Storage Box BX11. It reads over read-only NFS, sends over SFTP with restic encryption and keeps 7 daily, 4 weekly and 6 monthly snapshots. The Storage Box also takes 7 daily snapshots of its own. OpenTofu creates the box (`infra/hetzner/`), with the state encrypted in git. See [ADR 014](docs/adr/014-offsite-backup-hetzner-restic.md).
+Every day at 04:00 the `restic-backup` CronJob (namespace `backup`) sends the root of the NAS SSD to a Hetzner Storage Box BX11. It reads over read-only NFS, sends over SFTP with restic encryption and keeps 7 daily, 4 weekly and 6 monthly snapshots. The Storage Box also takes 7 daily snapshots of its own. OpenTofu creates the box (`infra/hetzner/`), with the state encrypted in git. See [ADR 017](docs/adr/017-offsite-backup-hetzner-restic.md).
 
 The restic SSH key (`infra/hetzner/restic_ed25519.pub` + SOPS Secret) and the repository password are already in the repo. To go live:
 
@@ -199,7 +255,7 @@ The restic SSH key (`infra/hetzner/restic_ed25519.pub` + SOPS Secret) and the re
    ```
    It takes days. Each run is cut at 22h and the next day's run picks up where it stopped; until then the `backup-offsite-stale` alert stays firing.
 
-**Restore** (from WSL, with `restic` installed):
+**Restore** (from a control machine, with `restic` installed):
 ```bash
 sops -d kubernetes/workloads/backup/overlays/nas/restic.sops.yaml > /tmp/restic.yaml
 ```
@@ -300,7 +356,10 @@ Both are optional: without them, apps from public repos with public images alrea
 | `make kernel-upgrade` | Installs the new kernel, reboots the laptop and only removes the old one if the node, Applications, Postgres and AppArmor are OK ([ADR 010](docs/adr/010-notebook-os-updates.md)) |
 | `make kubeconfig` | Writes `~/.kube/notebook.yaml` pointing at `https://<host>.<tailnet>:6443` |
 | `make reset` | Removes k3s (asks for confirmation; does not touch Tailscale or SSH) |
+| `make control-node` | Configures the control node (Pi) with Ansible; on the Pi itself it runs locally ([ADR 016](docs/adr/016-control-node-raspberry-pi.md)) |
+| `make control-access` | Authorizes the Pi's SSH key on the laptop and the NAS (add only) |
 | `make test` | lint + helm unittest + render/kubeconform/kube-linter |
+| `make test-changed` | Only the pre-commit hooks that match the files the branch changed vs `origin/main` (quick check before pushing) |
 
 Normal flow: `make plan` → review the diff → `make apply`.
 
@@ -335,16 +394,20 @@ After the bootstrap, everything inside the cluster is **GitOps**: change `kubern
 
 ### CI ([.github/workflows/ci.yaml](.github/workflows/ci.yaml))
 
+Design, measurements and the reasoning: [ADR 015](docs/adr/015-ci-flow-and-required-checks.md). The control machine tools are installed once and cached (`.github/actions/setup-tools`).
+
 - **lint**: runs pre-commit on every file.
 - **render**: runs `helm unittest` and renders the upstream charts (argo-cd, tailscale-operator, cloudnative-pg, immich, prometheus, loki, tempo, grafana, otel-agent/otel-gateway, opencost) with our values, validating everything with kubeconform.
-- **e2e**: on the `ubuntu-26.04` runner:
+- **e2e** ([e2e.yaml](.github/workflows/e2e.yaml), `lite` profile): runs on a PR only when the change can affect the host bootstrap (Ansible, `kubernetes/bootstrap`, the e2e scripts, the CI definition, the hello-world demo, the ArgoCD chart version; see `scripts/ci-changes.sh`). On the `ubuntu-26.04` runner:
   1. generates an ephemeral age key with dummy secrets;
-  2. runs the full `site.yaml` with `tailscale_enabled=false`, syncing the PR's own SHA;
+  2. runs the full `site.yaml` with `tailscale_enabled=false`, syncing the PR's own SHA; the `root` Application renders only `argocd` and `hello-world` (`apps_minimal`, chart value `minimal`);
   3. runs the playbook again and requires **changed=0**;
-  4. checks that the Applications are Synced/Healthy, that hello-world answers, that the demo Secret was decrypted by KSOPS, that Postgres (CNPG + VectorChord) is ready, that Immich answers `/api/server/ping`, that the external smoke app (the `repotpl-k8s-app` template, in the `homelab-apps` AppProject) answers `/healthz`, and that the Kubernetes metrics and the OpenCost node cost reach Prometheus. In CI, Immich uses `local-path` instead of the NAS;
+  4. checks the node, that `argocd`, `root` and hello-world are Synced/Healthy, and that the demo Secret was decrypted by KSOPS;
   5. runs `reset.yaml`.
+- **e2e-full** ([e2e-full.yaml](.github/workflows/e2e-full.yaml)): the same, but step 4 also checks every Application, that Postgres (CNPG + VectorChord) is ready, that Immich answers `/api/server/ping`, that the external smoke app (the `repotpl-k8s-app` template, in the `homelab-apps` AppProject) answers `/healthz`, and that the Kubernetes metrics and the OpenCost node cost reach Prometheus (in CI, Immich uses `local-path` instead of the NAS). It runs nightly, on demand and on a PR labeled `e2e-full`; it is a canary, not a merge gate.
+- **ci-ok**: the aggregate of the jobs above (a skipped `e2e` counts as passed).
 
-Recommended: branch protection on `main` requiring the `lint`, `render` and `e2e` jobs.
+Recommended: branch protection on `main` requiring only `ci-ok` (a skipped e2e must not block a PR; the ruleset itself is issue #39). Before pushing, `make test-changed` runs the hooks only on what the branch changed.
 
 ## Troubleshooting
 
@@ -356,7 +419,7 @@ Recommended: branch protection on `main` requiring the `lint`, `render` and `e2e
 ## Layout
 
 ```
-ansible/              playbooks (site, reset), roles, example/CI inventory, SOPS secrets
+ansible/              playbooks (site, reset, control-node), roles, example/CI inventory, SOPS secrets
 kubernetes/apps/      app-of-apps Helm chart (ArgoCD Applications) + tests
 kubernetes/values/    values for the upstream charts
 kubernetes/workloads/ workload manifests (kustomize)

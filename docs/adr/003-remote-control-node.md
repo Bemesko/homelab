@@ -1,6 +1,6 @@
 # 003 — Remote control machine (WSL) over SSH through the tailnet
 
-- **Status:** accepted
+- **Status:** accepted; the control machine moved from WSL to a Raspberry Pi in [016](016-control-node-raspberry-pi.md) (the model of Ansible reaching the hosts over SSH through the tailnet stays)
 - **Date:** 2026-10-31
 
 ## Context

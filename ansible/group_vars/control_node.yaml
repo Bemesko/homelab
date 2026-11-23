@@ -1,0 +1,12 @@
+# The control node (Raspberry Pi) reports to the cluster gateway like the laptop does, but under
+# its own service name: the host-silent alert keys on job="homelab-host", so sharing it would let
+# the Pi hide a silent laptop. Only the Ansible runs (SYSLOG_IDENTIFIER homelab-ansible, see the
+# Makefile) are forwarded from its journal; the Ansible OpenTelemetry callback sends its traces to
+# the local receiver.
+otel_host_agent_enabled: true
+otel_host_agent_service_name: control-node
+otel_host_agent_otlp_receiver_enabled: true
+otel_host_agent_journald_matches:
+  - SYSLOG_IDENTIFIER: homelab-ansible
+# The Pi has 1 GB of RAM, shared with log2ram.
+otel_host_agent_memory_limit_mib: 100

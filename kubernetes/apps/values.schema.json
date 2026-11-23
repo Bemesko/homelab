@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft-07/schema#",
   "type": "object",
   "additionalProperties": false,
-  "required": ["repoURL", "targetRevision", "tailscaleOperator", "nasStorage", "apps", "smokeApp", "charts"],
+  "required": ["repoURL", "targetRevision", "minimal", "tailscaleOperator", "nasStorage", "apps", "smokeApp", "charts"],
   "definitions": {
     "chart": {
       "type": "object",
@@ -11,7 +11,7 @@
       "properties": {
         "repoURL": { "type": "string", "pattern": "^(https|oci)://" },
         "chart": { "type": "string", "minLength": 1 },
-        "version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" }
+        "version": { "type": "string", "pattern": "^v?[0-9]+\\.[0-9]+\\.[0-9]+$" }
       }
     },
     "dnsLabel": { "type": "string", "pattern": "^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?$" },
@@ -33,6 +33,7 @@
     "global": { "type": "object" },
     "repoURL": { "type": "string", "pattern": "^https://github\\.com/" },
     "targetRevision": { "type": "string", "minLength": 1 },
+    "minimal": { "type": "boolean" },
     "tailscaleOperator": {
       "type": "object",
       "additionalProperties": false,
@@ -52,7 +53,7 @@
           { "$ref": "#/definitions/dnsLabel" },
           {
             "not": {
-              "enum": ["root", "argocd", "tailscale-operator", "hello-world", "cloudnative-pg", "immich-database", "immich", "obsidian", "home-assistant-database", "home-assistant", "backup", "k8s-app-smoke", "prometheus", "loki", "tempo", "grafana", "otel-agent", "otel-gateway", "observability", "opencost"]
+              "enum": ["root", "argocd", "tailscale-operator", "hello-world", "cloudnative-pg", "immich-database", "immich", "obsidian", "home-assistant-database", "home-assistant", "backup", "k8s-app-smoke", "prometheus", "loki", "tempo", "grafana", "otel-agent", "otel-gateway", "observability", "opencost", "cert-manager", "barman-cloud-plugin", "rustfs"]
             }
           }
         ]
@@ -72,11 +73,14 @@
     "charts": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["argocd", "tailscaleOperator", "cloudnativePg", "immich", "prometheus", "loki", "tempo", "grafana", "opentelemetryCollector", "opencost"],
+      "required": ["argocd", "tailscaleOperator", "cloudnativePg", "immich", "prometheus", "loki", "tempo", "grafana", "opentelemetryCollector", "opencost", "certManager", "barmanCloudPlugin", "rustfs"],
       "properties": {
         "argocd": { "$ref": "#/definitions/chart" },
         "tailscaleOperator": { "$ref": "#/definitions/chart" },
         "cloudnativePg": { "$ref": "#/definitions/chart" },
+        "barmanCloudPlugin": { "$ref": "#/definitions/chart" },
+        "certManager": { "$ref": "#/definitions/chart" },
+        "rustfs": { "$ref": "#/definitions/chart" },
         "immich": { "$ref": "#/definitions/chart" },
         "prometheus": { "$ref": "#/definitions/chart" },
         "loki": { "$ref": "#/definitions/chart" },

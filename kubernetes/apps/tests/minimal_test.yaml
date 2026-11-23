@@ -1,0 +1,32 @@
+suite: minimal profile (CI lite e2e, docs/adr/015)
+templates:
+  - templates/appproject-homelab-apps.yaml
+  - templates/barman-cloud-plugin.yaml
+  - templates/cert-manager.yaml
+  - templates/cloudnative-pg.yaml
+  - templates/external-apps.yaml
+  - templates/grafana.yaml
+  - templates/home-assistant-database.yaml
+  - templates/home-assistant.yaml
+  - templates/immich-database.yaml
+  - templates/immich.yaml
+  - templates/loki.yaml
+  - templates/observability.yaml
+  - templates/obsidian.yaml
+  - templates/opencost.yaml
+  - templates/otel-agent.yaml
+  - templates/otel-gateway.yaml
+  - templates/prometheus.yaml
+  - templates/rustfs.yaml
+  - templates/tempo.yaml
+set:
+  minimal: true
+  nasStorage:
+    enabled: true
+  smokeApp:
+    enabled: true
+tests:
+  - it: renders nothing but argocd, hello-world and the Tailscale operator
+    asserts:
+      - hasDocuments:
+          count: 0

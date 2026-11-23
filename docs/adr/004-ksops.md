@@ -3,6 +3,7 @@
 - **Status:** accepted
 - **Date:** 2026-11-01
 - **Evolves:** [002](002-sops-age-secrets.md)
+- **Updated by:** [016](016-control-node-raspberry-pi.md) (the Pi and a recovery key are also recipients of the app secrets)
 
 ## Context
 

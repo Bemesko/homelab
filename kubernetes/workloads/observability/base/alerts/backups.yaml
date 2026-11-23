@@ -1,0 +1,76 @@
+# Postgres backups (docs/adr/014): WAL archiving and base backups of every CNPG cluster
+# to RustFS on the NAS, through the Barman Cloud plugin. Metrics from the cnpg scrape job.
+# Severities: critical and warning arrive by email; info only shows up in the UI.
+apiVersion: 1
+groups:
+  - orgId: 1
+    name: backups
+    folder: Homelab
+    interval: 1m
+    rules:
+      # Own. Not "time since the last archival": an idle cluster archives nothing for
+      # long stretches (archive_timeout only switches WAL after writes). Failing means the
+      # last attempt failed and nothing has succeeded since: RustFS or the NAS is down, or
+      # the credentials are wrong. Meanwhile the WAL piles up on the laptop disk.
+      - uid: postgres-wal-archiving-failing
+        title: Postgres WAL archiving failing
+        condition: B
+        for: 15m
+        noDataState: OK
+        execErrState: Error
+        labels: {severity: critical}
+        annotations:
+          summary: >-
+            {{ $labels.namespace }}: WAL archiving to RustFS has been failing for 15 min; the
+            WAL piles up on the laptop disk and point-in-time recovery stops at the last success
+        data:
+          - refId: A
+            relativeTimeRange: {from: 600, to: 0}
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              expr: >-
+                max by (namespace) (cnpg_pg_stat_archiver_last_failed_time
+                - cnpg_pg_stat_archiver_last_archived_time)
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: {type: gt, params: [0]}
+
+      # Own. Base backups run daily at 02:00 (ScheduledBackup). The metric comes from the plugin
+      # (cnpg_collector_last_available_backup_timestamp stays 0 with plugin backups). Only clusters that already
+      # had one: a cluster without backups reports 0 (the archiving alert covers setup errors).
+      - uid: postgres-base-backup-stale
+        title: Postgres base backup older than 26h
+        condition: B
+        for: 0s
+        noDataState: OK
+        execErrState: Error
+        labels: {severity: warning}
+        annotations:
+          summary: >-
+            {{ $labels.namespace }}: the last base backup is {{ humanizeDuration $values.A.Value }}
+            old; restores need more WAL replay and retention may be stuck
+        data:
+          - refId: A
+            relativeTimeRange: {from: 600, to: 0}
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              expr: >-
+                max by (namespace) (time() - barman_cloud_cloudnative_pg_io_last_available_backup_timestamp
+                and barman_cloud_cloudnative_pg_io_last_available_backup_timestamp > 0)
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: {type: gt, params: [93600]}

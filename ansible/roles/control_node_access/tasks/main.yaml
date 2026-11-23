@@ -1,0 +1,26 @@
+# The only exception to the no-lockout rule (issue #32): it ADDS public keys for the
+# control node and never removes keys nor touches the SSH server configuration.
+- name: Ensure every control node key is a well-formed public key
+  ansible.builtin.assert:
+    that:
+      # The line must start with a key type (so no options such as command= or from=),
+      # carry the base64 body and an optional comment, and be a single line.
+      - item is match(control_node_access_key_pattern)
+      - (item | string).splitlines() | length == 1
+    fail_msg: "Invalid public key in control_node_access_public_keys: {{ item | truncate(40) }}"
+    quiet: true
+  loop: "{{ control_node_access_public_keys }}"
+
+- name: Ensure ~/.ssh exists for the connection user
+  ansible.builtin.file:
+    path: "{{ ansible_facts['user_dir'] }}/.ssh"
+    state: directory
+    mode: "0700"
+
+- name: Add the control node keys (append only)
+  ansible.builtin.lineinfile:
+    path: "{{ ansible_facts['user_dir'] }}/.ssh/authorized_keys" # lockout-safe: append-only
+    line: "{{ item }}"
+    create: true
+    mode: "0600"
+  loop: "{{ control_node_access_public_keys }}"

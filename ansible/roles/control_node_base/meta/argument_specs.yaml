@@ -1,0 +1,12 @@
+argument_specs:
+  main:
+    short_description: Base system of the control node (Raspberry Pi OS trixie, updates, log2ram, no swap)
+    options:
+      control_node_base_release:
+        type: str
+        required: false
+        default: trixie
+      control_node_base_log2ram_version:
+        type: str
+        required: false
+        default: 1.7.2+ds-1

@@ -1,4 +1,4 @@
-# Daily restic: root of the NAS SSD -> Hetzner Storage Box (ADR 014).
+# Daily restic: root of the NAS SSD -> Hetzner Storage Box (ADR 017).
 # In base (CI) the same script runs against a local repository in /tmp, with a test
 # password; overlays/nas swaps /config for the SOPS Secret and /source for the NFS PVC.
 apiVersion: batch/v1

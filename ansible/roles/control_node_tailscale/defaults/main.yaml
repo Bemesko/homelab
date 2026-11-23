@@ -1,0 +1,10 @@
+# Pinned static Tailscale build for arm64 (pkgs.tailscale.com has no published .sha256; computed from the download).
+control_node_tailscale_version: 1.104.7
+control_node_tailscale_arm64_sha256: d6bed2720310b328b861f943d7b4016c5358a9bad60575eb51e8143b79068484
+control_node_tailscale_archive_url: "https://pkgs.tailscale.com/stable/tailscale_{{ control_node_tailscale_version }}_arm64.tgz"
+# UDP port tailscaled listens on (Tailscale's default).
+control_node_tailscale_port: 41641
+# Tag the node registers with; the tagOwners entry lives in the Tailscale ACL (manual, issue #32).
+control_node_tailscale_tag: tag:control-node
+# Pre-auth key from ansible/secrets/secrets.sops.yaml. Used only while the node is not logged in.
+control_node_tailscale_auth_key: "{{ tailscale_auth_key | default('') }}"

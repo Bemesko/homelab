@@ -1,0 +1,37 @@
+{{- if not .Values.minimal }}
+# Issues the mTLS certificates of the Barman Cloud plugin (docs/adr/014).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cert-manager
+  namespace: argocd
+  annotations:
+    # Before the plugin (wave 1), which creates Issuer/Certificate resources.
+    argocd.argoproj.io/sync-wave: "0"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  sources:
+    - repoURL: {{ .Values.charts.certManager.repoURL }}
+      chart: {{ .Values.charts.certManager.chart }}
+      targetRevision: {{ .Values.charts.certManager.version | quote }}
+      helm:
+        releaseName: cert-manager
+        valueFiles:
+          - $values/kubernetes/values/cert-manager.yaml
+    - repoURL: {{ .Values.repoURL }}
+      targetRevision: {{ .Values.targetRevision }}
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cert-manager
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      # The cert-manager CRDs exceed the client-side apply annotation limit.
+      - ServerSideApply=true
+{{- end }}

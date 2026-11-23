@@ -1,3 +1,4 @@
+{{- if not .Values.minimal }}
 # Logs (receives OTLP from the otel-gateway). See docs/adr/008.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -30,3 +31,4 @@ spec:
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
+{{- end }}

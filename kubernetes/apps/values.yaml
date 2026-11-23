@@ -3,6 +3,10 @@
 repoURL: https://github.com/Bemesko/homelab
 targetRevision: main
 
+# true only in the CI lite e2e (docs/adr/015): only argocd, hello-world and the Tailscale operator
+# are rendered, so the runner is not busy syncing Immich, Postgres or the observability stack.
+minimal: false
+
 tailscaleOperator:
   # false only in CI (no tailnet): removes the operator and the Tailscale Ingresses.
   enabled: true
@@ -26,7 +30,11 @@ apps:
   # Shopping list PWA (Nuxt 4) → https://grocery-ops.<your-tailnet>
   grocery-ops:
     repoURL: https://github.com/Bemesko/grocery-ops
-    targetRevision: v0.6.0
+    targetRevision: v0.8.0
+  # Household finances PWA (Nuxt 4 + Postgres by CloudNativePG) → https://bernats-finances.<your-tailnet>
+  bernats-finances:
+    repoURL: https://github.com/bernats-homelab/bernats-finances-v4
+    targetRevision: v0.8.0
 
 # The template itself as an external app, enabled only in CI (Ansible external_apps_smoke_enabled):
 # the e2e proves the external repo -> AppProject -> Application path. Use a published tag.
@@ -45,11 +53,25 @@ charts:
   tailscaleOperator:
     repoURL: https://pkgs.tailscale.com/helmcharts
     chart: tailscale-operator
-    version: 1.104.2
+    version: 1.104.7
   cloudnativePg:
     repoURL: https://cloudnative-pg.github.io/charts
     chart: cloudnative-pg
     version: 0.29.1
+  # Postgres backups (docs/adr/014): the Barman Cloud plugin needs CNPG >= 1.30 and
+  # cert-manager (it talks to the operator over mTLS); RustFS is the S3 store, on the NAS.
+  barmanCloudPlugin:
+    repoURL: https://cloudnative-pg.github.io/charts
+    chart: plugin-barman-cloud
+    version: 0.9.0
+  certManager:
+    repoURL: https://charts.jetstack.io
+    chart: cert-manager
+    version: v1.21.3
+  rustfs:
+    repoURL: https://charts.rustfs.com
+    chart: rustfs
+    version: 1.0.6
   immich:
     # OCI only: the immich-charts HTTP repo was discontinued.
     repoURL: oci://ghcr.io/immich-app/immich-charts

@@ -35,6 +35,14 @@ nas_storage_volumes:
     read_only: false
     write_test: true
     capacity: 5Gi
+  # RustFS data: the S3 store of the Postgres backups (docs/adr/014).
+  - name: rustfs-data
+    export: backups
+    namespace: rustfs
+    access_mode: ReadWriteOnce
+    read_only: false
+    write_test: true
+    capacity: 50Gi
   # Same export as the photos (SSD root), read-only, for the off-site backup restic.
   # Its own PV because the claimRef binds each PV to a single PVC.
   - name: backup-source
