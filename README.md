@@ -37,7 +37,7 @@ Pi (control)   ──ssh over Tailscale──▶  laptop (Ubuntu 26.04)
 
 ### 1. Tools
 
-On the control node, `make control-node` installs the runtime tools for you (see [Control node](#control-node-raspberry-pi)). On a development machine (WSL today):
+On the control node, `make control-node` installs the runtime tools for you (see [Control node](#control-node-raspberry-pi)). On a development machine (Linux x86_64, for example WSL):
 
 ```bash
 make deps                 # tools with pinned version/sha256 in ~/.local/bin + Ansible collections
@@ -204,7 +204,7 @@ The vault reaches the phone through the NAS's Syncthing. Together with power man
 - **Inventory:** fill in the `nas` group from `inventory.example.yaml`. It takes `ansible_user: root`, `nas_syncthing_home` (a directory on the data disk, off the system USB stick), `nas_syncthing_devices` and `nas_syncthing_folders`.
   - `nas_syncthing_devices` is the **complete** list: a device that is not in it is removed.
   - A folder outside `nas_syncthing_folders` is not deleted; it only produces a warning.
-- **SSH:** the WSL key must be in the NAS's `/root/.ssh/authorized_keys`, and the NAS host key in WSL's `known_hosts` (run `ssh root@<nas>` once and accept). `host_key_checking` stays on.
+- **SSH:** the control node's key must be in the NAS's `/root/.ssh/authorized_keys` (`make control-access` adds it), and the NAS host key in the control node's `known_hosts` (the `control_node_keys` role scans it). `host_key_checking` stays on.
 - **Apply:** `make plan` and `make apply`. The second play (`hosts: nas`) installs the `.deb` pinned in `group_vars/all` and enables `syncthing@<user>` at boot. Then it applies options, devices and folders through the REST API. Any change made through the GUI to those items reverts to the inventory on the next apply.
 - **Pair a new device:** add its ID to `nas_syncthing_devices` (and to the folder's `devices`), run `make apply` and accept on the other side.
 - **GUI:** listens only on `127.0.0.1:8384`. To open it in the browser:
@@ -259,7 +259,7 @@ Logs, metrics and traces from the cluster, the laptop and the NAS arrive over OT
    ```bash
    sops encrypt --in-place kubernetes/workloads/<app>/base/<name>.sops.yaml
    ```
-   `.sops.yaml` picks the recipients by path (WSL + cluster) and encrypts only `data`/`stringData`.
+   `.sops.yaml` picks the recipients by path (the Pi, the recovery key and the cluster) and encrypts only `data`/`stringData`.
 2. Declare a KSOPS generator in the kustomization. The template is [secret-generator.yaml](kubernetes/workloads/hello-world/base/secret-generator.yaml):
    ```yaml
    generators:

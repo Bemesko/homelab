@@ -1,6 +1,5 @@
 # PUBLIC age keys. The first rule that matches the path wins.
-#   wsl       age1fskv...  private only on WSL (~/.config/sops/age/keys.txt, backup in KeePass); goes away when the PC is discarded (issue #32)
-#   pi        age1r4vw...  private only on the control node (Raspberry Pi), created by the control_node_keys role
+#   pi       age1r4vw...  private only on the control node (Raspberry Pi), created by the control_node_keys role
 #   recovery  age129cs...  private only in KeePass; opens everything if the Pi or the PC is lost
 #   cluster   age1kn09...  private in the Secret argocd/sops-age (created by Ansible from ansible/secrets)
 #   ci        age13jef...  PUBLIC private key in tests/ci-age.key; only for the hello-world demo (e2e)
@@ -9,7 +8,6 @@ creation_rules:
   # Bootstrap secrets (Ansible): only the people/machines that run it and the recovery key.
   - path_regex: (^|/)ansible/secrets/[^/]+\.sops\.yaml$
     age: >-
-      age1fskvnv59jkjddglqvsllm3d54qtd6xl0u00utexhd0t0vddlfp8qe2plxs,
       age1r4vwme89tzzh35xnzavk3lh03ytkhrzy59vf75a9fhp8z6nr4ewq4z8z2t,
       age129csa3f9ejq6l3dgh5h6nkcyw2d8k06dsugfvwzmzrfzc5y93yustvsrln
 
@@ -17,7 +15,6 @@ creation_rules:
   - path_regex: (^|/)kubernetes/workloads/hello-world/.+\.sops\.yaml$
     unencrypted_regex: ^(apiVersion|metadata|kind|type)$
     age: >-
-      age1fskvnv59jkjddglqvsllm3d54qtd6xl0u00utexhd0t0vddlfp8qe2plxs,
       age1r4vwme89tzzh35xnzavk3lh03ytkhrzy59vf75a9fhp8z6nr4ewq4z8z2t,
       age129csa3f9ejq6l3dgh5h6nkcyw2d8k06dsugfvwzmzrfzc5y93yustvsrln,
       age1kn09fr57m2vz4jhpw6e8k9qswm0sl702h6kecry5rn0kpjyyuf4sf33yde,
@@ -27,7 +24,6 @@ creation_rules:
   - path_regex: (^|/)kubernetes/.+\.sops\.yaml$
     unencrypted_regex: ^(apiVersion|metadata|kind|type)$
     age: >-
-      age1fskvnv59jkjddglqvsllm3d54qtd6xl0u00utexhd0t0vddlfp8qe2plxs,
       age1r4vwme89tzzh35xnzavk3lh03ytkhrzy59vf75a9fhp8z6nr4ewq4z8z2t,
       age129csa3f9ejq6l3dgh5h6nkcyw2d8k06dsugfvwzmzrfzc5y93yustvsrln,
       age1kn09fr57m2vz4jhpw6e8k9qswm0sl702h6kecry5rn0kpjyyuf4sf33yde

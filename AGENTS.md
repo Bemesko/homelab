@@ -2,7 +2,7 @@
 
 - Ansible (ansible-core 2.21, collections pinned in `ansible/requirements.yml`) for the host bootstrap
 - Single-node k3s; ArgoCD (app-of-apps in Helm) for everything inside the cluster; kustomize for workloads
-- SOPS + age for secrets; the private key lives only on the control machine (WSL)
+- SOPS + age for secrets; the private key lives only on the control node (the Raspberry Pi), plus a recovery key in KeePass
 - Control-machine tools with version + sha256 pinned in `scripts/setup-control-node.sh`, one sha256 per architecture (x86_64 and aarch64); `--runtime` (the Pi's default) skips the dev/test tools
 
 # Repository Layout
@@ -24,7 +24,7 @@
 - Grafana dashboards: only through `scripts/vendor-dashboards.sh` (version + sha256 in `dashboards.lock`, tweaks in `patches/*.jq`); never paste dashboard JSON by hand (our own dashboards live in `dashboards/<folder>/`, outside the lock). Alert rules: `base/alerts/*.yaml`, with `severity` critical, warning or info
 - External apps always by `vX.Y.Z` tag (never a branch) and in the `homelab-apps` AppProject; the GitHub App and GHCR credentials only in `ansible/secrets/` (optional)
 - App secrets: `*.sops.yaml` next to the app + a KSOPS generator; encrypt at the final path (`.sops.yaml` picks the recipients). Never use the CI test key (`tests/ci-age.key`, public) outside `kubernetes/workloads/hello-world/`
-- Bootstrap secrets (`ansible/secrets/`) are encrypted for the WSL key, the Pi's key and the recovery key (private part only in KeePass); never for the cluster or the CI key. The WSL key leaves the recipients when the PC is discarded (issue #32)
+- Bootstrap secrets (`ansible/secrets/`) are encrypted for the Pi's key and the recovery key (private part only in KeePass); never for the cluster or the CI key. Edit secrets on the Pi; no other machine holds an age key (issue #32)
 - The NAS (openmediavault) is configured through its own UI: NEVER create tasks that change the NAS, with two exceptions: Syncthing through the `nas_syncthing` role (ADR 011) and power management through the `power` role (ADR 012). The `nas_storage` role only checks the exports and creates the PVs; the hostname, paths and Syncthing IDs live in `local.yaml`
 - Immich/Postgres images by digest; the Immich version lives in `kubernetes/values/immich.yaml` (the chart does not follow the releases)
 - Everything in the repo is written in English (docs, comments, task names, alerts, log messages)
