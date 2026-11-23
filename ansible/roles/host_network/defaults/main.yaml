@@ -5,6 +5,9 @@ host_network_wired_interface: enp2s0f1
 # must share the ID. The first task checks it and stops before any change if it is missing.
 host_network_netplan_id: "{{ host_network_wired_interface }}"
 host_network_netplan_file: /etc/netplan/60-homelab-ethernet.yaml
+# Wake-on-LAN on the wired port: the laptop powers on when the control node sends a magic packet after
+# the power returns (issue #23, ADR 018). The BIOS setting and the cable are still needed.
+host_network_wake_on_lan: true
 # NetworkManager wifi.powersave: 2 = disable, 3 = enable (what the laptop had).
 host_network_wifi_powersave: 2
 host_network_wifi_conf_file: /etc/NetworkManager/conf.d/homelab-wifi-powersave.conf

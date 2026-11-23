@@ -8,5 +8,7 @@ otel_host_agent_service_name: control-node
 otel_host_agent_otlp_receiver_enabled: true
 otel_host_agent_journald_matches:
   - SYSLOG_IDENTIFIER: homelab-ansible
+  # The boot-time Wake-on-LAN sender (ADR 018): its window and results reach Loki.
+  - SYSLOG_IDENTIFIER: homelab-wol
 # The Pi has 1 GB of RAM, shared with log2ram.
 otel_host_agent_memory_limit_mib: 100

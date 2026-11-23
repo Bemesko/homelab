@@ -10,6 +10,10 @@ argument_specs:
         type: str
         required: false
         description: Netplan ID the installer uses for the wired port; the role extends it, so it must match.
+      host_network_wake_on_lan:
+        type: bool
+        required: false
+        description: "Arms the wired port for a Wake-on-LAN magic packet (issue 23, ADR 018)."
       host_network_wifi_powersave:
         type: int
         required: false

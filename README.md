@@ -27,7 +27,7 @@ Pi (control)   ──ssh over Tailscale──▶  laptop (Ubuntu 26.04)
   - ignores the lid in `systemd-logind` and masks the sleep targets;
   - locks GNOME so it does not suspend on inactivity;
   - runs a guard that, without external power, warns (alert `host-on-battery`) and shuts down at 10% battery;
-  - powering back on is manual (open the Acer lid, press the NAS button): both BIOSes ignore the RTC alarm. Wake-on-LAN automation is tracked in issue #23.
+  - powering back on: both BIOSes ignore the RTC alarm, so the control node sends Wake-on-LAN packets after its own boot (see [Wake-on-LAN](#wake-on-lan-hosts-back-after-a-power-cut-issue-23), ADR 018). If a host still stays off, open the Acer lid or press the NAS button by hand.
   - Charge limit: neither firmware supports one (the ADR records what was tried).
 - **Ubuntu updates without surprises.** The `os_updates` role runs unattended-upgrades at 05:15 with idle CPU and I/O priority, and takes the kernel (`linux-*`) out of the automatic run: kernels only through `make kernel-upgrade`, which reboots and validates the cluster. See [ADR 010](docs/adr/010-notebook-os-updates.md).
 - **Versions pinned with sha256** for k3s (installer), helm, kubectl, sops, age, Tailscale, the OpenTelemetry collector, kubeconform, kube-linter and kustomize (one sha256 per architecture, x86_64 and aarch64). The hello-world image is pinned by digest.
@@ -144,6 +144,30 @@ sudo rm /etc/netplan/60-homelab-ethernet.yaml /etc/NetworkManager/conf.d/homelab
 sudo netplan apply
 sudo nmcli general reload conf
 ```
+
+## Wake-on-LAN (hosts back after a power cut, issue #23)
+
+After a power cut, the control node (the Pi) boots when the power returns. Its boot sends a Wake-on-LAN magic packet to each host that does not answer a ping, every minute, for 15 minutes. Why and the risks: [ADR 018](docs/adr/018-wake-on-lan-from-control-node.md).
+
+**Hardware (once, with someone at home):**
+
+1. **Router:** a DHCP reservation for the **wired** MAC of the NAS and of the laptop. The control node pings those addresses, so they must not change.
+2. **NAS (ThinkPad T400):** BIOS (F1 at boot) → *Config* → *Network* → **Wake On LAN** (`AC Only` is enough). Then in the OMV UI: *Network* → *Interfaces* → edit the wired interface → tick **Wake on LAN**. Check on the NAS: `ethtool <interface> | grep Wake-on` shows `g`.
+3. **Laptop (Acer A515-51G):** BIOS (F2) → *Main* → **Wake on LAN** = *Enabled* (keep *Lid Open Resume*). The Linux side is set by Ansible (`host_network`, `wakeonlan: true`); check it with `sudo ethtool enp2s0f1 | grep Wake-on` (it shows `g`). The cable must be connected: Wi-Fi does not wake from power off.
+4. Note each wired MAC (`ip -br link`) and LAN address (`ip -br addr`).
+
+**Inventory** (`ansible/inventory/local.yaml`, not versioned):
+
+- under the `notebook` and `nas` hosts: `wol_sender_mac: <mac>` and `wol_sender_address: <lan-ip>`;
+- under the `control` host: `wol_sender_enabled: true`.
+
+Then run `make control-node` on the Pi from `main` (`make` applies the checked-out branch). It enables the boot unit `homelab-wol.service`; it never starts it, so a playbook run sends nothing. Check with `journalctl -t homelab-wol` on the Pi.
+
+**Tests** (issue #23's exit criteria; close the issue only after they pass):
+
+1. Power off the NAS, then on the Pi: `sudo /usr/local/sbin/homelab-wol --once` (the same script as at boot). Watch the NAS come back, about 6 minutes. Repeat for the laptop, about 5 minutes.
+2. Battery-empty case (the risk noted in the issue): with the wall power cut for a few minutes, bring the power back and check whether each host woke. If the NAS does not, the BIOS does not re-arm after a battery-less power cut: record it in ADR 018.
+3. Full test: cut the power to everything for a while, bring it back, and check that both hosts return with nobody touching them.
 
 ## Immich (photos from the NAS)
 

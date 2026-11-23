@@ -42,4 +42,4 @@ The hook still blocks any task that changes Tailscale, SSH, the firewall or the 
 - **log2ram comes from the Debian archive**, pinned by version and verified by apt's signature, not by a sha256 in the repo like the downloaded binaries. The Debian package was already installed, and a third-party repository would have added a trust root for no gain.
 - **Everything the Pi does is visible through the same stack** as the other hosts, with its own `service.name` so that `host-silent` (keyed on `homelab-host`) cannot be masked by the Pi's series.
 - **Not tested yet:** rebuilding the Pi on a clean SD card from the repo and the password manager, as the runbook describes. Until someone does, treat the runbook as unverified; the issue keeps that item open.
-- **Wake-on-LAN (#23)** can reuse this Pi: it is wired, boots when power returns and already has an Ansible role set.
+- **Wake-on-LAN (#23)** reuses this Pi: it is wired, boots when power returns and already has an Ansible role set. The `wol_sender` role adds the boot-time sender ([ADR 018](018-wake-on-lan-from-control-node.md)).
