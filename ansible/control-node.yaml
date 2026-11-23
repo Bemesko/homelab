@@ -16,6 +16,8 @@
     - role: control_node_tailscale
       when: tailscale_enabled | bool
       tags: [tailscale]
+    - role: control_node_ssh
+      tags: [ssh]
     - role: control_node_keys
       tags: [keys]
     - role: control_node_toolchain

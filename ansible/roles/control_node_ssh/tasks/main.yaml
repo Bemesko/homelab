@@ -1,0 +1,46 @@
+# Issue #32: the person who operates the control node logs in with a password from the tailnet or
+# the home network, so no key has to be carried to every device. Public keys keep working
+# everywhere. The file is validated before it is written and the server is only reloaded.
+# The 10- prefix makes it the first file the main config includes: the first value of a keyword
+# wins, so the global `no` is ours and the Match block opens the exception.
+- name: Allow password login only from the tailnet and the home network
+  ansible.builtin.copy:
+    dest: /etc/ssh/sshd_config.d/10-control-node-password.conf
+    owner: root
+    group: root
+    mode: "0644"
+    validate: /usr/sbin/sshd -t -f %s
+    content: |
+      # {{ ansible_managed }}
+      PasswordAuthentication no
+      Match Address {{ control_node_ssh_password_networks | join(',') }}
+          PasswordAuthentication yes
+  notify: Reload ssh
+
+# Apply the change now, so the checks below see it.
+- name: Reload ssh if the configuration changed
+  ansible.builtin.meta: flush_handlers
+
+- name: Read the effective setting for a connection from inside the allowed networks
+  ansible.builtin.command: /usr/sbin/sshd -T -C user=root,host=control,addr={{ control_node_ssh_check_inside }}
+  register: control_node_ssh_inside
+  changed_when: false
+  check_mode: false
+
+- name: Read the effective setting for a connection from outside them
+  ansible.builtin.command: /usr/sbin/sshd -T -C user=root,host=control,addr={{ control_node_ssh_check_outside }}
+  register: control_node_ssh_outside
+  changed_when: false
+  check_mode: false
+
+- name: Ensure password login is on inside and off outside
+  ansible.builtin.assert:
+    that:
+      - "'passwordauthentication yes' in control_node_ssh_inside.stdout"
+      - "'passwordauthentication no' in control_node_ssh_outside.stdout"
+    fail_msg: >-
+      The effective sshd configuration does not match: password login must be allowed from
+      {{ control_node_ssh_check_inside }} and refused from {{ control_node_ssh_check_outside }}.
+      Check that /etc/ssh/sshd_config includes /etc/ssh/sshd_config.d/*.conf.
+    success_msg: Password login is limited to the tailnet and the home network.
+  when: not ansible_check_mode
