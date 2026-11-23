@@ -41,6 +41,10 @@ otel_host_agent_enabled: false
 # manages the NAS Syncthing (ADR 011). CI has no `nas` group.
 nas_syncthing_enabled: false
 
+# true only on the laptop (host var in ansible/inventory/local.yaml): wired-first network with a
+# rollback (issue #24, ADR 017). CI has no laptop network to change.
+host_network_enabled: false
+
 # true only on the NAS (host var in ansible/inventory/local.yaml): applies the power role
 # on the NAS (lid, sleep, battery guard; ADR 012). CI has no `nas` group.
 nas_power_enabled: false

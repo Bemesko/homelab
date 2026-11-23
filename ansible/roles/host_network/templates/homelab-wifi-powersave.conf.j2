@@ -1,0 +1,5 @@
+# Managed by Ansible (homelab, role host_network, ADR 017). Local edits are overwritten.
+# NetworkManager reads conf.d in name order and the last file wins. Ubuntu ships
+# default-wifi-powersave-on.conf (wifi.powersave = 3), so this name must sort after "default-".
+[connection]
+wifi.powersave = {{ host_network_wifi_powersave }}

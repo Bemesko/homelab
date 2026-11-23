@@ -3,3 +3,9 @@ write-kubeconfig-mode: "0600"
 disable:
   - traefik
 tls-san: {{ k3s_tls_sans | to_json }}
+{% if tailscale_enabled | bool %}
+# The node keeps its tailnet address whichever port carries the default route, and flannel
+# stays on the tailnet interface (ADR 017).
+node-ip: "{{ k3s_node_ip }}"
+flannel-iface: tailscale0
+{% endif %}

@@ -1,0 +1,5 @@
+# Managed by Ansible (homelab, role k3s, ADR 017). Local edits are overwritten.
+# k3s takes its node IP from the Tailscale address, which exists only once the daemon has started.
+[Unit]
+After=tailscaled.service
+Wants=tailscaled.service

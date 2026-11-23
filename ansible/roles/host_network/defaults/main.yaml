@@ -1,0 +1,14 @@
+# Wired-first network for the cluster laptop (issue #24, ADR 017). The installer's netplan leaves the
+# Ethernet port without DHCP, so the default route stays on Wi-Fi.
+host_network_wired_interface: enp2s0f1
+# The netplan ID the installer uses for that port. This role extends it with DHCP, so the two files
+# must share the ID. The first task checks it and stops before any change if it is missing.
+host_network_netplan_id: "{{ host_network_wired_interface }}"
+host_network_netplan_file: /etc/netplan/60-homelab-ethernet.yaml
+# NetworkManager wifi.powersave: 2 = disable, 3 = enable (what the laptop had).
+host_network_wifi_powersave: 2
+host_network_wifi_conf_file: /etc/NetworkManager/conf.d/homelab-wifi-powersave.conf
+# A change that cannot be verified in time is undone by a transient timer after this many seconds.
+host_network_rollback_seconds: 180
+host_network_rollback_script: /usr/local/sbin/homelab-host-network-rollback
+host_network_state_dir: /var/lib/homelab-host-network

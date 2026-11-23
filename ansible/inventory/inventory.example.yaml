@@ -18,6 +18,8 @@ all:
             obsidian: </export/borbsidian>
             home_assistant: </export/home-assistant>
             backups: </export/cnpg-backups>
+          # Wired-first network: DHCP on the Ethernet port, Wi-Fi power saving off, rollback on failure (ADR 017).
+          host_network_enabled: true
           # OpenTelemetry Collector on the host (journald + metrics) -> cluster gateway.
           otel_host_agent_enabled: true
           otel_host_agent_endpoint: <gateway-magicdns-name>:4317
