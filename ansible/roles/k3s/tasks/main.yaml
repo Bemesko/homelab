@@ -118,6 +118,19 @@
     state: started
   when: not ansible_check_mode or k3s_installed_version | length > 0
 
+# After a restart the API server can refuse connections or answer 503 "starting" for a few
+# seconds (on 2026-11-23 the local endpoint was reconfigured when the node IP changed, ADR 017).
+# Everything after this role talks to the API, so wait until it reports ready.
+- name: Wait for the API server to be ready
+  ansible.builtin.command: /usr/local/bin/k3s kubectl get --raw=/readyz
+  register: k3s_readyz
+  changed_when: false
+  check_mode: false
+  retries: 60
+  delay: 5
+  until: k3s_readyz.rc == 0 and k3s_readyz.stdout == 'ok'
+  when: not ansible_check_mode or k3s_installed_version | length > 0
+
 - name: Wait for the node to be Ready
   ansible.builtin.command: /usr/local/bin/k3s kubectl wait --for=condition=Ready node --all --timeout=300s
   changed_when: false

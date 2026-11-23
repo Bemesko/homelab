@@ -134,8 +134,8 @@ make apply   # k3s restarts once
 **Failover test** (the exit criteria of issue #24; close the issue only after it passes):
 
 1. The default route goes through the cable: `ip -4 route show default` lists `dev enp2s0f1` first. `NetworkManager --print-config | grep -i powersave` shows `2`. `kubectl get node -o wide` shows the tailnet address as INTERNAL-IP.
-2. With the cable connected, turn the Wi-Fi radio off: `nmcli radio wifi off`. From another device on the tailnet, check `ssh` to the laptop and `kubectl get nodes`. If the SSH session drops, the tailnet should still work through the cable; reconnect and check.
-3. Turn the radio back on: `nmcli radio wifi on`.
+2. With the cable connected, turn the Wi-Fi radio off: `sudo nmcli radio wifi off` (without `sudo` it answers "Not authorized"). From another device on the tailnet, check `ssh` to the laptop and `kubectl get nodes`. If the SSH session drops, the tailnet should still work through the cable; reconnect and check.
+3. Turn the radio back on: `sudo nmcli radio wifi on`.
 
 **To undo by hand** (disabling the role does not remove these files):
 
