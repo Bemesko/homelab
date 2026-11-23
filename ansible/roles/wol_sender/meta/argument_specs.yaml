@@ -1,0 +1,20 @@
+argument_specs:
+  main:
+    short_description: "Wake-on-LAN from the control node after a power cut (issue 23, ADR 018)"
+    options:
+      wol_sender_enabled:
+        type: bool
+        required: false
+        description: Enables the boot-time sender. Set only on the control node.
+      wol_sender_window_seconds:
+        type: int
+        required: false
+        description: Seconds after the boot during which the hosts are woken.
+      wol_sender_interval_seconds:
+        type: int
+        required: false
+        description: Seconds between two rounds of magic packets.
+      wol_sender_interface:
+        type: str
+        required: false
+        description: Interface for the magic packet; empty uses the default route.

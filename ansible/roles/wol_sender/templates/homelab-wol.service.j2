@@ -1,0 +1,23 @@
+# Managed by Ansible (homelab), role wol_sender. See ADR 018.
+# Oneshot at boot: the Pi boots when the power returns, so the boot starts the window.
+# Ansible only enables it. It is never started by a playbook run, or a `make control-node` would send packets.
+[Unit]
+Description=Wake the hosts that do not answer after the power returns (Wake-on-LAN)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+SyslogIdentifier=homelab-wol
+Environment=HOMELAB_WOL_CONF=/etc/homelab-wol.conf
+Environment=HOMELAB_WOL_WINDOW={{ wol_sender_window_seconds }}
+Environment=HOMELAB_WOL_INTERVAL={{ wol_sender_interval_seconds }}
+{% if wol_sender_interface %}
+Environment=HOMELAB_WOL_IFACE={{ wol_sender_interface }}
+{% endif %}
+ExecStart=/usr/local/sbin/homelab-wol
+# The window is the longest the script waits; the margin covers the last ping.
+TimeoutStartSec={{ wol_sender_window_seconds + 120 }}
+
+[Install]
+WantedBy=multi-user.target

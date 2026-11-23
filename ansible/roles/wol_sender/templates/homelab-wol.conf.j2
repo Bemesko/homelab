@@ -1,0 +1,5 @@
+# Managed by Ansible (homelab), role wol_sender. Read by /usr/local/sbin/homelab-wol. ADR 018.
+# One host per line: name, wired MAC (for the magic packet), LAN address (for the ping).
+{% for host in wol_sender_targets %}
+{{ host.name }} {{ host.mac }} {{ host.address }}
+{% endfor %}

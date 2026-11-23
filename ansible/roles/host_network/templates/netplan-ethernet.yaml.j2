@@ -1,8 +1,12 @@
-# Managed by Ansible (homelab, role host_network, ADR 017). Local edits are overwritten.
-# Netplan merges this with the installer's profile for the same ID: it only turns DHCP on for the wired port.
+# Managed by Ansible (homelab, role host_network, ADR 017, ADR 018). Local edits are overwritten.
+# Netplan merges this with the installer's profile for the same ID: it turns DHCP on for the wired port,
+# and arms the port for a Wake-on-LAN magic packet (ADR 018) when host_network_wake_on_lan is set.
 network:
   version: 2
   ethernets:
     {{ host_network_netplan_id }}:
       dhcp4: true
       dhcp6: true
+{% if host_network_wake_on_lan | bool %}
+      wakeonlan: true
+{% endif %}

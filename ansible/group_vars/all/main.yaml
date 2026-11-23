@@ -45,6 +45,10 @@ nas_syncthing_enabled: false
 # rollback (issue #24, ADR 017). CI has no laptop network to change.
 host_network_enabled: false
 
+# true only on the control node (host var in ansible/inventory/local.yaml): the Pi sends Wake-on-LAN
+# packets after a boot, so the hosts come back when the power returns (issue #23, ADR 018).
+wol_sender_enabled: false
+
 # true only on the NAS (host var in ansible/inventory/local.yaml): applies the power role
 # on the NAS (lid, sleep, battery guard; ADR 012). CI has no `nas` group.
 nas_power_enabled: false

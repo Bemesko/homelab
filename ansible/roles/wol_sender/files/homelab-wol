@@ -1,0 +1,107 @@
+#!/usr/bin/env python3
+# Managed by Ansible (homelab), role wol_sender. See ADR 018.
+#
+# Runs once at boot on the control node (Raspberry Pi). The Pi boots when the power comes back, so its
+# boot is the signal that the house has power again. For a short window it sends a Wake-on-LAN magic
+# packet to each host that does not answer a ping, until every host answers or the window ends.
+#
+# Config: one line per host, "name mac address" (written by Ansible to /etc/homelab-wol.conf).
+#   --once        same as the default run (kept for tests and manual use)
+#   --dry-run     only prints what it would send and ping
+# HOMELAB_WOL_* variables override the paths and timings (tests with a fake host list).
+import os
+import socket
+import subprocess
+import sys
+import time
+
+CONF = os.environ.get("HOMELAB_WOL_CONF", "/etc/homelab-wol.conf")
+WINDOW = int(os.environ.get("HOMELAB_WOL_WINDOW", "900"))
+INTERVAL = int(os.environ.get("HOMELAB_WOL_INTERVAL", "60"))
+# Interface the packet leaves through. Empty: the default route (the Pi has one wired port).
+IFACE = os.environ.get("HOMELAB_WOL_IFACE", "")
+# Ping command; tests replace it with a fake that answers from a file.
+PING = os.environ.get("HOMELAB_WOL_PING", "ping -c 1 -W 2")
+BROADCAST = "255.255.255.255"
+WOL_PORT = 9
+
+dry_run = "--dry-run" in sys.argv[1:]
+
+
+def log(message):
+    # systemd writes stdout to the journal under SyslogIdentifier=homelab-wol (the unit sets it).
+    print(message, flush=True)
+
+
+def read_hosts(path):
+    hosts = []
+    with open(path, encoding="utf-8") as conf:
+        for line in conf:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            name, mac, address = line.split()
+            hosts.append((name, mac, address))
+    return hosts
+
+
+def answers(address):
+    # A ping only reads the network, so dry-run still pings; only the magic packet is held back.
+    command = PING.split() + [address]
+    if dry_run:
+        log(f"dry-run: {' '.join(command)}")
+    return subprocess.run(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False).returncode == 0
+
+
+def magic_packet(mac):
+    raw = bytes.fromhex(mac.replace(":", "").replace("-", ""))
+    return b"\xff" * 6 + raw * 16
+
+
+def send_wol(name, mac):
+    if dry_run:
+        log(f"dry-run: Wake-on-LAN to {name} ({mac})")
+        return
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+            if IFACE:
+                sock.setsockopt(socket.SOL_SOCKET, socket.SO_BINDTODEVICE, IFACE.encode())
+            sock.sendto(magic_packet(mac), (BROADCAST, WOL_PORT))
+        log(f"sending Wake-on-LAN to {name}")
+    except OSError as error:
+        # The router may still be starting: try again at the next interval.
+        log(f"could not send Wake-on-LAN to {name}: {error}")
+
+
+def main():
+    hosts = read_hosts(CONF)
+    if not hosts:
+        log("no hosts in the Wake-on-LAN list; nothing to do")
+        return 0
+
+    started = time.monotonic()
+    pending = {name: (mac, address) for name, mac, address in hosts}
+    while pending:
+        elapsed = time.monotonic() - started
+        if elapsed >= WINDOW:
+            break
+        for name in list(pending):
+            mac, address = pending[name]
+            if answers(address):
+                log(f"{name} answered after {int(elapsed)} s")
+                del pending[name]
+            else:
+                send_wol(name, mac)
+        if pending and not dry_run:
+            time.sleep(INTERVAL)
+        elif dry_run:
+            break
+
+    for name in pending:
+        log(f"{name} did not answer within the window")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

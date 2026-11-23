@@ -1,0 +1,66 @@
+# Wake-on-LAN from the control node (issue #23, ADR 018). The Pi sends the packets; the hosts only
+# need their own Wake-on-LAN setting (BIOS, OMV UI, and the `host_network` role for the laptop).
+# Hosts come from the inventory: any host of the k3s and nas groups that sets wol_sender_mac.
+
+- name: Collect the hosts that take a Wake-on-LAN packet
+  ansible.builtin.set_fact:
+    wol_sender_targets: >-
+      {{ (wol_sender_targets | default([])) + [{'name': item,
+         'mac': hostvars[item].wol_sender_mac,
+         'address': hostvars[item].wol_sender_address}] }}
+  loop: "{{ (groups['k3s_server'] | default([])) + (groups['nas'] | default([])) }}"
+  when: hostvars[item].wol_sender_mac is defined
+  loop_control:
+    label: "{{ item }}"
+
+# A typo in the inventory would send packets to nowhere, or ping a wrong address: check the format first.
+- name: Ensure every Wake-on-LAN host has a valid MAC and address
+  ansible.builtin.assert:
+    that:
+      - item.mac is match('^([0-9a-fA-F]{2}[:-]){5}[0-9a-fA-F]{2}$')
+      - item.address is match('^([0-9]{1,3}\.){3}[0-9]{1,3}$')
+    fail_msg: "{{ item.name }}: wol_sender_mac or wol_sender_address is not valid (MAC aa:bb:cc:dd:ee:ff, IPv4 address)."
+  loop: "{{ wol_sender_targets | default([]) }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Ensure the Wake-on-LAN list is not empty
+  ansible.builtin.assert:
+    that:
+      - wol_sender_targets | default([]) | length > 0
+    fail_msg: "No host sets wol_sender_mac in the inventory; nothing for the control node to wake."
+
+- name: Write the Wake-on-LAN host list
+  ansible.builtin.template:
+    src: homelab-wol.conf.j2
+    dest: "{{ wol_sender_conf_file }}"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Install the Wake-on-LAN script
+  ansible.builtin.copy:
+    src: homelab-wol
+    dest: "{{ wol_sender_script }}"
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install the boot unit
+  ansible.builtin.template:
+    src: homelab-wol.service.j2
+    dest: /etc/systemd/system/homelab-wol.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload systemd
+
+- name: Run the handlers before enabling the unit
+  ansible.builtin.meta: flush_handlers
+
+# Enabled, never started: the unit runs at the next boot. Starting it here would send packets now.
+- name: Enable the boot unit (it runs at the next boot, not now)
+  ansible.builtin.systemd_service:
+    name: homelab-wol.service
+    enabled: true
+  when: not ansible_check_mode

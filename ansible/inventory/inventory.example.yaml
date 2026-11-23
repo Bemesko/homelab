@@ -23,12 +23,17 @@ all:
           # OpenTelemetry Collector on the host (journald + metrics) -> cluster gateway.
           otel_host_agent_enabled: true
           otel_host_agent_endpoint: <gateway-magicdns-name>:4317
+          # Wake-on-LAN (issue #23, ADR 018): the wired MAC and the LAN address the control node pings.
+          wol_sender_mac: <wired-mac-aa:bb:cc:dd:ee:ff>
+          wol_sender_address: <lan-ip>
     # Control node (Raspberry Pi 3B, issue #32): runs `make control-node` by hand.
     control_node:
       hosts:
         control:
           ansible_host: <control-node-magicdns-hostname>
           ansible_user: <user>
+          # Sends the Wake-on-LAN packets after a boot (issue #23, ADR 018).
+          wol_sender_enabled: true
     # NAS: Ansible only manages Syncthing (ADR 011) and power (ADR 012); the rest is done in the OMV UI.
     nas:
       hosts:
@@ -38,6 +43,9 @@ all:
           nas_syncthing_enabled: true
           # Lid, sleep and battery guard (ADR 012).
           nas_power_enabled: true
+          # Wake-on-LAN (issue #23, ADR 018): the wired MAC and the LAN address the control node pings.
+          wol_sender_mac: <wired-mac-aa:bb:cc:dd:ee:ff>
+          wol_sender_address: <lan-ip>
           # State (config, keys, index) on the data disk, off the USB stick.
           nas_syncthing_home: </srv/dev-disk-by-uuid-.../appdata/syncthing>
           # Complete list: devices not in it are removed.

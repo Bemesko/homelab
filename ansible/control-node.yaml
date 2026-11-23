@@ -24,6 +24,9 @@
       tags: [toolchain]
     - role: control_node_logging
       tags: [logging]
+    - role: wol_sender
+      when: wol_sender_enabled | bool
+      tags: [wol]
     - role: otel_host_agent
       when: otel_host_agent_enabled | bool
       tags: [otel]
