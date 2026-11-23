@@ -1,0 +1,4 @@
+- name: Reload the NetworkManager configuration
+  ansible.builtin.command: nmcli general reload conf
+  changed_when: true
+  when: not ansible_check_mode

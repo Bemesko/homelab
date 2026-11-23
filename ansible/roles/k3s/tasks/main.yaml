@@ -17,6 +17,14 @@
     state: directory
     mode: "0755"
 
+# The node IP must be an address the node really has, or k3s would start with a wrong one (ADR 017).
+- name: Ensure the tailnet address for the node IP is known
+  ansible.builtin.assert:
+    that:
+      - k3s_node_ip | length > 0
+    fail_msg: No IPv4 tailnet address was found for the k3s node IP. Check that Tailscale is running.
+  when: tailscale_enabled | bool
+
 - name: Configure k3s
   ansible.builtin.template:
     src: config.yaml.j2
@@ -25,6 +33,38 @@
     group: root
     mode: "0600"
   notify: Restart k3s
+
+# k3s starts after the Tailscale daemon, so that the node IP exists at boot (ADR 017).
+# Restart=always in the k3s unit covers the rare case where the address is still not there.
+- name: Create the k3s unit drop-in directory
+  ansible.builtin.file:
+    path: /etc/systemd/system/k3s.service.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  when: tailscale_enabled | bool
+
+- name: Order k3s after the Tailscale daemon
+  ansible.builtin.template:
+    src: k3s-after-tailscale.conf.j2
+    dest: /etc/systemd/system/k3s.service.d/10-after-tailscale.conf
+    owner: root
+    group: root
+    mode: "0644"
+  when: tailscale_enabled | bool
+  notify:
+    - Reload systemd
+    - Restart k3s
+
+- name: Remove the k3s ordering drop-in when Tailscale is off
+  ansible.builtin.file:
+    path: /etc/systemd/system/k3s.service.d/10-after-tailscale.conf
+    state: absent
+  when: not (tailscale_enabled | bool)
+  notify:
+    - Reload systemd
+    - Restart k3s
 
 # Pulls the private GHCR images (the org's external apps) without an imagePullSecret per app.
 # Without a token in the secrets (CI), the file does not exist.

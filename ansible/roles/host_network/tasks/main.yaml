@@ -1,0 +1,194 @@
+# Wired-first network on the cluster laptop (issue #24, ADR 017). This role only ADDS a DHCP profile
+# to the wired port and a Wi-Fi power-save setting. It never removes the Wi-Fi profile and never
+# touches Tailscale, sshd or the firewall.
+
+- name: Read the ethernet IDs that netplan merges (read-only)
+  ansible.builtin.command: netplan get ethernets
+  register: host_network_ethernets
+  changed_when: false
+  check_mode: false
+
+# Netplan merges files that share an ID. A different ID would configure the same port twice.
+- name: Ensure the wired port has the netplan ID this role extends
+  ansible.builtin.assert:
+    that:
+      - host_network_netplan_id in ((host_network_ethernets.stdout | from_yaml) or {})
+    fail_msg: >-
+      netplan has no ethernet ID {{ host_network_netplan_id }}. Set host_network_netplan_id to the ID
+      that /etc/netplan/*.yaml uses for {{ host_network_wired_interface }}, so the two files merge.
+
+- name: Create the state directory for the rollback
+  ansible.builtin.file:
+    path: "{{ host_network_state_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+
+- name: Check the wired profile that is in place now
+  ansible.builtin.stat:
+    path: "{{ host_network_netplan_file }}"
+  register: host_network_netplan_stat
+
+# Keeps the profile as it is before this run, so the rollback can restore it.
+- name: Keep the current wired profile for the rollback
+  ansible.builtin.copy:
+    src: "{{ host_network_netplan_file }}"
+    dest: "{{ host_network_state_dir }}/previous.yaml"
+    remote_src: true
+    owner: root
+    group: root
+    mode: "0600"
+  when: host_network_netplan_stat.stat.exists
+
+- name: Forget the previous wired profile when there was none
+  ansible.builtin.file:
+    path: "{{ host_network_state_dir }}/previous.yaml"
+    state: absent
+  when: not host_network_netplan_stat.stat.exists
+
+- name: Install the rollback script
+  ansible.builtin.copy:
+    src: homelab-host-network-rollback
+    dest: "{{ host_network_rollback_script }}"
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Enable DHCP on the wired port
+  ansible.builtin.template:
+    src: netplan-ethernet.yaml.j2
+    dest: "{{ host_network_netplan_file }}"
+    owner: root
+    group: root
+    mode: "0600"
+  register: host_network_netplan
+
+# Applied only after netplan validates it, and undone if it cannot be verified. The timer is the backstop:
+# it also undoes the change when Ansible loses its connection, which the manual `netplan try` cannot do.
+- name: Apply the wired profile with a rollback
+  when: host_network_netplan.changed and not ansible_check_mode
+  block:
+    - name: Stop a rollback timer left over from an earlier run
+      ansible.builtin.systemd_service:
+        name: homelab-host-network-rollback.timer
+        state: stopped
+      failed_when: false
+
+    - name: Arm the rollback timer
+      ansible.builtin.command: >-
+        systemd-run --unit=homelab-host-network-rollback --on-active={{ host_network_rollback_seconds }}s --collect
+        {{ host_network_rollback_script }} {{ host_network_netplan_file }} {{ host_network_state_dir }}/previous.yaml
+      changed_when: true
+
+    - name: Validate the netplan configuration
+      ansible.builtin.command: netplan generate
+      changed_when: false
+
+    - name: Apply the netplan configuration
+      ansible.builtin.command: netplan apply
+      changed_when: true
+
+    - name: Read the carrier of the wired port
+      ansible.builtin.command: cat /sys/class/net/{{ host_network_wired_interface }}/carrier
+      register: host_network_carrier_applied
+      changed_when: false
+      failed_when: false
+
+    # Without a cable there is no lease to wait for; the change then only waits in place.
+    - name: Wait for a default route through the wired port
+      ansible.builtin.command: ip -4 route show default dev {{ host_network_wired_interface }}
+      register: host_network_wired_route
+      changed_when: false
+      until: host_network_wired_route.stdout | length > 0
+      retries: 20
+      delay: 3
+      when: host_network_carrier_applied.stdout | default('') == '1'
+
+    - name: Ping the router through the wired port
+      ansible.builtin.command: >-
+        ping -c 2 -W 3 -I {{ host_network_wired_interface }}
+        {{ host_network_wired_route.stdout.split()[2] }}
+      changed_when: false
+      when: host_network_carrier_applied.stdout | default('') == '1'
+
+    - name: Read the Tailscale status (read-only)
+      ansible.builtin.command: tailscale status --json
+      register: host_network_tailscale
+      changed_when: false
+
+    - name: Ensure Tailscale still runs after the change
+      ansible.builtin.assert:
+        that:
+          - (host_network_tailscale.stdout | from_json).BackendState == 'Running'
+        fail_msg: Tailscale is not Running after the wired profile was applied.
+
+    - name: Stop the rollback timer (the change is verified)
+      ansible.builtin.systemd_service:
+        name: homelab-host-network-rollback.timer
+        state: stopped
+  rescue:
+    - name: Restore the previous wired profile
+      ansible.builtin.command: >-
+        {{ host_network_rollback_script }} {{ host_network_netplan_file }} {{ host_network_state_dir }}/previous.yaml
+      changed_when: true
+
+    - name: Stop the rollback timer
+      ansible.builtin.systemd_service:
+        name: homelab-host-network-rollback.timer
+        state: stopped
+      failed_when: false
+
+    - name: Report the rolled-back change
+      ansible.builtin.fail:
+        msg: >-
+          The wired profile could not be verified and was rolled back. Check the cable, the router and
+          journalctl -u homelab-host-network-rollback.
+
+- name: Turn off Wi-Fi power saving
+  ansible.builtin.template:
+    src: homelab-wifi-powersave.conf.j2
+    dest: "{{ host_network_wifi_conf_file }}"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload the NetworkManager configuration
+
+# Checks: they warn and never fail, so a missing cable does not stop the other roles.
+- name: Read the carrier of the wired port (read-only)
+  ansible.builtin.command: cat /sys/class/net/{{ host_network_wired_interface }}/carrier
+  register: host_network_carrier
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: Read the default route (read-only)
+  ansible.builtin.command: ip -4 route show default
+  register: host_network_default_route
+  changed_when: false
+  check_mode: false
+
+- name: Warn when the default route does not use the wired port
+  ansible.builtin.debug:
+    msg: >-
+      The default route is not through {{ host_network_wired_interface }} (ADR 017). First route:
+      {{ host_network_default_route.stdout_lines | first | default('none') }}
+  when:
+    - host_network_carrier.stdout | default('') == '1'
+    - host_network_wired_interface not in (host_network_default_route.stdout_lines | first | default(''))
+
+- name: Read the negotiated speed of the wired port (read-only)
+  ansible.builtin.command: cat /sys/class/net/{{ host_network_wired_interface }}/speed
+  register: host_network_speed
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: Warn when the wired port is not negotiated at gigabit
+  ansible.builtin.debug:
+    msg: >-
+      {{ host_network_wired_interface }} negotiated {{ host_network_speed.stdout | default('unknown') }} Mbps.
+      Check the cable and the router port (issue #24).
+  when:
+    - host_network_carrier.stdout | default('') == '1'
+    - (host_network_speed.stdout | default('0') | int(0)) < 1000

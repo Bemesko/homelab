@@ -20,7 +20,7 @@ Pi (control)   ──ssh over Tailscale──▶  laptop (Ubuntu 26.04)
 
 ## Safety guarantees
 
-- **No lockout.** The playbook never touches Tailscale, SSH, the firewall or the host network. The `tailscale_check` role only reads the status, and the `no-lockout` hook blocks any task that tries to change those things.
+- **No lockout.** The playbook never touches Tailscale, SSH or the firewall. The one change to the host network is the `host_network` role (issue #24, [ADR 017](docs/adr/017-notebook-wired-network.md)), which only adds a DHCP profile for the wired port and a Wi-Fi setting, with a rollback. The `tailscale_check` role only reads the status, and the `no-lockout` hook blocks any task that tries to change those things.
 - **Nothing identifiable in the repo.** The real inventory lives in `ansible/inventory/local.yaml` (ignored by git and blocked by a hook). The tailnet name (`*.ts.net`) is discovered at runtime and blocked by gitleaks. Kubeconfigs live in `~/.kube/`.
 - **Secrets with SOPS + age.** The control node holds its own age key, and a separate recovery key lives only in the password manager (see [ADR 016](docs/adr/016-control-node-raspberry-pi.md)). Ansible decrypts on the controller and creates the bootstrap Secrets with `no_log` (see [ADR 002](docs/adr/002-sops-age-secrets.md)). App secrets are committed encrypted next to the app, and ArgoCD decrypts them with KSOPS using the cluster's own age key (see [ADR 004](docs/adr/004-ksops.md)).
 - **The laptops never suspend, and a power outage never takes anything down without warning.** The `power` role (cluster laptop and NAS; see [ADR 012](docs/adr/012-power-management.md)):
@@ -115,6 +115,35 @@ Rebuilding the Pi needs only this repo and the password manager (`local.yaml`, t
 2. On a machine that has this repo, `local.yaml` (from the password manager) and a private age key that is a recipient (the recovery key from the password manager works: `export SOPS_AGE_KEY_FILE=<file with the recovery key>`), run `make control-node`. It sets everything up and joins the tailnet. If `tailscale_auth_key` is used or expired, create a new tagged key (see [Tailscale](#4-tailscale-admin-console)) and store it with `sops ansible/secrets/secrets.sops.yaml`.
 3. The new Pi has a **new** age identity and SSH key. Take the age public key printed by the play, replace the old Pi's in `.sops.yaml`, run `sops updatekeys <file>` on every `*.sops.yaml` (with the recovery key), then `make control-access` to authorize the new SSH key. Remove the old Pi's key from the hosts' `authorized_keys` by hand: Ansible never removes keys.
 4. On the new Pi: `make plan`.
+
+## Notebook network (wired first, issue #24)
+
+The cluster laptop uses its Ethernet port when the cable is connected, and Wi-Fi stays as the standby. The `host_network` role does this on the Ansible side ([ADR 017](docs/adr/017-notebook-wired-network.md)):
+
+- **DHCP on the wired port,** through `/etc/netplan/60-homelab-ethernet.yaml`. The change is validated, applied and then checked: the default route, a ping to the router through the cable, and Tailscale. A failed check restores the previous profile at once. A transient timer does the same if Ansible loses its connection.
+- **Wi-Fi power saving off,** in `/etc/NetworkManager/conf.d/homelab-wifi-powersave.conf`.
+- **k3s node IP is the laptop's tailnet address,** so it does not change when the default route moves. The k3s unit starts after the Tailscale daemon.
+
+Enable it in `ansible/inventory/local.yaml`, under the `notebook` host, with `host_network_enabled: true`. Then, with someone at home, run it from `main` (`make` applies the checked-out branch to the real hosts):
+
+```bash
+make plan    # review: netplan, NetworkManager, k3s config and the k3s unit drop-in
+make apply   # k3s restarts once
+```
+
+**Failover test** (the exit criteria of issue #24; close the issue only after it passes):
+
+1. The default route goes through the cable: `ip -4 route show default` lists `dev enp2s0f1` first. `NetworkManager --print-config | grep -i powersave` shows `2`. `kubectl get node -o wide` shows the tailnet address as INTERNAL-IP.
+2. With the cable connected, turn the Wi-Fi radio off: `nmcli radio wifi off`. From another device on the tailnet, check `ssh` to the laptop and `kubectl get nodes`. If the SSH session drops, the tailnet should still work through the cable; reconnect and check.
+3. Turn the radio back on: `nmcli radio wifi on`.
+
+**To undo by hand** (disabling the role does not remove these files):
+
+```bash
+sudo rm /etc/netplan/60-homelab-ethernet.yaml /etc/NetworkManager/conf.d/homelab-wifi-powersave.conf
+sudo netplan apply
+sudo nmcli general reload conf
+```
 
 ## Immich (photos from the NAS)
 
@@ -345,7 +374,7 @@ After the bootstrap, everything inside the cluster is **GitOps**: change `kubern
 | `gitleaks` (+ `AGE-SECRET-KEY` and `*.ts.net` rules) | No secrets and no tailnet name in the repo |
 | `sops-encrypted` | Every `*.sops.yaml` is encrypted (only `apiVersion`/`kind`/`metadata`/`type` may stay in plain text, via `unencrypted_regex`); the CI's public test key is not used outside the demo |
 | `no-local-inventory`, `no-kubeconfig` | Hostname/user and kubeconfigs are not committed |
-| `no-lockout` | No task changes Tailscale, SSH, the firewall or the host network |
+| `no-lockout` | No task changes Tailscale, SSH, the firewall or the host network, except the control node's Tailscale and SSH roles (ADR 016) and `host_network` (ADR 017) |
 | `yamllint --strict`, `ansible-lint` (profile `production`) | YAML/Ansible quality, FQCN, `changed_when`, permissions |
 | `shellcheck`, `shfmt` | Scripts |
 | `actionlint` | CI workflow |
