@@ -33,6 +33,7 @@ Wi-Fi power saving was on (`wifi.powersave = 3`).
 
 - **Cluster networking depends on `tailscaled`.** Flannel runs over `tailscale0`, whose MTU is 1280. Pod traffic that leaves the node goes through the tailnet.
 - **A new exception to `no-lockout`:** `ansible/roles/host_network/` is excluded from the hook, like the control node's Tailscale and SSH roles ([016](016-control-node-raspberry-pi.md)). The role only adds the wired profile and the Wi-Fi setting. It never removes the Wi-Fi profile, never touches Tailscale or sshd, and always arms the rollback.
+- **A fixed address is optional ([ADR 018](018-wake-on-lan-from-control-node.md)).** When `host_network_static_address` is set, the wired profile carries that IPv4 address instead of DHCP, under the same rollback. IPv6 stays on DHCP, and the Wi-Fi profile is never touched.
 - **Turning the role off does not undo it.** Setting `host_network_enabled: false` only stops Ansible from managing the files. To undo the change by hand, see the README.
 - **The first apply restarts k3s once,** because the node IP and the unit ordering change.
 - **The rollback protects the network, not k3s.** A wrong `node-ip` is not rolled back. If the node misbehaves, revert the two lines in `config.yaml.j2` and run `make apply`.

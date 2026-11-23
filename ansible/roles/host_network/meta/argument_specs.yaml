@@ -14,6 +14,19 @@ argument_specs:
         type: bool
         required: false
         description: "Arms the wired port for a Wake-on-LAN magic packet (issue 23, ADR 018)."
+      host_network_static_address:
+        type: str
+        required: false
+        description: "Fixed IPv4 address of the wired port in CIDR form (192.168.1.13/24); empty keeps DHCP."
+      host_network_static_gateway:
+        type: str
+        required: false
+        description: Default gateway for the fixed address; required when the address is set.
+      host_network_static_nameservers:
+        type: list
+        elements: str
+        required: false
+        description: DNS servers for the fixed address; empty uses the gateway.
       host_network_wifi_powersave:
         type: int
         required: false

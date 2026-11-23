@@ -24,6 +24,11 @@ The control node (Raspberry Pi 3B, [ADR 016](016-control-node-raspberry-pi.md)) 
 5. **The NAS is configured by hand.** Its BIOS and the OMV UI (Wake on LAN on the interface) are not managed by Ansible, as in [ADR 011](011-syncthing-nas-ansible.md).
 6. **The boot is the window.** The sender runs only in the window after its own boot, so a host that is off for maintenance is not woken by a later playbook run, but it is woken if the Pi itself restarts (see the consequences).
 
+7. **The addresses are fixed on the hosts, not reserved at the router.** The control node pings the LAN address, so it must not change.
+   - **Laptop:** `host_network_static_address` (CIDR), `host_network_static_gateway` and optionally `host_network_static_nameservers` in the inventory. The `host_network` role replaces DHCP for IPv4 on the wired port with that address, under the same rollback ([ADR 017](017-notebook-wired-network.md)). The role checks that the address equals `wol_sender_address`, so the two cannot drift apart.
+   - **NAS:** fixed by hand in the OMV UI. Ansible does not touch the NAS network.
+   - **Both** addresses must lie outside the router's DHCP range, or the router may give the same address to another device.
+
 ## Alternatives considered
 
 - **Keep the RTC:** rejected by the tests of 2026-11-14/15 (see Context).
@@ -36,6 +41,8 @@ The control node (Raspberry Pi 3B, [ADR 016](016-control-node-raspberry-pi.md)) 
 
 - **The Pi restarts for other reasons, and it wakes the hosts.** Any reboot of the Pi (a kernel update, a power blip that does not cut the hosts) starts the 15-minute window. A host that was turned off on purpose is powered on in that window. The unattended upgrades on the Pi do not reboot it (no `Automatic-Reboot`), so a reboot is always someone's action. **Accepted.** If it bothers, the next step is a file that the operator creates before a planned shutdown, which the script respects.
 - **Battery-less cut (the G3 case from the issue):** many BIOSes re-arm Wake-on-LAN only on the next boot, so a host whose battery is empty may not wake. The NAS is the likeliest case: its battery has 6% of its capacity and lasts under a minute. The test in the README decides this. If it fails, the NAS stays a manual case, and the alert below will say so.
+- **A fixed address can collide.** Nothing stops the router from handing the same address to another device if it lies inside the DHCP range, and nothing at the router knows the hosts use it. Check the range when you pick the addresses. If the router is ever replaced, the fixed addresses must be checked against its new range.
+- **The laptop depends on its fixed address being right.** A wrong gateway cuts the wired route, which the rollback of the `host_network` role detects and undoes. The tailnet keeps working through Wi-Fi, so SSH to the laptop does not depend on this address.
 - **Wi-Fi does not wake.** The laptop needs its cable, and the Pi sends the packet through its own wired port.
 - **The alert needs Loki, and Loki runs on the laptop.** The `wol-host-no-answer` alert (warning) fires when the Pi logs "did not answer". If the laptop itself is the host that did not wake, Loki is down too, so the alert then only covers the NAS. The log also stays in the Pi's journal (`journalctl -t homelab-wol`).
 - **No new exception to `no-lockout`.** The `wol_sender` role sends UDP packets and touches no Tailscale, SSH or firewall setting. The laptop's `wakeonlan` change sits in the `host_network` role, which already has its exception ([ADR 017](017-notebook-wired-network.md)).

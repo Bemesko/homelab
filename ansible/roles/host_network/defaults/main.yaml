@@ -8,6 +8,13 @@ host_network_netplan_file: /etc/netplan/60-homelab-ethernet.yaml
 # Wake-on-LAN on the wired port: the laptop powers on when the control node sends a magic packet after
 # the power returns (issue #23, ADR 018). The BIOS setting and the cable are still needed.
 host_network_wake_on_lan: true
+# Fixed IPv4 address for the wired port, as a CIDR ("192.168.1.13/24"). Empty keeps DHCP. The control node
+# pings this address after a power cut (ADR 018), so it must not change. Keep it outside the router's DHCP
+# range, or two devices may get the same address. Set it in ansible/inventory/local.yaml, not in the repo.
+host_network_static_address: ""
+host_network_static_gateway: ""
+# DNS servers for the fixed address; empty uses the gateway.
+host_network_static_nameservers: []
 # NetworkManager wifi.powersave: 2 = disable, 3 = enable (what the laptop had).
 host_network_wifi_powersave: 2
 host_network_wifi_conf_file: /etc/NetworkManager/conf.d/homelab-wifi-powersave.conf

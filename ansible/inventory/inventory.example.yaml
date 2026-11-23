@@ -20,6 +20,10 @@ all:
             backups: </export/cnpg-backups>
           # Wired-first network: DHCP on the Ethernet port, Wi-Fi power saving off, rollback on failure (ADR 017).
           host_network_enabled: true
+          # Optional fixed LAN address for the wired port (ADR 018). Keep it outside the router's DHCP range,
+          # and use the same address in wol_sender_address below. Leave both out to keep DHCP.
+          host_network_static_address: <lan-ip>/24
+          host_network_static_gateway: <router-ip>
           # OpenTelemetry Collector on the host (journald + metrics) -> cluster gateway.
           otel_host_agent_enabled: true
           otel_host_agent_endpoint: <gateway-magicdns-name>:4317

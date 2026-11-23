@@ -151,7 +151,9 @@ After a power cut, the control node (the Pi) boots when the power returns. Its b
 
 **Hardware (once, with someone at home):**
 
-1. **Router:** a DHCP reservation for the **wired** MAC of the NAS and of the laptop. The control node pings those addresses, so they must not change.
+1. **Addresses:** the control node pings each host's LAN address, so it must not change. Open the router's DHCP server page, note its range, and pick two free addresses **outside** it.
+   - **Laptop:** in `local.yaml`, under `notebook`, set `host_network_static_address: "<ip>/24"` and `host_network_static_gateway: <router-ip>`, with the same `<ip>` in `wol_sender_address`. The `host_network` role applies it, with the rollback.
+   - **NAS:** in the OMV UI, *Network* → *Interfaces* → edit the wired interface → IPv4 method **Static IP**, with the address, the netmask and the router as gateway. Ansible does not touch the NAS network. Do it with someone at home: a typo costs the NAS its LAN.
 2. **NAS (ThinkPad T400):** BIOS (F1 at boot) → *Config* → *Network* → **Wake On LAN** (`AC Only` is enough). Then in the OMV UI: *Network* → *Interfaces* → edit the wired interface → tick **Wake on LAN**. Check on the NAS: `ethtool <interface> | grep Wake-on` shows `g`.
 3. **Laptop (Acer A515-51G):** BIOS (F2) → *Main* → **Wake on LAN** = *Enabled* (keep *Lid Open Resume*). The Linux side is set by Ansible (`host_network`, `wakeonlan: true`); check it with `sudo ethtool enp2s0f1 | grep Wake-on` (it shows `g`). The cable must be connected: Wi-Fi does not wake from power off.
 4. Note each wired MAC (`ip -br link`) and LAN address (`ip -br addr`).
