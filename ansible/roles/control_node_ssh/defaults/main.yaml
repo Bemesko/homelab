@@ -1,0 +1,11 @@
+# Password login is allowed only from these networks: the tailnet and the private ranges of the home
+# network. Everywhere else the server stays key-only. Do not forward port 22 on the modem.
+control_node_ssh_password_networks:
+  - 100.64.0.0/10
+  - fd7a:115c:a1e0::/48
+  - 10.0.0.0/8
+  - 172.16.0.0/12
+  - 192.168.0.0/16
+# Addresses used to check the effective server configuration (one inside the allowed networks, one outside).
+control_node_ssh_check_inside: 100.64.0.1
+control_node_ssh_check_outside: 8.8.8.8

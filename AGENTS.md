@@ -7,7 +7,7 @@
 
 # Repository Layout
 
-- `ansible/`: `site.yaml` (preflight → base → power → tailscale_check → k3s → cluster_bootstrap → otel_host_agent → nas_storage → kubeconfig; then a `hosts: nas` play with `power` and `nas_syncthing`), `reset.yaml`, and `control-node.yaml` (the Raspberry Pi control node, `make control-node`: `control_node_base`, `control_node_tailscale`, `control_node_keys`, `control_node_toolchain`, `control_node_logging` and `otel_host_agent` (arm64, own `service.name`; vars in `group_vars/control_node.yaml`) on the Pi, then `control_node_access` on the laptop and NAS via `make control-access`; arm64 Debian)
+- `ansible/`: `site.yaml` (preflight → base → power → tailscale_check → k3s → cluster_bootstrap → otel_host_agent → nas_storage → kubeconfig; then a `hosts: nas` play with `power` and `nas_syncthing`), `reset.yaml`, and `control-node.yaml` (the Raspberry Pi control node, `make control-node`: `control_node_base`, `control_node_tailscale`, `control_node_ssh`, `control_node_keys`, `control_node_toolchain`, `control_node_logging` and `otel_host_agent` (arm64, own `service.name`; vars in `group_vars/control_node.yaml`) on the Pi, then `control_node_access` on the laptop and NAS via `make control-access`; arm64 Debian)
 - `kubernetes/apps/`: app-of-apps chart; `values.yaml` is the SINGLE SOURCE of chart versions (Ansible reads it too)
 - `kubernetes/workloads/<app>/{base,overlays/tailscale}`: `base` is what CI uses (no Tailscale)
 - Apps from other repos in the org or the personal `Bemesko` account, public only (template `bernats-homelab/repotpl-k8s-app`): only the entry under `apps:` in `kubernetes/apps/values.yaml`; the kustomize lives in the app repo's `deploy/`
@@ -15,7 +15,7 @@
 
 # Constraints
 
-- The laptop is reached over SSH through the tailnet: NEVER create tasks that change Tailscale, SSH, the firewall or the host network (hook `no-lockout`). The only exceptions are issue #32's: the `control_node_access` role only ADDS the control node's public keys to `authorized_keys`, never removes any and never touches the SSH server config (only that line carries `# lockout-safe`); and the `control_node_tailscale` role, which only runs on the Pi (excluded from the hook in `.pre-commit-config.yaml`)
+- The laptop is reached over SSH through the tailnet: NEVER create tasks that change Tailscale, SSH, the firewall or the host network (hook `no-lockout`). The only exceptions are issue #32's: the `control_node_access` role only ADDS the control node's public keys to `authorized_keys`, never removes any and never touches the SSH server config (only that line carries `# lockout-safe`); the `control_node_tailscale` role, which only runs on the Pi; and the `control_node_ssh` role, which only runs on the Pi and allows SSH password login only from the tailnet and the home network (both excluded from the hook in `.pre-commit-config.yaml`)
 - Never version the hostname, user, tailnet name (`*.ts.net`) or kubeconfig; the real inventory is `ansible/inventory/local.yaml` (gitignored)
 - Every new version comes with a sha256 (binaries) or digest (images)
 - Variables registered/defined in roles carry the role prefix (ansible-lint `production`)

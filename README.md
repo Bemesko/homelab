@@ -95,6 +95,7 @@ The playbooks run from a Raspberry Pi 3B (Debian 13, aarch64, wired, on the tail
 |---|---|
 | `control_node_base` | system updates, `unattended-upgrades`, `log2ram`, no swap |
 | `control_node_tailscale` | pinned arm64 Tailscale; joins the tailnet with `tailscale_auth_key` |
+| `control_node_ssh` | SSH password login for the operator, only from the tailnet and the home network (keys work everywhere) |
 | `control_node_keys` | the Pi's SSH key and age identity; trusts the laptop's and the NAS's SSH host keys over the tailnet |
 | `control_node_toolchain` | a checkout of this repo, the runtime tools, a copy of `local.yaml` |
 | `control_node_logging` | persistent journal (32 MB) and rotation of the Ansible log |
@@ -102,7 +103,7 @@ The playbooks run from a Raspberry Pi 3B (Debian 13, aarch64, wired, on the tail
 
 ### Day to day
 
-SSH into the Pi over the tailnet and run the usual targets from its checkout (`~/homelab`): `make plan`, `make apply`, `make idempotency`, `make kubeconfig`. Edit secrets there too (`sops ansible/secrets/secrets.sops.yaml`). Every run is also written to the journal as `homelab-ansible` and traced; a run that ends with `failed=` or `unreachable=` above zero raises the `control-node-apply-failed` alert, and `control-node-silent` fires if the Pi stops reporting.
+SSH into the Pi over the tailnet (`ssh <user>@<pi-magicdns-name>`; with the Pi user's password from the tailnet or the home network, or with a key) and run the usual targets from its checkout (`~/homelab`): `make plan`, `make apply`, `make idempotency`, `make kubeconfig`. Edit secrets there too (`sops ansible/secrets/secrets.sops.yaml`). Every run is also written to the journal as `homelab-ansible` and traced; a run that ends with `failed=` or `unreachable=` above zero raises the `control-node-apply-failed` alert, and `control-node-silent` fires if the Pi stops reporting.
 
 `make control-node` also refreshes the Pi's checkout (`git_revision`, `main`) and the tools. On the Pi it runs on the local machine; from another machine it connects over SSH.
 
