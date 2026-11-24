@@ -30,6 +30,10 @@ render_local() {
   helm template apps "${APPS_CHART}" --set tailscaleOperator.enabled=false --set nasStorage.enabled=false \
     --set smokeApp.enabled=true
   echo "---"
+  # The off-site backup Application is off by default (offsiteBackup.enabled=false, ADR 019): render it
+  # anyway so its manifest keeps being validated until it is activated.
+  helm template apps "${APPS_CHART}" --set offsiteBackup.enabled=true --show-only templates/backup.yaml
+  echo "---"
   # An example external app, to validate the Application template (apps: {} by default)
   helm template apps "${APPS_CHART}" \
     --set apps.example.repoURL=https://github.com/bernats-homelab/example \

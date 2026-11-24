@@ -14,7 +14,6 @@ creation_rules:
   # OpenTofu (Hetzner token and state passphrase): same recipients as the bootstrap secrets.
   - path_regex: (^|/)infra/[^/]+/[^/]+\.sops\.yaml$
     age: >-
-      age1fskvnv59jkjddglqvsllm3d54qtd6xl0u00utexhd0t0vddlfp8qe2plxs,
       age1r4vwme89tzzh35xnzavk3lh03ytkhrzy59vf75a9fhp8z6nr4ewq4z8z2t,
       age129csa3f9ejq6l3dgh5h6nkcyw2d8k06dsugfvwzmzrfzc5y93yustvsrln
 

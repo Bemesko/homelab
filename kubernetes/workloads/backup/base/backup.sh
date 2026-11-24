@@ -1,5 +1,5 @@
 #!/bin/sh
-# NAS off-site backup (ADR 017). Runs in the restic/restic image (Alpine, busybox sh).
+# NAS off-site backup (ADR 019). Runs in the restic/restic image (Alpine, busybox sh).
 #   /config  RESTIC_REPOSITORY, RESTIC_PASSWORD and, in production, id_ed25519 + known_hosts
 #   /source  what goes into the backup (root of the NAS SSD, read-only NFS)
 #   /cache   restic cache (indexes and trees; speeds up incremental runs)

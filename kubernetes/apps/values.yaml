@@ -16,6 +16,12 @@ nasStorage:
   # false (CI): PVCs on local-path.
   enabled: true
 
+# Off-site NAS backup (restic -> Hetzner Storage Box, docs/adr/019). false until the box exists and the
+# restic Secret is filled in (README, "NAS off-site backup"): the `backup` Application is not rendered.
+# To activate, in one PR: set true here and remove `isPaused` from observability/base/alerts/backup.yaml.
+offsiteBackup:
+  enabled: false
+
 # Apps from other repos (the bernats-homelab org or the personal Bemesko account, public only),
 # created from bernats-homelab/repotpl-k8s-app. Each entry becomes an Application
 # in the homelab-apps AppProject that syncs the repo's deploy/ at the tag pinned here (like the

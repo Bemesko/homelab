@@ -1,5 +1,5 @@
 # NAS off-site backup: restic-backup CronJob (namespace backup) -> Hetzner Storage Box
-# (ADR 017). The pod logs reach Loki through otel-agent; restic logs a JSON line with
+# (ADR 019). The pod logs reach Loki through otel-agent; restic logs a JSON line with
 # "message_type":"summary" when each backup finishes.
 apiVersion: 1
 groups:
@@ -16,6 +16,7 @@ groups:
         for: 0s
         noDataState: OK
         execErrState: Error
+        isPaused: true # until offsiteBackup.enabled (kubernetes/apps/values.yaml) is turned on, ADR 019
         labels: {severity: warning}
         annotations:
           summary: >-
@@ -47,6 +48,7 @@ groups:
         for: 0s
         noDataState: OK
         execErrState: Error
+        isPaused: true # until offsiteBackup.enabled (kubernetes/apps/values.yaml) is turned on, ADR 019
         labels: {severity: warning}
         annotations:
           summary: >-

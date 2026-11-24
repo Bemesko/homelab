@@ -1,4 +1,4 @@
-# NAS off-site copy: Hetzner Storage Box (ADR 017). Run only from the control machine (Pi or WSL):
+# NAS off-site copy: Hetzner Storage Box (ADR 019). Run only from the control node (the Pi):
 # `make tofu-plan` / `make tofu-apply` (the token and passphrase come from secrets.sops.yaml).
 terraform {
   required_version = "~> 1.13.0"

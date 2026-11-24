@@ -280,7 +280,9 @@ Home Assistant runs in the cluster and opens at `https://casa.<your-tailnet>`. I
 
 ## NAS off-site backup (restic → Hetzner Storage Box)
 
-Every day at 04:00 the `restic-backup` CronJob (namespace `backup`) sends the root of the NAS SSD to a Hetzner Storage Box BX11. It reads over read-only NFS, sends over SFTP with restic encryption and keeps 7 daily, 4 weekly and 6 monthly snapshots. The Storage Box also takes 7 daily snapshots of its own. OpenTofu creates the box (`infra/hetzner/`), with the state encrypted in git. See [ADR 017](docs/adr/017-offsite-backup-hetzner-restic.md).
+Every day at 04:00 the `restic-backup` CronJob (namespace `backup`) sends the root of the NAS SSD to a Hetzner Storage Box BX11. It reads over read-only NFS, sends over SFTP with restic encryption and keeps 7 daily, 4 weekly and 6 monthly snapshots. The Storage Box also takes 7 daily snapshots of its own. OpenTofu creates the box (`infra/hetzner/`), with the state encrypted in git. See [ADR 019](docs/adr/019-offsite-backup-hetzner-restic.md).
+
+**It is off by default.** The scaffolding (OpenTofu in `infra/hetzner/`, the `backup` workload, the alerts) is in the repo, but `offsiteBackup.enabled` is `false` in `kubernetes/apps/values.yaml`, so ArgoCD does not create the `backup` Application and nothing is billed until you create the box. Run the steps below from the control node (the Pi), where the age key lives.
 
 The restic SSH key (`infra/hetzner/restic_ed25519.pub` + SOPS Secret) and the repository password are already in the repo. To go live:
 
@@ -305,13 +307,14 @@ The restic SSH key (`infra/hetzner/restic_ed25519.pub` + SOPS Secret) and the re
    make backup-secret
    ```
 5. **NAS PV:** `make plan` and `make apply` create the `backup-source` PV. It is the same export as the photos, with no change on OMV.
-6. **First run:** after ArgoCD syncs, start the initial upload without waiting for 04:00:
+6. **Activate**, in one PR: set `offsiteBackup.enabled: true` in `kubernetes/apps/values.yaml` and remove the two `isPaused: true` lines from `kubernetes/workloads/observability/base/alerts/backup.yaml`. After the merge ArgoCD creates the `backup` Application.
+7. **First run:** after ArgoCD syncs, start the initial upload without waiting for 04:00:
    ```bash
    kubectl -n backup create job --from=cronjob/restic-backup restic-initial
    ```
    It takes days. Each run is cut at 22h and the next day's run picks up where it stopped; until then the `backup-offsite-stale` alert stays firing.
 
-**Restore** (from a control machine, with `restic` installed):
+**Restore** (from the control node, with `restic` installed):
 ```bash
 sops -d kubernetes/workloads/backup/overlays/nas/restic.sops.yaml > /tmp/restic.yaml
 ```

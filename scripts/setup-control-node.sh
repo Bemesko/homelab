@@ -35,7 +35,7 @@ readonly HELM_SHA256_ARM64="8cf8f66ecbc252ac8f7f06cca68aba88508ddfde3a6a34feb167
 readonly KUBECTL_VERSION="v1.37.1"
 readonly KUBECTL_SHA256_AMD64="65691ff77eb6fa44c908b77a1082c9f092c3b9733b5cefabec0d1104890e21a8"
 readonly KUBECTL_SHA256_ARM64="ff749f4b78d9c4f1ec87307df9b50119ed819e2094aa9810cb9acffc3286c8c7"
-# OpenTofu for infra/hetzner (`make tofu-plan/tofu-apply`, ADR 017).
+# OpenTofu for infra/hetzner (`make tofu-plan/tofu-apply`, ADR 019).
 readonly TOFU_VERSION="v1.13.9"
 readonly TOFU_SHA256_AMD64="b34b327cc1ef07178207b6f2cd1f5276537d3e5b7be316500f6dac50d4c0a857"
 readonly TOFU_SHA256_ARM64="5dc196dde75b667e4806d358310ec96742774cd0993c54c1237efee5644b69b8"
