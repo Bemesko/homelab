@@ -16,6 +16,9 @@ skips_e2e() {
   case "$1" in
     # Docs and repo metadata.
     docs/* | *.md | LICENSE | .gitignore | .github/ISSUE_TEMPLATE/* | .github/CODEOWNERS) return 0 ;;
+    # OpenTofu (infra/hetzner, infra/github) runs from the control machine, never from the bootstrap;
+    # the tofu-validate hook in lint covers fmt + validate.
+    infra/*) return 0 ;;
     # hello-world is the demo the e2e uses to prove KSOPS: its changes need the cluster (first match wins).
     kubernetes/workloads/hello-world/*) return 1 ;;
     # Workloads: ArgoCD syncs them from main; kubeconform/kube-linter validate them, and an app that does

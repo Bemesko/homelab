@@ -46,7 +46,7 @@ Supporting changes:
 
 ### Required check
 
-Only **`ci-ok`** should be required in the branch protection (to be configured in #39, not here). It runs `if: always()` after `changes`, `lint`, `render` and `e2e`, passes when each of them succeeded or was skipped and fails otherwise. A workflow-level `paths:` filter was rejected on purpose: a required check that never starts stays "pending" and blocks the PR, while a skipped job inside the workflow is reported and `ci-ok` accepts it.
+Only **`ci-ok`** should be required in the branch protection (configured in #39 as code, [ADR 020](020-github-rules-as-code.md)). It runs `if: always()` after `changes`, `lint`, `render` and `e2e`, passes when each of them succeeded or was skipped and fails otherwise. A workflow-level `paths:` filter was rejected on purpose: a required check that never starts stays "pending" and blocks the PR, while a skipped job inside the workflow is reported and `ci-ok` accepts it.
 
 `e2e-full` is never required. A red nightly run is something to look at the next day, not something that blocks a PR.
 
