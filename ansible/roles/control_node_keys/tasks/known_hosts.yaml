@@ -9,11 +9,14 @@
   failed_when: "'ssh-ed25519' not in control_node_keys_scanned.stdout"
   become: false
 
+# ssh-keyscan prints the host name in lower case, and the module compares `name` with what is in the file.
+# A name with capitals (the inventory's MagicDNS name) was never found, so every run appended another copy,
+# comment line included. Both the name and the key line are normalized here.
 - name: Trust the collected host keys
   ansible.builtin.known_hosts:
     path: "{{ control_node_keys_home }}/.ssh/known_hosts"
-    name: "{{ item.item }}"
-    key: "{{ item.stdout }}"
+    name: "{{ item.item | lower }}"
+    key: "{{ item.stdout_lines | select('search', 'ssh-ed25519') | first }}"
     state: present
   loop: "{{ control_node_keys_scanned.results }}"
   loop_control:
