@@ -26,6 +26,7 @@
 - App secrets: `*.sops.yaml` next to the app + a KSOPS generator; encrypt at the final path (`.sops.yaml` picks the recipients). Never use the CI test key (`tests/ci-age.key`, public) outside `kubernetes/workloads/hello-world/`
 - Bootstrap secrets (`ansible/secrets/`) are encrypted for the Pi's key and the recovery key (private part only in KeePass); never for the cluster or the CI key. Edit secrets on the Pi; no other machine holds an age key (issue #32)
 - The NAS (openmediavault) is configured through its own UI: NEVER create tasks that change the NAS, with two exceptions: Syncthing through the `nas_syncthing` role (ADR 011) and power management through the `power` role (ADR 012). The `nas_storage` role only checks the exports and creates the PVs; the hostname, paths and Syncthing IDs live in `local.yaml`
+- GitHub branch rules (rulesets) only through `infra/github/` (OpenTofu, `make github-plan`/`github-apply`, ADR 020); never in the UI or with `gh api`. `main` takes PRs with `ci-ok` green only: work on a branch, never push to `main`. The token and the state passphrase live only in `infra/github/secrets.sops.yaml`; the state is committed encrypted
 - Immich/Postgres images by digest; the Immich version lives in `kubernetes/values/immich.yaml` (the chart does not follow the releases)
 - Everything in the repo is written in English (docs, comments, task names, alerts, log messages)
 

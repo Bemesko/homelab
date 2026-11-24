@@ -466,7 +466,20 @@ Design, measurements and the reasoning: [ADR 015](docs/adr/015-ci-flow-and-requi
 - **e2e-full** ([e2e-full.yaml](.github/workflows/e2e-full.yaml)): the same, but step 4 also checks every Application, that Postgres (CNPG + VectorChord) is ready, that Immich answers `/api/server/ping`, that the external smoke app (the `repotpl-k8s-app` template, in the `homelab-apps` AppProject) answers `/healthz`, and that the Kubernetes metrics and the OpenCost node cost reach Prometheus (in CI, Immich uses `local-path` instead of the NAS). It runs nightly, on demand and on a PR labeled `e2e-full`; it is a canary, not a merge gate.
 - **ci-ok**: the aggregate of the jobs above (a skipped `e2e` counts as passed).
 
-Recommended: branch protection on `main` requiring only `ci-ok` (a skipped e2e must not block a PR; the ruleset itself is issue #39). Before pushing, `make test-changed` runs the hooks only on what the branch changed.
+Before pushing, `make test-changed` runs the hooks only on what the branch changed.
+
+### Branch rules (GitHub)
+
+`main` takes only pull requests with `ci-ok` green (a skipped e2e counts as passed). The rules are code in `infra/github/` (OpenTofu, state encrypted in git; [ADR 020](docs/adr/020-github-rules-as-code.md)), never clicked in the UI. A public repository with the topic `homelab-managed` is in scope: `homelab` gets the **strict** profile (PR, `ci-ok`, no force push, no deletion; the admin can merge a PR over a red check, never push), the others the **app** profile (no force push, no deletion), so their `release.yaml` can still push to `main`.
+
+```bash
+gh repo edit <owner>/<repo> --add-topic homelab-managed   # new repository: put it in scope
+sops edit infra/github/secrets.sops.yaml                  # GITHUB_TOKEN (Administration read/write) and TF_VAR_state_passphrase
+make github-plan                                          # read-only
+make github-apply                                         # asks for confirmation
+```
+
+Run it on the control node, where the age key lives. After the first apply the new `terraform.tfstate` is committed through a PR. A repository created from `repotpl-k8s-app` does not inherit the topic: add it and apply again.
 
 ## Troubleshooting
 
@@ -485,6 +498,7 @@ kubernetes/workloads/ workload manifests (kustomize)
 kubernetes/bootstrap/ root Application (template rendered by Ansible)
 hosts/nas/            files applied by hand on the NAS through the OMV UI (OTel collector)
 infra/hetzner/        OpenTofu for the off-site backup Storage Box (state encrypted in git)
+infra/github/         OpenTofu for the GitHub rulesets of the homelab repositories (state encrypted in git)
 scripts/              control-node setup and checks used by pre-commit/CI (includes the KSOPS stub)
 tests/ci-age.key      PUBLIC age test key for CI (only the hello-world demo)
 docs/adr/             architecture decisions

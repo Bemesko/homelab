@@ -1,0 +1,12 @@
+# Owners are asked for review automatically. The ruleset (infra/github, ADR 020) does not enforce
+# code-owner approval yet (required_approvals = 0); this file marks the sensitive areas and is ready
+# for when the approval count goes up. Last matching pattern wins.
+*                       @Bemesko @natalia-coelho
+
+# Sensitive: what the Ansible bootstrap applies to the real hosts, the secrets, the ArgoCD
+# app-of-apps, the CI, and the infrastructure and repository rules as code.
+/ansible/               @Bemesko @natalia-coelho
+/.sops.yaml             @Bemesko @natalia-coelho
+/kubernetes/apps/       @Bemesko @natalia-coelho
+/.github/               @Bemesko @natalia-coelho
+/infra/                 @Bemesko @natalia-coelho

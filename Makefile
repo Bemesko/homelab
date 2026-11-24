@@ -34,8 +34,12 @@ BASE_REF ?= origin/main
 TOFU_DIR := infra/hetzner
 TOFU := sops exec-env $(TOFU_DIR)/secrets.sops.yaml
 
+# OpenTofu (GitHub branch rules, ADR 020): GITHUB_TOKEN and TF_VAR_state_passphrase come from SOPS.
+GITHUB_DIR := infra/github
+GITHUB_TOFU := sops exec-env $(GITHUB_DIR)/secrets.sops.yaml
+
 .PHONY: help deps lint test-changed test-unit test-render test check-inventory plan apply idempotency kernel-upgrade kubeconfig control-access control-node reset \
-	tofu-plan tofu-apply backup-secret
+	tofu-plan tofu-apply backup-secret github-plan github-apply
 
 help: ## List the targets
 	@grep -hE '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}'
@@ -98,3 +102,9 @@ tofu-apply: ## OpenTofu: apply to the Storage Box (bills the Hetzner account; as
 
 backup-secret: ## Fill in the restic repository and known_hosts from the OpenTofu state
 	$(TOFU) ./scripts/backup-fill-secret.sh
+
+github-plan: ## OpenTofu: show what changes in the GitHub rulesets (read-only)
+	$(GITHUB_TOFU) 'tofu -chdir=$(GITHUB_DIR) init -input=false -lockfile=readonly >/dev/null && tofu -chdir=$(GITHUB_DIR) plan -input=false'
+
+github-apply: ## OpenTofu: apply the GitHub rulesets (changes who can push to main; asks for confirmation)
+	$(GITHUB_TOFU) 'tofu -chdir=$(GITHUB_DIR) init -input=false -lockfile=readonly >/dev/null && tofu -chdir=$(GITHUB_DIR) apply -input=false'
