@@ -1,3 +1,15 @@
+variable "github_token_personal" {
+  description = "Fine-grained token owned by the Bemesko account (Administration: read and write on the repositories in scope)"
+  type        = string
+  sensitive   = true
+}
+
+variable "github_token_org" {
+  description = "Fine-grained token whose resource owner is bernats-homelab (Administration: read and write on the repositories in scope)"
+  type        = string
+  sensitive   = true
+}
+
 variable "topic" {
   description = "GitHub topic that puts a public repository in scope (added by hand: `gh repo edit --add-topic`)"
   type        = string

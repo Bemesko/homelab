@@ -34,7 +34,7 @@ BASE_REF ?= origin/main
 TOFU_DIR := infra/hetzner
 TOFU := sops exec-env $(TOFU_DIR)/secrets.sops.yaml
 
-# OpenTofu (GitHub branch rules, ADR 020): GITHUB_TOKEN and TF_VAR_state_passphrase come from SOPS.
+# OpenTofu (GitHub branch rules, ADR 020): TF_VAR_github_token_personal, TF_VAR_github_token_org and TF_VAR_state_passphrase come from SOPS.
 GITHUB_DIR := infra/github
 GITHUB_TOFU := sops exec-env $(GITHUB_DIR)/secrets.sops.yaml
 

@@ -474,7 +474,7 @@ Before pushing, `make test-changed` runs the hooks only on what the branch chang
 
 ```bash
 gh repo edit <owner>/<repo> --add-topic homelab-managed   # new repository: put it in scope
-sops edit infra/github/secrets.sops.yaml                  # GITHUB_TOKEN (Administration read/write) and TF_VAR_state_passphrase
+sops edit infra/github/secrets.sops.yaml                  # TF_VAR_github_token_personal, TF_VAR_github_token_org, TF_VAR_state_passphrase
 make github-plan                                          # read-only
 make github-apply                                         # asks for confirmation
 ```
