@@ -53,6 +53,18 @@
     path: "{{ host_network_netplan_file }}"
   register: host_network_netplan_stat
 
+# Asks, without writing, whether the profile below would change. The snapshot is only needed then: taking it
+# on every run made the first run after a change report "changed" (previous.yaml catching up).
+- name: Check whether the wired profile would change (nothing is written)
+  ansible.builtin.template:
+    src: netplan-ethernet.yaml.j2
+    dest: "{{ host_network_netplan_file }}"
+    owner: root
+    group: root
+    mode: "0600"
+  check_mode: true
+  register: host_network_netplan_probe
+
 # Keeps the profile as it is before this run, so the rollback can restore it.
 - name: Keep the current wired profile for the rollback
   ansible.builtin.copy:
@@ -62,7 +74,9 @@
     owner: root
     group: root
     mode: "0600"
-  when: host_network_netplan_stat.stat.exists
+  when:
+    - host_network_netplan_stat.stat.exists
+    - host_network_netplan_probe is changed
 
 - name: Forget the previous wired profile when there was none
   ansible.builtin.file:

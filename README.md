@@ -157,6 +157,7 @@ After a power cut, the control node (the Pi) boots when the power returns. Its b
 2. **NAS (ThinkPad T400):** BIOS (F1 at boot) → *Config* → *Network* → **Wake On LAN** (`AC Only` is enough). Then in the OMV UI: *Network* → *Interfaces* → edit the wired interface → tick **Wake on LAN**. Check on the NAS: `ethtool <interface> | grep Wake-on` shows `g`.
 3. **Laptop (Acer A515-51G):** BIOS (F2) → *Main* → **Wake on LAN** = *Enabled* (keep *Lid Open Resume*). The Linux side is set by Ansible (`host_network`, `wakeonlan: true`); check it with `sudo ethtool enp2s0f1 | grep Wake-on` (it shows `g`). The cable must be connected: Wi-Fi does not wake from power off.
 4. Note each wired MAC (`ip -br link`) and LAN address (`ip -br addr`).
+5. **Control node power:** the Pi's boot is the signal that the power is back, so it must lose power with the house. Plug it into its own wall adapter (5 V, 2.5 A), **not** into a UPS and not into the USB port of a modem that has one. The modem's USB port also leaves it undervoltage (`vcgencmd get_throttled` should show `0x0`).
 
 **Inventory** (`ansible/inventory/local.yaml`, not versioned):
 
@@ -165,11 +166,10 @@ After a power cut, the control node (the Pi) boots when the power returns. Its b
 
 Then run `make control-node` on the Pi from `main` (`make` applies the checked-out branch). It enables the boot unit `homelab-wol.service`; it never starts it, so a playbook run sends nothing. Check with `journalctl -t homelab-wol` on the Pi.
 
-**Tests** (issue #23's exit criteria; close the issue only after they pass):
+**Tests** (all passed on 2026-11-23, see [ADR 018](docs/adr/018-wake-on-lan-from-control-node.md); repeat them after changing a host, its BIOS or the network):
 
-1. Power off the NAS, then on the Pi: `sudo /usr/local/sbin/homelab-wol --once` (the same script as at boot). Watch the NAS come back, about 6 minutes. Repeat for the laptop, about 5 minutes.
-2. Battery-empty case (the risk noted in the issue): with the wall power cut for a few minutes, bring the power back and check whether each host woke. If the NAS does not, the BIOS does not re-arm after a battery-less power cut: record it in ADR 018.
-3. Full test: cut the power to everything for a while, bring it back, and check that both hosts return with nobody touching them.
+1. Cold start, one host at a time: switch it off **through the operating system** (`sudo systemctl poweroff`; never from the BIOS setup or by holding the power button, which leaves the network card unarmed), then on the Pi run `/usr/local/sbin/homelab-wol` (the same script as at boot). The NAS came back within 2 to 6 minutes, and the laptop's node was `Ready` in about 3, with all pods ready about 9 minutes after its boot.
+2. Full power cut: switch both hosts off through the operating system (the laptop first, because it mounts the NAS over NFS), remove the NAS battery so it is a real no-power case, shut the Pi down cleanly, cut the mains for about 3 minutes and bring it back. The Pi boots, `homelab-wol` starts, and both hosts return with nobody touching them (`journalctl -t homelab-wol` on the Pi shows the packets). Put the NAS battery back afterwards.
 
 ## Immich (photos from the NAS)
 
