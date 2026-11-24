@@ -33,3 +33,9 @@ variable "require_code_owner_review" {
   type        = bool
   default     = false
 }
+
+variable "allow_auto_merge" {
+  description = "Allow auto-merge on every repository in scope (`gh pr merge --auto`: the PR merges by itself when the required checks pass)"
+  type        = bool
+  default     = true
+}

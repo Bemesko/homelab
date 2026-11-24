@@ -470,7 +470,7 @@ Before pushing, `make test-changed` runs the hooks only on what the branch chang
 
 ### Branch rules (GitHub)
 
-`main` takes only pull requests with `ci-ok` green (a skipped e2e counts as passed). The rules are code in `infra/github/` (OpenTofu, state encrypted in git; [ADR 020](docs/adr/020-github-rules-as-code.md)), never clicked in the UI. A public repository with the topic `homelab-managed` is in scope: `homelab` gets the **strict** profile (PR, `ci-ok`, no force push, no deletion; the admin can merge a PR over a red check, never push), the others the **app** profile (no force push, no deletion), so their `release.yaml` can still push to `main`.
+`main` takes only pull requests with `ci-ok` green (a skipped e2e counts as passed). The rules are code in `infra/github/` (OpenTofu, state encrypted in git; [ADR 020](docs/adr/020-github-rules-as-code.md)), never clicked in the UI. A public repository with the topic `homelab-managed` is in scope: `homelab` gets the **strict** profile (PR, `ci-ok`, no force push, no deletion; the admin can merge a PR over a red check, never push), the others the **app** profile (no force push, no deletion), so their `release.yaml` can still push to `main`. Auto-merge is on in every repository in scope: `gh pr merge --auto <PR>` merges it when `ci-ok` turns green.
 
 ```bash
 gh repo edit <owner>/<repo> --add-topic homelab-managed   # new repository: put it in scope

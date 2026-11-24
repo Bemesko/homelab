@@ -31,12 +31,65 @@ variable "require_code_owner_review" {
   default = false
 }
 
+variable "allow_auto_merge" {
+  type    = bool
+  default = true
+}
+
 locals {
   strict = var.profile == "strict"
 }
 
-# Only rulesets: the module never manages github_repository, so it cannot fight with the
-# repository settings or delete a repository.
+# The repository itself is only ADOPTED (import blocks in the root module) to turn auto-merge on:
+# the provider has no resource for a single setting, so every other attribute is ignored and the
+# repository can never be destroyed by this configuration.
+resource "github_repository" "this" {
+  name             = var.repository
+  allow_auto_merge = var.allow_auto_merge
+
+  lifecycle {
+    prevent_destroy = true
+    ignore_changes = [
+      allow_forking,
+      allow_merge_commit,
+      allow_rebase_merge,
+      allow_squash_merge,
+      allow_update_branch,
+      archive_on_destroy,
+      archived,
+      auto_init,
+      default_branch,
+      delete_branch_on_merge,
+      description,
+      fork,
+      gitignore_template,
+      has_discussions,
+      has_downloads,
+      has_issues,
+      has_projects,
+      has_wiki,
+      homepage_url,
+      ignore_vulnerability_alerts_during_read,
+      is_template,
+      license_template,
+      merge_commit_message,
+      merge_commit_title,
+      pages,
+      private,
+      security_and_analysis,
+      source_owner,
+      source_repo,
+      squash_merge_commit_message,
+      squash_merge_commit_title,
+      template,
+      topics,
+      visibility,
+      vulnerability_alerts,
+      web_commit_signoff_required,
+    ]
+  }
+}
+
 resource "github_repository_ruleset" "main" {
   name        = "main-protection"
   repository  = var.repository
