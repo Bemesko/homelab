@@ -11,6 +11,12 @@ creation_rules:
       age1r4vwme89tzzh35xnzavk3lh03ytkhrzy59vf75a9fhp8z6nr4ewq4z8z2t,
       age129csa3f9ejq6l3dgh5h6nkcyw2d8k06dsugfvwzmzrfzc5y93yustvsrln
 
+  # OpenTofu (Hetzner token and state passphrase): same recipients as the bootstrap secrets.
+  - path_regex: (^|/)infra/[^/]+/[^/]+\.sops\.yaml$
+    age: >-
+      age1r4vwme89tzzh35xnzavk3lh03ytkhrzy59vf75a9fhp8z6nr4ewq4z8z2t,
+      age129csa3f9ejq6l3dgh5h6nkcyw2d8k06dsugfvwzmzrfzc5y93yustvsrln
+
   # KSOPS demo, exercised in the e2e: content without value, readable by the CI.
   - path_regex: (^|/)kubernetes/workloads/hello-world/.+\.sops\.yaml$
     unencrypted_regex: ^(apiVersion|metadata|kind|type)$

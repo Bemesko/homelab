@@ -23,7 +23,16 @@ kubectl wait --for=condition=Ready node --all --timeout=300s
 
 apps=(root argocd hello-world)
 if [[ "${profile}" == "full" ]]; then
+  # The off-site backup is opt-in (offsiteBackup.enabled in kubernetes/apps/values.yaml, ADR 019): the
+  # CI renders the chart with that same file, so the Application only exists once it is activated.
+  offsite_backup=false
+  if grep -A1 '^offsiteBackup:' kubernetes/apps/values.yaml | grep -q 'enabled: true'; then
+    offsite_backup=true
+  fi
   apps=(root argocd hello-world cloudnative-pg cert-manager barman-cloud-plugin immich-database immich obsidian home-assistant-database home-assistant k8s-app-smoke grocery-ops prometheus loki tempo observability otel-gateway otel-agent grafana opencost)
+  if [[ "${offsite_backup}" == "true" ]]; then
+    apps+=(backup)
+  fi
 fi
 for app in "${apps[@]}"; do
   echo "==> Application ${app} Synced + Healthy"
@@ -93,6 +102,21 @@ grep -q "Home Assistant" <<<"${manifest}" || {
   head -c 500 <<<"${manifest}" >&2
   exit 1
 }
+
+if [[ "${offsite_backup}" == "true" ]]; then
+  echo "==> Backup: the restic script runs end to end (local repository in CI)"
+  kubectl -n backup delete job e2e-backup --ignore-not-found
+  kubectl -n backup create job e2e-backup --from=cronjob/restic-backup
+  kubectl -n backup wait job/e2e-backup --for=condition=Complete --timeout=600s
+  backup_log="$(kubectl -n backup logs job/e2e-backup)"
+  grep -q '"message_type":"summary"' <<<"${backup_log}" || {
+    echo "ERROR: restic did not log the backup summary:" >&2
+    echo "${backup_log}" >&2
+    exit 1
+  }
+else
+  echo "==> Backup: skipped (offsiteBackup.enabled is false in kubernetes/apps/values.yaml)"
+fi
 
 echo "==> External app (repotpl-k8s-app) in the homelab-apps AppProject answers /healthz"
 project="$(kubectl -n argocd get application/k8s-app-smoke -o jsonpath='{.spec.project}')"

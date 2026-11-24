@@ -5,8 +5,8 @@
 #   x86_64 (WSL Ubuntu, the CI runner)  all tools: runtime + dev/test    (--full, the default)
 #   aarch64 (the Raspberry Pi)          runtime only                      (--runtime, the default)
 #
-# Runtime = what `make plan/apply/kubeconfig` needs: ansible-core, sops, age, helm, kubectl and the
-# collections. Dev/test tools (pre-commit, ansible-lint, kubeconform, kube-linter, kustomize,
+# Runtime = what `make plan/apply/kubeconfig` needs: ansible-core, sops, age, helm, kubectl, tofu
+# (`make tofu-plan/tofu-apply`) and the collections. Dev/test tools (pre-commit, ansible-lint, kubeconform, kube-linter, kustomize,
 # helm-unittest) stay on x86_64 and in the CI.
 # SETUP_SKIP_APT=1 skips the apt step (the Ansible role control_node_toolchain installs the packages).
 set -euo pipefail
@@ -35,6 +35,10 @@ readonly HELM_SHA256_ARM64="8cf8f66ecbc252ac8f7f06cca68aba88508ddfde3a6a34feb167
 readonly KUBECTL_VERSION="v1.37.1"
 readonly KUBECTL_SHA256_AMD64="65691ff77eb6fa44c908b77a1082c9f092c3b9733b5cefabec0d1104890e21a8"
 readonly KUBECTL_SHA256_ARM64="ff749f4b78d9c4f1ec87307df9b50119ed819e2094aa9810cb9acffc3286c8c7"
+# OpenTofu for infra/hetzner (`make tofu-plan/tofu-apply`, ADR 019).
+readonly TOFU_VERSION="v1.13.9"
+readonly TOFU_SHA256_AMD64="b34b327cc1ef07178207b6f2cd1f5276537d3e5b7be316500f6dac50d4c0a857"
+readonly TOFU_SHA256_ARM64="5dc196dde75b667e4806d358310ec96742774cd0993c54c1237efee5644b69b8"
 
 # Dev/test tools: x86_64 only.
 readonly KUBECONFORM_VERSION="v0.8.0"
@@ -91,6 +95,7 @@ detect_platform() {
       AGE_SHA256="${AGE_SHA256_AMD64}"
       HELM_SHA256="${HELM_SHA256_AMD64}"
       KUBECTL_SHA256="${KUBECTL_SHA256_AMD64}"
+      TOFU_SHA256="${TOFU_SHA256_AMD64}"
       MODE="${mode_arg:-full}"
       ;;
     aarch64)
@@ -99,6 +104,7 @@ detect_platform() {
       AGE_SHA256="${AGE_SHA256_ARM64}"
       HELM_SHA256="${HELM_SHA256_ARM64}"
       KUBECTL_SHA256="${KUBECTL_SHA256_ARM64}"
+      TOFU_SHA256="${TOFU_SHA256_ARM64}"
       MODE="${mode_arg:-runtime}"
       ;;
     *)
@@ -177,6 +183,9 @@ main() {
   install_bin kubectl "${KUBECTL_VERSION}" \
     "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/${ARCH}/kubectl" \
     "${KUBECTL_SHA256}"
+  install_bin tofu "${TOFU_VERSION}" \
+    "https://github.com/opentofu/opentofu/releases/download/${TOFU_VERSION}/tofu_${TOFU_VERSION#v}_linux_${ARCH}.tar.gz" \
+    "${TOFU_SHA256}" tofu
 
   if [[ "${MODE}" == "full" ]]; then
     install_bin kubeconform "${KUBECONFORM_VERSION}" \

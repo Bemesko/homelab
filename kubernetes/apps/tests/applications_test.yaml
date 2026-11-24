@@ -9,6 +9,7 @@ templates:
   - templates/obsidian.yaml
   - templates/home-assistant-database.yaml
   - templates/home-assistant.yaml
+  - templates/backup.yaml
   - templates/prometheus.yaml
   - templates/loki.yaml
   - templates/tempo.yaml
@@ -19,6 +20,10 @@ templates:
   - templates/opencost.yaml
   - templates/cert-manager.yaml
   - templates/barman-cloud-plugin.yaml
+# offsiteBackup is false in values.yaml (the backup Application is only rendered once activated, ADR 019);
+# the suite turns it on so the generic checks below also cover templates/backup.yaml.
+set:
+  offsiteBackup.enabled: true
 tests:
   - it: every Application has automated sync with prune and selfHeal
     asserts:
@@ -72,6 +77,10 @@ tests:
           path: metadata.annotations["argocd.argoproj.io/sync-wave"]
           value: "3"
         template: templates/home-assistant.yaml
+      - equal:
+          path: metadata.annotations["argocd.argoproj.io/sync-wave"]
+          value: "3"
+        template: templates/backup.yaml
       - equal:
           path: metadata.annotations["argocd.argoproj.io/sync-wave"]
           value: "2"
@@ -312,6 +321,38 @@ tests:
       - equal:
           path: spec.sources[1].path
           value: kubernetes/workloads/home-assistant/storage/base
+
+  - it: the off-site backup with the NAS uses the nas overlay (Storage Box + NAS PV)
+    template: templates/backup.yaml
+    asserts:
+      - equal:
+          path: spec.source.path
+          value: kubernetes/workloads/backup/overlays/nas
+
+  - it: without the NAS (CI) the backup uses base (local repository, no secrets)
+    template: templates/backup.yaml
+    set:
+      nasStorage.enabled: false
+    asserts:
+      - equal:
+          path: spec.source.path
+          value: kubernetes/workloads/backup/base
+
+  - it: the off-site backup is not rendered until it is activated (offsiteBackup.enabled=false)
+    template: templates/backup.yaml
+    set:
+      offsiteBackup.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: the off-site backup is not rendered in the minimal (CI lite) profile
+    template: templates/backup.yaml
+    set:
+      minimal: true
+    asserts:
+      - hasDocuments:
+          count: 0
 
   - it: the observability chart versions come from values (single source; one chart, two collector releases)
     set:

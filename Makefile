@@ -30,7 +30,12 @@ endif
 # Base for `make test-changed` (the branch is compared against it).
 BASE_REF ?= origin/main
 
-.PHONY: help deps lint test-changed test-unit test-render test check-inventory plan apply idempotency kernel-upgrade kubeconfig control-access control-node reset
+# OpenTofu (Hetzner Storage Box): HCLOUD_TOKEN and TF_VAR_state_passphrase come from SOPS.
+TOFU_DIR := infra/hetzner
+TOFU := sops exec-env $(TOFU_DIR)/secrets.sops.yaml
+
+.PHONY: help deps lint test-changed test-unit test-render test check-inventory plan apply idempotency kernel-upgrade kubeconfig control-access control-node reset \
+	tofu-plan tofu-apply backup-secret
 
 help: ## List the targets
 	@grep -hE '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}'
@@ -84,3 +89,12 @@ control-node: check-inventory ## Configure the control node (Raspberry Pi; base,
 
 reset: check-inventory ## Remove k3s from the laptop (asks for confirmation)
 	cd ansible && $(PLAYBOOK) reset.yaml
+
+tofu-plan: ## OpenTofu: show what changes on the Hetzner Storage Box
+	$(TOFU) 'tofu -chdir=$(TOFU_DIR) init -input=false -lockfile=readonly >/dev/null && tofu -chdir=$(TOFU_DIR) plan -input=false'
+
+tofu-apply: ## OpenTofu: apply to the Storage Box (bills the Hetzner account; asks for confirmation)
+	$(TOFU) 'tofu -chdir=$(TOFU_DIR) init -input=false -lockfile=readonly >/dev/null && tofu -chdir=$(TOFU_DIR) apply -input=false'
+
+backup-secret: ## Fill in the restic repository and known_hosts from the OpenTofu state
+	$(TOFU) ./scripts/backup-fill-secret.sh

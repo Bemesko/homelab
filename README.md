@@ -278,6 +278,48 @@ Home Assistant runs in the cluster and opens at `https://casa.<your-tailnet>`. I
 4. **Alexa:** enable authenticator-app 2FA on the Amazon account (SMS does not work) and add the **Alexa Devices** integration under *Settings → Devices & services*. The shopping list becomes a `todo` entity. Then, under *Alexa Devices → ⋮ → System options*, **turn off "Enable polling for changes"**: with polling on, Amazon returns 429 (Too Many Requests) every few cycles and every entity goes `unavailable`. The lists stay in sync both ways, because they arrive by push.
 5. **grocery-ops:** create a `grocery-ops` user in HA, generate a *long-lived access token* in its profile and store it as `*.sops.yaml` in the grocery-ops repo's `deploy/`. The app calls `http://home-assistant.home-assistant.svc:8123` (contract in ADR 009).
 
+## NAS off-site backup (restic → Hetzner Storage Box)
+
+Every day at 04:00 the `restic-backup` CronJob (namespace `backup`) sends the root of the NAS SSD to a Hetzner Storage Box BX11. It reads over read-only NFS, sends over SFTP with restic encryption and keeps 7 daily, 4 weekly and 6 monthly snapshots. The Storage Box also takes 7 daily snapshots of its own. OpenTofu creates the box (`infra/hetzner/`), with the state encrypted in git. See [ADR 019](docs/adr/019-offsite-backup-hetzner-restic.md).
+
+**It is off by default.** The scaffolding (OpenTofu in `infra/hetzner/`, the `backup` workload, the alerts) is in the repo, but `offsiteBackup.enabled` is `false` in `kubernetes/apps/values.yaml`, so ArgoCD does not create the `backup` Application and nothing is billed until you create the box. Run the steps below from the control node (the Pi), where the age key lives.
+
+The restic SSH key (`infra/hetzner/restic_ed25519.pub` + SOPS Secret) and the repository password are already in the repo. To go live:
+
+1. **Store the restic password in the password manager.** Without it the backup cannot be recovered:
+   ```bash
+   sops -d kubernetes/workloads/backup/overlays/nas/restic.sops.yaml | grep RESTIC_PASSWORD
+   ```
+2. **Hetzner token:** create a *Read & Write* token in the Hetzner Console project and save it as `HCLOUD_TOKEN`:
+   ```bash
+   sops edit infra/hetzner/secrets.sops.yaml
+   ```
+3. **Create the box** (this starts billing; `apply` asks for confirmation):
+   ```bash
+   make tofu-plan
+   ```
+   ```bash
+   make tofu-apply
+   ```
+   Commit `infra/hetzner/terraform.tfstate`. It comes out encrypted; check with `grep -c '"password"' infra/hetzner/terraform.tfstate`, which must print 0.
+4. **Fill in the repository and known_hosts** in the restic Secret, then commit:
+   ```bash
+   make backup-secret
+   ```
+5. **NAS PV:** `make plan` and `make apply` create the `backup-source` PV. It is the same export as the photos, with no change on OMV.
+6. **Activate**, in one PR: set `offsiteBackup.enabled: true` in `kubernetes/apps/values.yaml` and remove the two `isPaused: true` lines from `kubernetes/workloads/observability/base/alerts/backup.yaml`. After the merge ArgoCD creates the `backup` Application.
+7. **First run:** after ArgoCD syncs, start the initial upload without waiting for 04:00:
+   ```bash
+   kubectl -n backup create job --from=cronjob/restic-backup restic-initial
+   ```
+   It takes days. Each run is cut at 22h and the next day's run picks up where it stopped; until then the `backup-offsite-stale` alert stays firing.
+
+**Restore** (from the control node, with `restic` installed):
+```bash
+sops -d kubernetes/workloads/backup/overlays/nas/restic.sops.yaml > /tmp/restic.yaml
+```
+From `/tmp/restic.yaml`, write `id_ed25519` (mode 600), `known_hosts` and the password to files and run `restic -r <RESTIC_REPOSITORY> -o sftp.args="-i <key> -o UserKnownHostsFile=<known_hosts>" snapshots`. Then use `restore latest --target <dir>` (with `--include` for one folder) or `mount`. Delete the files in `/tmp` when done. If the repository was deleted or corrupted, first restore a Storage Box snapshot in the Hetzner console.
+
 ## Observability (OpenTelemetry + Grafana)
 
 Logs, metrics and traces from the cluster, the laptop and the NAS arrive over OTLP at the `otel-gateway` and go on to Prometheus, Loki and Tempo, all in the `observability` namespace. See [ADR 008](docs/adr/008-observability-otel-lgtm.md). Kubernetes metrics follow the Prometheus format (kube-state-metrics and cAdvisor, scraped by the `otel-agent`), which feeds OpenCost: see [ADR 013](docs/adr/013-kubernetes-metrics-prometheus-semantics.md).
@@ -442,6 +484,7 @@ kubernetes/values/    values for the upstream charts
 kubernetes/workloads/ workload manifests (kustomize)
 kubernetes/bootstrap/ root Application (template rendered by Ansible)
 hosts/nas/            files applied by hand on the NAS through the OMV UI (OTel collector)
+infra/hetzner/        OpenTofu for the off-site backup Storage Box (state encrypted in git)
 scripts/              control-node setup and checks used by pre-commit/CI (includes the KSOPS stub)
 tests/ci-age.key      PUBLIC age test key for CI (only the hello-world demo)
 docs/adr/             architecture decisions

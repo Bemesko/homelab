@@ -17,7 +17,7 @@ spec:
     # Any namespace, except the system and platform ones (ArgoCD negation).
     - server: https://kubernetes.default.svc
       namespace: "*"
-    {{- range list "argocd" "kube-system" "kube-public" "kube-node-lease" "default" "tailscale" "cnpg-system" "immich" "obsidian" "home-assistant" "hello-world" "cert-manager" "rustfs" }}
+    {{- range list "argocd" "kube-system" "kube-public" "kube-node-lease" "default" "tailscale" "cnpg-system" "immich" "obsidian" "home-assistant" "hello-world" "cert-manager" "rustfs" "backup" }}
     - server: https://kubernetes.default.svc
       namespace: "!{{ . }}"
     {{- end }}

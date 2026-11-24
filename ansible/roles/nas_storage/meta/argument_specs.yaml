@@ -12,7 +12,7 @@ argument_specs:
         required: true
         options:
           photos:
-            description: Read-only export with the photos (Immich External Library)
+            description: Read-only export of the SSD root (Immich External Library and off-site backup source)
             type: str
             required: true
           data:
@@ -50,6 +50,7 @@ argument_specs:
              read_only: false, write_test: true, capacity: 5Gi}
           - {name: rustfs-data, export: backups, namespace: rustfs, access_mode: ReadWriteOnce, read_only: false, write_test: true,
              capacity: 50Gi}
+          - {name: backup-source, export: photos, namespace: backup, access_mode: ReadOnlyMany, read_only: true, write_test: false, capacity: 1Ti}
         options:
           name:
             type: str

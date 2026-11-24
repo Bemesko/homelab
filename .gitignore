@@ -15,6 +15,11 @@ kubeconfig*.yaml
 kubeconfig*.yml
 *.kubeconfig
 
+# OpenTofu: the (encrypted) terraform.tfstate is versioned; providers and plans are not
+.terraform/
+*.tfstate.backup
+*.tfplan
+
 # Tools
 .venv/
 .cache/

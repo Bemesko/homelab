@@ -1,0 +1,95 @@
+# Daily restic: root of the NAS SSD -> Hetzner Storage Box (ADR 019).
+# In base (CI) the same script runs against a local repository in /tmp, with a test
+# password; overlays/nas swaps /config for the SOPS Secret and /source for the NFS PVC.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: restic-backup
+  annotations:
+    ignore-check.kube-linter.io/no-liveness-probe: "Batch Job, no port to probe"
+    ignore-check.kube-linter.io/no-readiness-probe: "Batch Job, receives no traffic"
+    ignore-check.kube-linter.io/job-ttl-seconds-after-finished: "the 20h TTL is intentional: the failed Job alert clears by itself"
+spec:
+  # After the OMV local replica and the Immich Postgres dump (03:00), and before the
+  # laptop's unattended-upgrades (05:15, ADR 010), which saturates its SSD.
+  schedule: "0 4 * * *"
+  timeZone: America/Sao_Paulo
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 3600
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      # The Job (failed or not) is removed after 20h: the backup-offsite-failed alert, which
+      # reads kube_job_status_failed, clears by itself before the next run. The logs stay
+      # in Loki.
+      ttlSecondsAfterFinished: 72000
+      # 22h: the initial upload (days) is cut before the next schedule and resumed by it;
+      # restic only re-sends what is not in the repository yet.
+      activeDeadlineSeconds: 79200
+      template:
+        spec:
+          restartPolicy: Never
+          automountServiceAccountToken: false
+          securityContext:
+            runAsNonRoot: true
+            # Same owner as the all_squash of the NFS exports (1000:100).
+            runAsUser: 1000
+            runAsGroup: 100
+            fsGroup: 100
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: restic
+              image: restic/restic:0.19.1@sha256:136600b6ff6843d61d355f7f71f460a166429f35de6fd11b568fece3c9a4d510
+              command: [/bin/sh, /scripts/backup.sh]
+              env:
+                - name: HOME
+                  value: /tmp
+                - name: TZ
+                  value: America/Sao_Paulo
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 256Mi
+                limits:
+                  memory: 2Gi
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: [ALL]
+              volumeMounts:
+                - name: config
+                  mountPath: /config
+                  readOnly: true
+                - name: source
+                  mountPath: /source
+                  readOnly: true
+                - name: scripts
+                  mountPath: /scripts
+                  readOnly: true
+                - name: cache
+                  mountPath: /cache
+                - name: tmp
+                  mountPath: /tmp
+          # Order matters: overlays/nas replaces volumes/0 (config) and volumes/1 (source).
+          volumes:
+            - name: config
+              configMap:
+                name: restic-ci
+            - name: source
+              configMap:
+                name: restic-backup-script
+            - name: scripts
+              configMap:
+                name: restic-backup-script
+            # Disposable cache: a local-path PVC would stay Pending until the first run
+            # (WaitForFirstConsumer) and leave the Application Progressing.
+            - name: cache
+              emptyDir:
+                sizeLimit: 5Gi
+            - name: tmp
+              emptyDir:
+                sizeLimit: 1Gi
