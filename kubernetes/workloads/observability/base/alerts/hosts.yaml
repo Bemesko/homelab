@@ -307,6 +307,37 @@ groups:
               conditions:
                 - evaluator: {type: gt, params: [0]}
 
+      # Own (ADR 018): the boot-time Wake-on-LAN sender on the control node logs a host that did not answer
+      # its window. The power came back, but that host stayed off: go and press its button. The log stays
+      # in the Pi's journal too, but this alert needs Loki, which runs on the cluster laptop.
+      - uid: wol-host-no-answer
+        title: Host did not wake after the power returned
+        condition: B
+        for: 0s
+        noDataState: OK
+        execErrState: Error
+        labels: {severity: warning}
+        annotations:
+          summary: "A host did not answer the Wake-on-LAN window after the power returned (the control node's boot); check it by hand"
+        data:
+          - refId: A
+            relativeTimeRange: {from: 1800, to: 0}
+            datasourceUid: loki
+            model:
+              refId: A
+              queryType: instant
+              expr: >-
+                sum(count_over_time({service_name="control-node"} |= `"SYSLOG_IDENTIFIER":"homelab-wol"`
+                |= "did not answer" [30m]))
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: {type: gt, params: [0]}
+
       # Source: awesome-prometheus-alerts (CC BY 4.0), HostOomKillDetected (via logs)
       - uid: host-oom-kill
         title: OOM kill on the host

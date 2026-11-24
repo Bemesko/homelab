@@ -17,6 +17,9 @@
       tags: [os_updates]
     - role: power
       tags: [power]
+    - role: host_network
+      when: host_network_enabled | bool
+      tags: [network]
     - role: tailscale_check
       when: tailscale_enabled | bool
       tags: [tailscale, always]

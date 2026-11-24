@@ -1,0 +1,24 @@
+# Managed by Ansible (homelab, role host_network, ADR 017, ADR 018). Local edits are overwritten.
+# Netplan merges this with the installer's profile for the same ID: it gives the wired port DHCP (or a
+# fixed address, ADR 018), and arms the port for a Wake-on-LAN magic packet (ADR 018) when host_network_wake_on_lan is set.
+network:
+  version: 2
+  ethernets:
+    {{ host_network_netplan_id }}:
+{% if host_network_static_address %}
+      # Fixed LAN address (ADR 018): the control node pings it to know the laptop is back.
+      dhcp4: false
+      addresses:
+        - {{ host_network_static_address }}
+      routes:
+        - to: default
+          via: {{ host_network_static_gateway }}
+      nameservers:
+        addresses: {{ (host_network_static_nameservers or [host_network_static_gateway]) | to_json }}
+{% else %}
+      dhcp4: true
+{% endif %}
+      dhcp6: true
+{% if host_network_wake_on_lan | bool %}
+      wakeonlan: true
+{% endif %}

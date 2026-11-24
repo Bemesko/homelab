@@ -1,0 +1,10 @@
+# Wake-on-LAN from the control node (issue #23, ADR 018). The control node is the only host that sends
+# packets: its boot means the power came back. Hosts are listed in the inventory with
+# wol_sender_mac and wol_sender_address (host vars), so the list follows the inventory.
+# How long the boot waits for the hosts to answer, and how often it sends a packet.
+wol_sender_window_seconds: 900
+wol_sender_interval_seconds: 60
+# Interface the packet leaves through; empty uses the default route (the Pi is wired).
+wol_sender_interface: ""
+wol_sender_conf_file: /etc/homelab-wol.conf
+wol_sender_script: /usr/local/sbin/homelab-wol

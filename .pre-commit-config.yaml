@@ -72,8 +72,10 @@ repos:
         language: script
         entry: scripts/check-no-lockout.sh
         files: ^ansible/
-        # Exceptions (issue #32): the control node's own Tailscale, which only runs on the Pi.
-        exclude: ^ansible/roles/control_node_tailscale/
+        # Exceptions: the control node's own Tailscale and SSH server settings, which only run on the
+        # Pi (issue #32, ADR 016); and host_network, which only adds a DHCP profile to the wired port and
+        # a Wi-Fi power-save setting, with a rollback (issue #24, ADR 017).
+        exclude: ^ansible/roles/(control_node_(tailscale|ssh)|host_network)/
         types: [yaml]
 
       - id: ansible-lint

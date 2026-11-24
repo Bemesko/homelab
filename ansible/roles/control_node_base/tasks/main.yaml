@@ -8,10 +8,13 @@
       Host is {{ ansible_facts['distribution'] }} {{ ansible_facts['distribution_release'] }}
       ({{ ansible_facts['architecture'] }}); expected Debian {{ control_node_base_release }} aarch64.
 
+# The refresh is bookkeeping, not configuration: the module reports "changed" whenever the cache is older
+# than an hour, which would fail an idempotency check run an hour after the previous one.
 - name: Update the package lists (cached for an hour)
   ansible.builtin.apt:
     update_cache: true
     cache_valid_time: 3600
+  changed_when: false
 
 - name: Upgrade the installed packages
   ansible.builtin.apt:

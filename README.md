@@ -20,14 +20,14 @@ Pi (control)   ──ssh over Tailscale──▶  laptop (Ubuntu 26.04)
 
 ## Safety guarantees
 
-- **No lockout.** The playbook never touches Tailscale, SSH, the firewall or the host network. The `tailscale_check` role only reads the status, and the `no-lockout` hook blocks any task that tries to change those things.
+- **No lockout.** The playbook never touches Tailscale, SSH or the firewall. The one change to the host network is the `host_network` role (issue #24, [ADR 017](docs/adr/017-notebook-wired-network.md)), which only adds a DHCP profile for the wired port and a Wi-Fi setting, with a rollback. The `tailscale_check` role only reads the status, and the `no-lockout` hook blocks any task that tries to change those things.
 - **Nothing identifiable in the repo.** The real inventory lives in `ansible/inventory/local.yaml` (ignored by git and blocked by a hook). The tailnet name (`*.ts.net`) is discovered at runtime and blocked by gitleaks. Kubeconfigs live in `~/.kube/`.
 - **Secrets with SOPS + age.** The control node holds its own age key, and a separate recovery key lives only in the password manager (see [ADR 016](docs/adr/016-control-node-raspberry-pi.md)). Ansible decrypts on the controller and creates the bootstrap Secrets with `no_log` (see [ADR 002](docs/adr/002-sops-age-secrets.md)). App secrets are committed encrypted next to the app, and ArgoCD decrypts them with KSOPS using the cluster's own age key (see [ADR 004](docs/adr/004-ksops.md)).
 - **The laptops never suspend, and a power outage never takes anything down without warning.** The `power` role (cluster laptop and NAS; see [ADR 012](docs/adr/012-power-management.md)):
   - ignores the lid in `systemd-logind` and masks the sleep targets;
   - locks GNOME so it does not suspend on inactivity;
   - runs a guard that, without external power, warns (alert `host-on-battery`) and shuts down at 10% battery;
-  - powering back on is manual (open the Acer lid, press the NAS button): both BIOSes ignore the RTC alarm. Wake-on-LAN automation is tracked in issue #23.
+  - powering back on: both BIOSes ignore the RTC alarm, so the control node sends Wake-on-LAN packets after its own boot (see [Wake-on-LAN](#wake-on-lan-hosts-back-after-a-power-cut-issue-23), ADR 018). If a host still stays off, open the Acer lid or press the NAS button by hand.
   - Charge limit: neither firmware supports one (the ADR records what was tried).
 - **Ubuntu updates without surprises.** The `os_updates` role runs unattended-upgrades at 05:15 with idle CPU and I/O priority, and takes the kernel (`linux-*`) out of the automatic run: kernels only through `make kernel-upgrade`, which reboots and validates the cluster. See [ADR 010](docs/adr/010-notebook-os-updates.md).
 - **Versions pinned with sha256** for k3s (installer), helm, kubectl, sops, age, Tailscale, the OpenTelemetry collector, kubeconform, kube-linter and kustomize (one sha256 per architecture, x86_64 and aarch64). The hello-world image is pinned by digest.
@@ -37,7 +37,7 @@ Pi (control)   ──ssh over Tailscale──▶  laptop (Ubuntu 26.04)
 
 ### 1. Tools
 
-On the control node, `make control-node` installs the runtime tools for you (see [Control node](#control-node-raspberry-pi)). On a development machine (WSL today):
+On the control node, `make control-node` installs the runtime tools for you (see [Control node](#control-node-raspberry-pi)). On a development machine (Linux x86_64, for example WSL):
 
 ```bash
 make deps                 # tools with pinned version/sha256 in ~/.local/bin + Ansible collections
@@ -95,6 +95,7 @@ The playbooks run from a Raspberry Pi 3B (Debian 13, aarch64, wired, on the tail
 |---|---|
 | `control_node_base` | system updates, `unattended-upgrades`, `log2ram`, no swap |
 | `control_node_tailscale` | pinned arm64 Tailscale; joins the tailnet with `tailscale_auth_key` |
+| `control_node_ssh` | SSH password login for the operator, only from the tailnet and the home network (keys work everywhere) |
 | `control_node_keys` | the Pi's SSH key and age identity; trusts the laptop's and the NAS's SSH host keys over the tailnet |
 | `control_node_toolchain` | a checkout of this repo, the runtime tools, a copy of `local.yaml` |
 | `control_node_logging` | persistent journal (32 MB) and rotation of the Ansible log |
@@ -102,7 +103,7 @@ The playbooks run from a Raspberry Pi 3B (Debian 13, aarch64, wired, on the tail
 
 ### Day to day
 
-SSH into the Pi over the tailnet and run the usual targets from its checkout (`~/homelab`): `make plan`, `make apply`, `make idempotency`, `make kubeconfig`. Edit secrets there too (`sops ansible/secrets/secrets.sops.yaml`). Every run is also written to the journal as `homelab-ansible` and traced; a run that ends with `failed=` or `unreachable=` above zero raises the `control-node-apply-failed` alert, and `control-node-silent` fires if the Pi stops reporting.
+SSH into the Pi over the tailnet (`ssh <user>@<pi-magicdns-name>`; with the Pi user's password from the tailnet or the home network, or with a key) and run the usual targets from its checkout (`~/homelab`): `make plan`, `make apply`, `make idempotency`, `make kubeconfig`. Edit secrets there too (`sops ansible/secrets/secrets.sops.yaml`). Every run is also written to the journal as `homelab-ansible` and traced; a run that ends with `failed=` or `unreachable=` above zero raises the `control-node-apply-failed` alert, and `control-node-silent` fires if the Pi stops reporting.
 
 `make control-node` also refreshes the Pi's checkout (`git_revision`, `main`) and the tools. On the Pi it runs on the local machine; from another machine it connects over SSH.
 
@@ -114,6 +115,61 @@ Rebuilding the Pi needs only this repo and the password manager (`local.yaml`, t
 2. On a machine that has this repo, `local.yaml` (from the password manager) and a private age key that is a recipient (the recovery key from the password manager works: `export SOPS_AGE_KEY_FILE=<file with the recovery key>`), run `make control-node`. It sets everything up and joins the tailnet. If `tailscale_auth_key` is used or expired, create a new tagged key (see [Tailscale](#4-tailscale-admin-console)) and store it with `sops ansible/secrets/secrets.sops.yaml`.
 3. The new Pi has a **new** age identity and SSH key. Take the age public key printed by the play, replace the old Pi's in `.sops.yaml`, run `sops updatekeys <file>` on every `*.sops.yaml` (with the recovery key), then `make control-access` to authorize the new SSH key. Remove the old Pi's key from the hosts' `authorized_keys` by hand: Ansible never removes keys.
 4. On the new Pi: `make plan`.
+
+## Notebook network (wired first, issue #24)
+
+The cluster laptop uses its Ethernet port when the cable is connected, and Wi-Fi stays as the standby. The `host_network` role does this on the Ansible side ([ADR 017](docs/adr/017-notebook-wired-network.md)):
+
+- **DHCP on the wired port,** through `/etc/netplan/60-homelab-ethernet.yaml`. The change is validated, applied and then checked: the default route, a ping to the router through the cable, and Tailscale. A failed check restores the previous profile at once. A transient timer does the same if Ansible loses its connection.
+- **Wi-Fi power saving off,** in `/etc/NetworkManager/conf.d/homelab-wifi-powersave.conf`.
+- **k3s node IP is the laptop's tailnet address,** so it does not change when the default route moves. The k3s unit starts after the Tailscale daemon.
+
+Enable it in `ansible/inventory/local.yaml`, under the `notebook` host, with `host_network_enabled: true`. Then, with someone at home, run it from `main` (`make` applies the checked-out branch to the real hosts):
+
+```bash
+make plan    # review: netplan, NetworkManager, k3s config and the k3s unit drop-in
+make apply   # k3s restarts once
+```
+
+**Failover test** (the exit criteria of issue #24; close the issue only after it passes):
+
+1. The default route goes through the cable: `ip -4 route show default` lists `dev enp2s0f1` first. `NetworkManager --print-config | grep -i powersave` shows `2`. `kubectl get node -o wide` shows the tailnet address as INTERNAL-IP.
+2. With the cable connected, turn the Wi-Fi radio off: `sudo nmcli radio wifi off` (without `sudo` it answers "Not authorized"). From another device on the tailnet, check `ssh` to the laptop and `kubectl get nodes`. If the SSH session drops, the tailnet should still work through the cable; reconnect and check.
+3. Turn the radio back on: `sudo nmcli radio wifi on`.
+
+**To undo by hand** (disabling the role does not remove these files):
+
+```bash
+sudo rm /etc/netplan/60-homelab-ethernet.yaml /etc/NetworkManager/conf.d/homelab-wifi-powersave.conf
+sudo netplan apply
+sudo nmcli general reload conf
+```
+
+## Wake-on-LAN (hosts back after a power cut, issue #23)
+
+After a power cut, the control node (the Pi) boots when the power returns. Its boot sends a Wake-on-LAN magic packet to each host that does not answer a ping, every minute, for 15 minutes. Why and the risks: [ADR 018](docs/adr/018-wake-on-lan-from-control-node.md).
+
+**Hardware (once, with someone at home):**
+
+1. **Addresses:** the control node pings each host's LAN address, so it must not change. Open the router's DHCP server page, note its range, and pick two free addresses **outside** it.
+   - **Laptop:** in `local.yaml`, under `notebook`, set `host_network_static_address: "<ip>/24"` and `host_network_static_gateway: <router-ip>`, with the same `<ip>` in `wol_sender_address`. The `host_network` role applies it, with the rollback.
+   - **NAS:** in the OMV UI, *Network* → *Interfaces* → edit the wired interface → IPv4 method **Static IP**, with the address, the netmask and the router as gateway. Ansible does not touch the NAS network. Do it with someone at home: a typo costs the NAS its LAN.
+2. **NAS (ThinkPad T400):** BIOS (F1 at boot) → *Config* → *Network* → **Wake On LAN** (`AC Only` is enough). Then in the OMV UI: *Network* → *Interfaces* → edit the wired interface → tick **Wake on LAN**. Check on the NAS: `ethtool <interface> | grep Wake-on` shows `g`.
+3. **Laptop (Acer A515-51G):** BIOS (F2) → *Main* → **Wake on LAN** = *Enabled* (keep *Lid Open Resume*). The Linux side is set by Ansible (`host_network`, `wakeonlan: true`); check it with `sudo ethtool enp2s0f1 | grep Wake-on` (it shows `g`). The cable must be connected: Wi-Fi does not wake from power off.
+4. Note each wired MAC (`ip -br link`) and LAN address (`ip -br addr`).
+5. **Control node power:** the Pi's boot is the signal that the power is back, so it must lose power with the house. Plug it into its own wall adapter (5 V, 2.5 A), **not** into a UPS and not into the USB port of a modem that has one. The modem's USB port also leaves it undervoltage (`vcgencmd get_throttled` should show `0x0`).
+
+**Inventory** (`ansible/inventory/local.yaml`, not versioned):
+
+- under the `notebook` and `nas` hosts: `wol_sender_mac: <mac>` and `wol_sender_address: <lan-ip>`;
+- under the `control` host: `wol_sender_enabled: true`.
+
+Then run `make control-node` on the Pi from `main` (`make` applies the checked-out branch). It enables the boot unit `homelab-wol.service`; it never starts it, so a playbook run sends nothing. Check with `journalctl -t homelab-wol` on the Pi.
+
+**Tests** (all passed on 2026-11-23, see [ADR 018](docs/adr/018-wake-on-lan-from-control-node.md); repeat them after changing a host, its BIOS or the network):
+
+1. Cold start, one host at a time: switch it off **through the operating system** (`sudo systemctl poweroff`; never from the BIOS setup or by holding the power button, which leaves the network card unarmed), then on the Pi run `/usr/local/sbin/homelab-wol` (the same script as at boot). The NAS came back within 2 to 6 minutes, and the laptop's node was `Ready` in about 3, with all pods ready about 9 minutes after its boot.
+2. Full power cut: switch both hosts off through the operating system (the laptop first, because it mounts the NAS over NFS), remove the NAS battery so it is a real no-power case, shut the Pi down cleanly, cut the mains for about 3 minutes and bring it back. The Pi boots, `homelab-wol` starts, and both hosts return with nobody touching them (`journalctl -t homelab-wol` on the Pi shows the packets). Put the NAS battery back afterwards.
 
 ## Immich (photos from the NAS)
 
@@ -203,7 +259,7 @@ The vault reaches the phone through the NAS's Syncthing. Together with power man
 - **Inventory:** fill in the `nas` group from `inventory.example.yaml`. It takes `ansible_user: root`, `nas_syncthing_home` (a directory on the data disk, off the system USB stick), `nas_syncthing_devices` and `nas_syncthing_folders`.
   - `nas_syncthing_devices` is the **complete** list: a device that is not in it is removed.
   - A folder outside `nas_syncthing_folders` is not deleted; it only produces a warning.
-- **SSH:** the WSL key must be in the NAS's `/root/.ssh/authorized_keys`, and the NAS host key in WSL's `known_hosts` (run `ssh root@<nas>` once and accept). `host_key_checking` stays on.
+- **SSH:** the control node's key must be in the NAS's `/root/.ssh/authorized_keys` (`make control-access` adds it), and the NAS host key in the control node's `known_hosts` (the `control_node_keys` role scans it). `host_key_checking` stays on.
 - **Apply:** `make plan` and `make apply`. The second play (`hosts: nas`) installs the `.deb` pinned in `group_vars/all` and enables `syncthing@<user>` at boot. Then it applies options, devices and folders through the REST API. Any change made through the GUI to those items reverts to the inventory on the next apply.
 - **Pair a new device:** add its ID to `nas_syncthing_devices` (and to the folder's `devices`), run `make apply` and accept on the other side.
 - **GUI:** listens only on `127.0.0.1:8384`. To open it in the browser:
@@ -297,7 +353,7 @@ Logs, metrics and traces from the cluster, the laptop and the NAS arrive over OT
    ```bash
    sops encrypt --in-place kubernetes/workloads/<app>/base/<name>.sops.yaml
    ```
-   `.sops.yaml` picks the recipients by path (WSL + cluster) and encrypts only `data`/`stringData`.
+   `.sops.yaml` picks the recipients by path (the Pi, the recovery key and the cluster) and encrypts only `data`/`stringData`.
 2. Declare a KSOPS generator in the kustomization. The template is [secret-generator.yaml](kubernetes/workloads/hello-world/base/secret-generator.yaml):
    ```yaml
    generators:
@@ -383,7 +439,7 @@ After the bootstrap, everything inside the cluster is **GitOps**: change `kubern
 | `gitleaks` (+ `AGE-SECRET-KEY` and `*.ts.net` rules) | No secrets and no tailnet name in the repo |
 | `sops-encrypted` | Every `*.sops.yaml` is encrypted (only `apiVersion`/`kind`/`metadata`/`type` may stay in plain text, via `unencrypted_regex`); the CI's public test key is not used outside the demo |
 | `no-local-inventory`, `no-kubeconfig` | Hostname/user and kubeconfigs are not committed |
-| `no-lockout` | No task changes Tailscale, SSH, the firewall or the host network |
+| `no-lockout` | No task changes Tailscale, SSH, the firewall or the host network, except the control node's Tailscale and SSH roles (ADR 016) and `host_network` (ADR 017) |
 | `yamllint --strict`, `ansible-lint` (profile `production`) | YAML/Ansible quality, FQCN, `changed_when`, permissions |
 | `shellcheck`, `shfmt` | Scripts |
 | `actionlint` | CI workflow |

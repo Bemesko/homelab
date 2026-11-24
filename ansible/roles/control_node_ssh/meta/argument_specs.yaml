@@ -1,0 +1,17 @@
+argument_specs:
+  main:
+    short_description: Password login over SSH on the control node, only from the tailnet and the home network
+    options:
+      control_node_ssh_password_networks:
+        type: list
+        elements: str
+        required: false
+        description: CIDR ranges allowed to use a password; everything else stays key-only.
+      control_node_ssh_check_inside:
+        type: str
+        required: false
+        description: Address inside the allowed networks, used to verify the effective configuration.
+      control_node_ssh_check_outside:
+        type: str
+        required: false
+        description: Address outside them, used to verify that password login is refused there.

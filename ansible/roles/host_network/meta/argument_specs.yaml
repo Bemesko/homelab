@@ -1,0 +1,37 @@
+argument_specs:
+  main:
+    short_description: Wired-first network on the cluster laptop, with a rollback (ADR 017)
+    options:
+      host_network_wired_interface:
+        type: str
+        required: false
+        description: Ethernet port that gets DHCP and carries the default route when the cable is connected.
+      host_network_netplan_id:
+        type: str
+        required: false
+        description: Netplan ID the installer uses for the wired port; the role extends it, so it must match.
+      host_network_wake_on_lan:
+        type: bool
+        required: false
+        description: "Arms the wired port for a Wake-on-LAN magic packet (issue 23, ADR 018)."
+      host_network_static_address:
+        type: str
+        required: false
+        description: "Fixed IPv4 address of the wired port in CIDR form (192.168.1.13/24); empty keeps DHCP."
+      host_network_static_gateway:
+        type: str
+        required: false
+        description: Default gateway for the fixed address; required when the address is set.
+      host_network_static_nameservers:
+        type: list
+        elements: str
+        required: false
+        description: DNS servers for the fixed address; empty uses the gateway.
+      host_network_wifi_powersave:
+        type: int
+        required: false
+        description: NetworkManager wifi.powersave value (2 = disable).
+      host_network_rollback_seconds:
+        type: int
+        required: false
+        description: Seconds before the transient timer restores the previous wired profile.

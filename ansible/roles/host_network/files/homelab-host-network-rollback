@@ -1,0 +1,16 @@
+#!/bin/sh
+# Managed by Ansible (homelab, role host_network, ADR 017).
+# Puts back the wired netplan profile kept before the last change, then re-applies netplan.
+# It runs when a change cannot be verified, and from a transient timer when Ansible loses its connection.
+# usage: homelab-host-network-rollback <netplan file> <previous copy>
+set -eu
+
+target="$1"
+previous="$2"
+
+if [ -f "$previous" ]; then
+  install -m 0600 -o root -g root "$previous" "$target"
+else
+  rm -f "$target"
+fi
+netplan apply
