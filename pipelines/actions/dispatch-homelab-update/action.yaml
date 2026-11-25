@@ -1,0 +1,47 @@
+name: dispatch-homelab-update
+description: >-
+  Asks the homelab to pick up the release just published, instead of waiting for the daily run: starts
+  the Renovate workflow of Bemesko/homelab (docs/adr/021). Add it as the last step of an app's release job.
+
+inputs:
+  client-id:
+    description: Client ID of the homelab-dispatch GitHub App. Empty (App not set up in this repository) skips the step.
+    required: false
+    default: ""
+  private-key:
+    description: Private key of the homelab-dispatch GitHub App.
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    # The App only has "Actions: write" on the homelab: it can start workflows there, nothing else.
+    - name: GitHub App token for the homelab
+      id: token
+      if: inputs.client-id != ''
+      # The release is already published at this point: a failure here must not turn the job red.
+      continue-on-error: true
+      uses: actions/create-github-app-token@f418cff399f7aef4c2f0ad47e25ca7a6abbdd6fc # v3.4.0
+      with:
+        client-id: ${{ inputs.client-id }}
+        private-key: ${{ inputs.private-key }}
+        owner: Bemesko
+        repositories: homelab
+        permission-actions: write
+
+    - name: Start the homelab update
+      shell: bash
+      env:
+        CLIENT_ID: ${{ inputs.client-id }}
+        GH_TOKEN: ${{ steps.token.outputs.token }}
+      run: |
+        later="The daily Renovate run of the homelab picks the release up."
+        if [[ -z "${CLIENT_ID}" ]]; then
+          echo "::notice::homelab dispatch not configured in this repository. ${later}"
+        elif [[ -n "${GH_TOKEN}" ]] &&
+          gh api --method POST repos/Bemesko/homelab/actions/workflows/renovate.yaml/dispatches -f ref=main; then
+          echo "::notice::homelab update started: https://github.com/Bemesko/homelab/actions/workflows/renovate.yaml"
+        else
+          echo "::warning::could not start the homelab update. ${later}"
+        fi

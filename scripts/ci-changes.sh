@@ -1,84 +1,102 @@
 #!/usr/bin/env bash
-# CI helper (docs/adr/015): decides whether the e2e (k3s + ArgoCD on the runner) is worth running.
-# Prints `e2e=true` or `e2e=false` (append it to $GITHUB_OUTPUT).
+# CI helper (docs/adr/015): decides whether the e2e (k3s + ArgoCD on the runner) is worth running, and how much of it.
+# Prints `e2e=true|false` and `e2e_profile=none|lite|full` (append them to $GITHUB_OUTPUT).
 #
 # Environment:
 #   EVENT_NAME  GitHub event (pull_request, push, schedule, workflow_dispatch)
 #   BASE_SHA    base commit of the pull request (the diff is BASE_SHA..HEAD)
 #
-# Rule: a PR runs the e2e unless EVERY changed file is known not to affect the host bootstrap.
-# Unknown paths therefore run it (fail-safe); the nightly e2e-full is the second safety net.
+# Rule: the highest profile among the changed files wins.
+#   full: the change reaches what ArgoCD deploys (charts, Helm values, workloads), so every Application
+#         has to become Healthy. Automerge relies on this gate (docs/adr/021).
+#   lite: the change can affect the host bootstrap. Unknown paths land here (fail-safe).
+#   none: every changed file is known not to affect the cluster.
 set -euo pipefail
 
-# skips_e2e <path>: succeeds when a change to <path> cannot affect the bootstrap
-# (Ansible, ArgoCD install + root Application, KSOPS, reset).
-skips_e2e() {
+# profile_for <path>: prints the profile a change to <path> needs.
+profile_for() {
   case "$1" in
     # Docs and repo metadata.
-    docs/* | *.md | LICENSE | .gitignore | .github/ISSUE_TEMPLATE/* | .github/CODEOWNERS) return 0 ;;
+    docs/* | *.md | LICENSE | .gitignore | .github/ISSUE_TEMPLATE/* | .github/CODEOWNERS) echo none ;;
+    # Renovate configuration: validated by the renovate-config-validator hook in lint.
+    renovate.json | renovate/*) echo none ;;
     # OpenTofu (infra/hetzner, infra/github) runs from the control machine, never from the bootstrap;
     # the tofu-validate hook in lint covers fmt + validate.
-    infra/*) return 0 ;;
-    # hello-world is the demo the e2e uses to prove KSOPS: its changes need the cluster (first match wins).
-    kubernetes/workloads/hello-world/*) return 1 ;;
-    # Workloads: ArgoCD syncs them from main; kubeconform/kube-linter validate them, and an app that does
-    # not become Healthy shows up as an alert (ADR 015). The nightly e2e-full covers the rest.
-    kubernetes/workloads/*) return 0 ;;
+    infra/*) echo none ;;
+    # Shared pipeline library: only the app repositories run it.
+    pipelines/*) echo none ;;
+    kubernetes/apps/values.yaml) values_profile ;;
+    kubernetes/values/* | kubernetes/workloads/*) echo full ;;
     # Scripts and hooks that only lint/render use.
-    scripts/check-alert-rules.py | scripts/check-no-lockout.sh | scripts/check-sops-encrypted.sh) return 0 ;;
-    scripts/kustomize-build.sh | scripts/render-manifests.sh | scripts/validate-manifests.sh) return 0 ;;
-    scripts/vendor-dashboards.sh | scripts/ksops-stub.py | .pre-commit-config.yaml | Makefile) return 0 ;;
+    scripts/check-alert-rules.py | scripts/check-no-lockout.sh | scripts/check-sops-encrypted.sh) echo none ;;
+    scripts/kustomize-build.sh | scripts/render-manifests.sh | scripts/validate-manifests.sh) echo none ;;
+    scripts/vendor-dashboards.sh | scripts/ksops-stub.py | .pre-commit-config.yaml | Makefile) echo none ;;
     # Everything else (ansible/, kubernetes/apps/, kubernetes/bootstrap/, tests/, the e2e scripts, the
-    # CI definition, unknown paths) runs the e2e.
-    *) return 1 ;;
+    # CI definition, unknown paths) runs the bootstrap.
+    *) echo lite ;;
   esac
 }
 
-# kubernetes/apps/values.yaml also holds the ArgoCD chart version, which the initial Ansible install reads.
-# Only a change to that block counts; other chart bumps (Renovate) do not. Any doubt counts as changed.
-argocd_chart_changed() {
-  local file="kubernetes/apps/values.yaml" base head
+# kubernetes/apps/values.yaml holds the chart versions and the external app tags: a change to its data is a
+# deploy (full). Comments and formatting are not (none), and neither is a new version of one of our own apps
+# (`apps.<name>.targetRevision`): their owners decide when to deploy (docs/adr/021). Adding, removing or
+# repointing an app is still full. Any doubt counts as changed.
+values_profile() {
+  local file="kubernetes/apps/values.yaml" base head status=0
   base="$(git show "${BASE_SHA}:${file}" 2>/dev/null || true)"
-  head="$(cat "${file}")"
-  local status=0
-  # Exit 0: unchanged, 10: changed; anything else (no PyYAML, bad YAML) is a doubt, so it counts as changed.
+  head="$(cat "${file}" 2>/dev/null || true)"
+  # Exit 0: same platform data; anything else (changed, no PyYAML, bad YAML) counts as changed.
   python3 - "${base}" "${head}" <<'PY' || status=$?
 import sys
+
 import yaml
 
-def argocd(text):
-    return (yaml.safe_load(text) or {}).get("charts", {}).get("argocd")
 
-sys.exit(10 if argocd(sys.argv[1]) != argocd(sys.argv[2]) else 0)
+def platform_data(text):
+    data = yaml.safe_load(text)
+    for app in (data.get("apps") or {}).values():
+        app.pop("targetRevision", None)
+    return data
+
+
+sys.exit(0 if platform_data(sys.argv[1]) == platform_data(sys.argv[2]) else 10)
 PY
-  [[ "${status}" -ne 0 ]]
+  if [[ "${status}" -eq 0 ]]; then
+    echo none
+  else
+    echo full
+  fi
 }
 
 main() {
+  local profile=none changed="" path needed
+
   # Only pull requests are classified: main already ran in the PR, nightly/dispatch call e2e-full directly.
-  if [[ "${EVENT_NAME:-}" != "pull_request" ]]; then
-    echo "e2e=false"
-    return 0
+  if [[ "${EVENT_NAME:-}" == "pull_request" ]]; then
+    # Captured first so that a failing git diff aborts instead of reading as "nothing changed".
+    changed="$(git diff --name-only --no-renames "${BASE_SHA}" HEAD)"
   fi
 
-  local path
   while IFS= read -r path; do
-    if [[ "${path}" == "kubernetes/apps/values.yaml" ]]; then
-      if argocd_chart_changed; then
-        echo "e2e needed: ${path} (charts.argocd changed)" >&2
-        echo "e2e=true"
-        return 0
-      fi
-      continue
+    [[ -n "${path}" ]] || continue
+    needed="$(profile_for "${path}")"
+    if [[ "${needed}" == "full" ]]; then
+      echo "e2e full needed: ${path}" >&2
+      profile=full
+      break
     fi
-    if ! skips_e2e "${path}"; then
-      echo "e2e needed: ${path}" >&2
-      echo "e2e=true"
-      return 0
+    if [[ "${needed}" == "lite" && "${profile}" == "none" ]]; then
+      echo "e2e lite needed: ${path}" >&2
+      profile=lite
     fi
-  done < <(git diff --name-only "${BASE_SHA}" HEAD)
+  done <<<"${changed}"
 
-  echo "e2e=false"
+  if [[ "${profile}" == "none" ]]; then
+    echo "e2e=false"
+  else
+    echo "e2e=true"
+  fi
+  echo "e2e_profile=${profile}"
 }
 
 main "$@"

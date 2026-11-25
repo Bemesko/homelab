@@ -384,7 +384,7 @@ Own apps live in separate repos, generated from the template [bernats-homelab/re
    ```
 3. After the merge, ArgoCD creates the `<name>` namespace and syncs `deploy/overlays/tailscale`, which ends up at `https://<name>.<your-tailnet>`.
 
-For a new version, run the release in the app repo and open a PR changing `targetRevision`. `values.schema.json` only accepts `bernats-homelab/*` or `Bemesko/*` repos and `vX.Y.Z` tags.
+For a new version, run the release in the app repo: it asks Renovate to open the PR changing `targetRevision`, which merges by itself ([ADR 021](docs/adr/021-dependency-updates-renovate.md)). `values.schema.json` only accepts `bernats-homelab/*` or `Bemesko/*` repos and `vX.Y.Z` tags.
 
 Repos from the personal `Bemesko` account (for example [grocery-ops](https://github.com/Bemesko/grocery-ops)) must be **public**, and so must their GHCR package: the GitHub App credential only covers the org.
 
@@ -457,13 +457,13 @@ Design, measurements and the reasoning: [ADR 015](docs/adr/015-ci-flow-and-requi
 
 - **lint**: runs pre-commit on every file.
 - **render**: runs `helm unittest` and renders the upstream charts (argo-cd, tailscale-operator, cloudnative-pg, immich, prometheus, loki, tempo, grafana, otel-agent/otel-gateway, opencost) with our values, validating everything with kubeconform.
-- **e2e** ([e2e.yaml](.github/workflows/e2e.yaml), `lite` profile): runs on a PR only when the change can affect the host bootstrap (Ansible, `kubernetes/bootstrap`, the e2e scripts, the CI definition, the hello-world demo, the ArgoCD chart version; see `scripts/ci-changes.sh`). On the `ubuntu-26.04` runner:
+- **e2e** ([e2e.yaml](.github/workflows/e2e.yaml)): runs on a PR only when the change can affect the cluster (see `scripts/ci-changes.sh`). A change to what ArgoCD deploys (`kubernetes/values`, `kubernetes/workloads`, `kubernetes/apps/values.yaml`, except a new version of one of our own apps) runs the `full` profile described below; a change that can only affect the host bootstrap (Ansible, `kubernetes/bootstrap`, the e2e scripts, the CI definition) runs the `lite` profile, which on the `ubuntu-26.04` runner:
   1. generates an ephemeral age key with dummy secrets;
   2. runs the full `site.yaml` with `tailscale_enabled=false`, syncing the PR's own SHA; the `root` Application renders only `argocd` and `hello-world` (`apps_minimal`, chart value `minimal`);
   3. runs the playbook again and requires **changed=0**;
   4. checks the node, that `argocd`, `root` and hello-world are Synced/Healthy, and that the demo Secret was decrypted by KSOPS;
   5. runs `reset.yaml`.
-- **e2e-full** ([e2e-full.yaml](.github/workflows/e2e-full.yaml)): the same, but step 4 also checks every Application, that Postgres (CNPG + VectorChord) is ready, that Immich answers `/api/server/ping`, that the external smoke app (the `repotpl-k8s-app` template, in the `homelab-apps` AppProject) answers `/healthz`, and that the Kubernetes metrics and the OpenCost node cost reach Prometheus (in CI, Immich uses `local-path` instead of the NAS). It runs nightly, on demand and on a PR labeled `e2e-full`; it is a canary, not a merge gate.
+- **e2e-full** ([e2e-full.yaml](.github/workflows/e2e-full.yaml)): the same, but step 4 also checks every Application, that Postgres (CNPG + VectorChord) is ready, that Immich answers `/api/server/ping`, that the external smoke app (the `repotpl-k8s-app` template, in the `homelab-apps` AppProject) answers `/healthz`, and that the Kubernetes metrics and the OpenCost node cost reach Prometheus (in CI, Immich uses `local-path` instead of the NAS). It runs nightly, on demand and on a PR labeled `e2e-full`; those runs are a canary, not a merge gate.
 - **ci-ok**: the aggregate of the jobs above (a skipped `e2e` counts as passed).
 
 Before pushing, `make test-changed` runs the hooks only on what the branch changed.
@@ -480,6 +480,10 @@ make github-apply                                         # asks for confirmatio
 ```
 
 Run it on the control node, where the age key lives. After the first apply the new `terraform.tfstate` is committed through a PR. A repository created from `repotpl-k8s-app` does not inherit the topic: add it and apply again.
+
+### Version updates (Renovate)
+
+Renovate runs from [renovate.yaml](.github/workflows/renovate.yaml) and opens grouped pull requests, weekly for third-party versions and right after a release for our own apps; most merge by themselves once `ci-ok` is green. Pipeline pieces the app repositories share live in [pipelines/](pipelines/README.md). The repository's **Dependency Dashboard** issue lists what is pending, and its checkboxes force an update outside the schedule. Rules, exceptions and the one-time GitHub Apps setup: [ADR 021](docs/adr/021-dependency-updates-renovate.md).
 
 ## Troubleshooting
 

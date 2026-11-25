@@ -1,0 +1,168 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["local>Bemesko/homelab//renovate/default"],
+  "automerge": true,
+  "pre-commit": {
+    "enabled": true
+  },
+  "kubernetes": {
+    "managerFilePatterns": ["/^kubernetes/.+\\.ya?ml$/"]
+  },
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Helm charts (HTTP repositories) of the app-of-apps",
+      "managerFilePatterns": ["/^kubernetes/apps/values\\.yaml$/"],
+      "matchStrings": [
+        "repoURL: (?<registryUrl>https://\\S+)\\n\\s+chart: (?<depName>\\S+)\\n\\s+version: (?<currentValue>\\S+)"
+      ],
+      "datasourceTemplate": "helm"
+    },
+    {
+      "customType": "regex",
+      "description": "Helm charts (OCI registries) of the app-of-apps",
+      "managerFilePatterns": ["/^kubernetes/apps/values\\.yaml$/"],
+      "matchStrings": [
+        "repoURL: oci://(?<registry>\\S+)\\n\\s+chart: (?<depName>\\S+)\\n\\s+version: (?<currentValue>\\S+)"
+      ],
+      "datasourceTemplate": "docker",
+      "packageNameTemplate": "{{{registry}}}/{{{depName}}}"
+    },
+    {
+      "customType": "regex",
+      "description": "External apps, pinned by git tag",
+      "managerFilePatterns": ["/^kubernetes/apps/values\\.yaml$/"],
+      "matchStrings": [
+        "repoURL: https://github\\.com/(?<depName>\\S+)\\n\\s+targetRevision: (?<currentValue>v\\d+\\.\\d+\\.\\d+)"
+      ],
+      "datasourceTemplate": "github-tags",
+      "depTypeTemplate": "homelab-app"
+    },
+    {
+      "customType": "regex",
+      "description": "Images pinned by digest under keys the built-in managers do not read",
+      "managerFilePatterns": ["/^kubernetes/.+\\.ya?ml$/", "/^\\.github/workflows/renovate\\.yaml$/"],
+      "matchStrings": [
+        "(?:imageName|reference|RENOVATE_IMAGE): (?<depName>[^:\\s]+):(?<currentValue>[^@\\s]+)@(?<currentDigest>sha256:[a-f0-9]{64})"
+      ],
+      "datasourceTemplate": "docker"
+    },
+    {
+      "customType": "regex",
+      "description": "Image passed as a command-line flag by the e2e assertions",
+      "managerFilePatterns": ["/^scripts/e2e-assert\\.sh$/"],
+      "matchStrings": [
+        "--image=(?<depName>[^:\\s]+):(?<currentValue>[^@\\s]+)@(?<currentDigest>sha256:[a-f0-9]{64})"
+      ],
+      "datasourceTemplate": "docker"
+    },
+    {
+      "customType": "regex",
+      "description": "Images in Helm values written as one full reference (the file is not a manifest)",
+      "managerFilePatterns": ["/^kubernetes/values/.+\\.yaml$/"],
+      "matchStrings": [
+        "image: (?<depName>[^:\\s]+):(?<currentValue>[^@\\s]+)@(?<currentDigest>sha256:[a-f0-9]{64})"
+      ],
+      "datasourceTemplate": "docker"
+    }
+  ],
+  "packageRules": [
+    {
+      "description": "The apiVersion of the manifests changes with the Kubernetes upgrade, not on its own",
+      "matchDatasources": ["kubernetes-api"],
+      "enabled": false
+    },
+    {
+      "description": "required_version is the OpenTofu pin, not Terraform: it moves with the tofu binary",
+      "matchManagers": ["terraform"],
+      "matchDepTypes": ["required_version"],
+      "enabled": false
+    },
+    {
+      "description": "Our own apps: the owner's release is the decision to deploy, so it goes in at once, whatever the version jump (the smoke app is the e2e fixture and keeps the common rules)",
+      "matchDepTypes": ["homelab-app"],
+      "matchDepNames": ["!bernats-homelab/repotpl-k8s-app"],
+      "schedule": ["at any time"],
+      "minimumReleaseAge": null,
+      "separateMajorMinor": false,
+      "automerge": true,
+      "prPriority": 10,
+      "prConcurrentLimit": 0,
+      "branchConcurrentLimit": 0
+    },
+    {
+      "description": "Private repository: its release notes must not be copied into pull requests of this public one",
+      "matchDepNames": ["bernats-homelab/bernats-finances-v4"],
+      "fetchChangeLogs": "off"
+    },
+    {
+      "description": "linuxserver.io tags carry a build number",
+      "matchDepNames": ["lscr.io/linuxserver/obsidian"],
+      "versioning": "regex:^v(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)-ls(?<build>\\d+)$"
+    },
+    {
+      "description": "VectorChord tags are prefixed with the Postgres major they are built for",
+      "matchDepNames": ["ghcr.io/tensorchord/vchord-scratch"],
+      "versioning": "regex:^pg(?<compatibility>\\d+)-v(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)$"
+    },
+    {
+      "matchManagers": ["github-actions"],
+      "groupName": "github actions"
+    },
+    {
+      "description": "One PR for the observability stack (docs/adr/008)",
+      "matchDepNames": [
+        "prometheus",
+        "loki",
+        "tempo",
+        "grafana",
+        "opencost",
+        "opentelemetry-collector",
+        "ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib",
+        "ghcr.io/open-telemetry/opentelemetry-collector-contrib/telemetrygen"
+      ],
+      "groupName": "observability"
+    },
+    {
+      "matchDepNames": ["cloudnative-pg", "plugin-barman-cloud"],
+      "groupName": "cloudnative-pg"
+    },
+    {
+      "matchDepNames": ["rustfs", "rustfs/rc"],
+      "groupName": "rustfs"
+    },
+    {
+      "description": "The validator hook and the workflow run the same Renovate release",
+      "matchDepNames": ["ghcr.io/renovatebot/renovate", "renovatebot/pre-commit-hooks"],
+      "groupName": "renovate"
+    },
+    {
+      "description": "Immich and Postgres migrate the database on upgrade: read the release notes first",
+      "matchDepNames": [
+        "immich",
+        "ghcr.io/immich-app/immich-server",
+        "ghcr.io/immich-app/immich-machine-learning",
+        "ghcr.io/cloudnative-pg/postgresql",
+        "ghcr.io/tensorchord/vchord-scratch"
+      ],
+      "groupName": "immich and postgres",
+      "automerge": false
+    },
+    {
+      "description": "Providers only take effect with a manual `make *-apply`",
+      "matchManagers": ["terraform"],
+      "automerge": false
+    },
+    {
+      "description": "Temporary (#42): these have a second pin Renovate does not read yet, so a human completes the PR",
+      "matchDepNames": [
+        "cert-manager",
+        "plugin-barman-cloud",
+        "rustfs",
+        "tailscale-operator",
+        "ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib"
+      ],
+      "automerge": false
+    }
+  ]
+}

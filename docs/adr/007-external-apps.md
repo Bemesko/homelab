@@ -31,7 +31,7 @@ Until now every workload lived in this repo (`kubernetes/workloads/`). For our o
 
 ## Consequences
 
-- **A new app version = a release in its repo + a PR here.** Nothing reaches the cluster without going through this repo, and the e2e here does not break because of an app's `main`.
+- **A new app version = a release in its repo + a PR here.** Nothing reaches the cluster without going through this repo, and the e2e here does not break because of an app's `main`. *Amended by [ADR 021](021-dependency-updates-renovate.md) (#42): Renovate opens that PR and it merges by itself, without the e2e, as soon as the release is published.*
 - **The e2e depends on an external repo:** the template tag in `smokeApp` and its public GHCR package. Changing that tag is a PR like any other.
 - **Private credentials are not tested in CI.** CI has neither the GitHub App nor the PAT, so private repos and images are only exercised on the laptop.
 - **The GitHub App credential covers the whole org prefix.** If the App is not installed on a repo, ArgoCD cannot read that repo. Since 2026-11-19 this repo lives in the personal account (`Bemesko/homelab`, public) and no longer needs it.

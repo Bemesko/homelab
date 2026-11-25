@@ -11,6 +11,7 @@
 - `kubernetes/apps/`: app-of-apps chart; `values.yaml` is the SINGLE SOURCE of chart versions (Ansible reads it too)
 - `kubernetes/workloads/<app>/{base,overlays/tailscale}`: `base` is what CI uses (no Tailscale)
 - Apps from other repos in the org or the personal `Bemesko` account, public only (template `bernats-homelab/repotpl-k8s-app`): only the entry under `apps:` in `kubernetes/apps/values.yaml`; the kustomize lives in the app repo's `deploy/`
+- `pipelines/`: pipeline pieces the app repositories use by reference (composite actions; reusable workflows must be `.github/workflows/lib-*.yaml`). Never copy them into an app repo
 - `docs/adr/NNN-*.md`: architecture decisions
 
 # Constraints
@@ -21,6 +22,7 @@
 - Variables registered/defined in roles carry the role prefix (ansible-lint `production`)
 - Every `command`/`shell` has `changed_when`/`creates`; the e2e requires changed=0 on the second run
 - Chart version changes: only in `kubernetes/apps/values.yaml`
+- Version updates come from self-hosted Renovate (`renovate.json`, shared preset `renovate/default.json`, ADR 021) and automerge on a green `ci-ok`: a new kind of version pin needs a Renovate manager, and a pin that CI cannot test needs an `automerge: false` rule. A new version of our own apps (`apps.<name>.targetRevision`) is automerged without an e2e. The Renovate GitHub App key is the one credential kept in the repository's Actions secrets
 - Grafana dashboards: only through `scripts/vendor-dashboards.sh` (version + sha256 in `dashboards.lock`, tweaks in `patches/*.jq`); never paste dashboard JSON by hand (our own dashboards live in `dashboards/<folder>/`, outside the lock). Alert rules: `base/alerts/*.yaml`, with `severity` critical, warning or info
 - External apps always by `vX.Y.Z` tag (never a branch) and in the `homelab-apps` AppProject; the GitHub App and GHCR credentials only in `ansible/secrets/` (optional)
 - App secrets: `*.sops.yaml` next to the app + a KSOPS generator; encrypt at the final path (`.sops.yaml` picks the recipients). Never use the CI test key (`tests/ci-age.key`, public) outside `kubernetes/workloads/hello-world/`
@@ -34,5 +36,5 @@
 
 - `make test`: pre-commit + helm unittest + render/kubeconform/kube-linter
 - `make test-changed`: pre-commit only on what the branch changed vs `origin/main`
-- CI `e2e` (lite, only when the change can affect the bootstrap; `scripts/ci-changes.sh`): brings up k3s + ArgoCD on the runner, checks idempotency, the root Application, KSOPS and the reset. `e2e-full` (nightly, on demand or label `e2e-full`) also waits for every Application Healthy. The only check meant to be required on `main` is `ci-ok` (ADR 015)
+- CI `e2e` (only when the change can affect the cluster; `scripts/ci-changes.sh`): brings up k3s + ArgoCD on the runner, checks idempotency, the root Application, KSOPS and the reset (`lite` profile). A PR that changes what ArgoCD deploys (`kubernetes/values`, `kubernetes/workloads`, `apps/values.yaml` except a new version of our own apps) runs the `full` profile, which also waits for every Application Healthy; so does `e2e-full` (nightly, on demand or label `e2e-full`). The only check meant to be required on `main` is `ci-ok` (ADR 015, ADR 021)
 - Against the laptop: `make plan` (check/diff) before `make apply`

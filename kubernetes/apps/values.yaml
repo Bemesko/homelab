@@ -24,9 +24,9 @@ offsiteBackup:
 
 # Apps from other repos (the bernats-homelab org or the personal Bemesko account, public only),
 # created from bernats-homelab/repotpl-k8s-app. Each entry becomes an Application
-# in the homelab-apps AppProject that syncs the repo's deploy/ at the tag pinned here (like the
-# chart versions). New version = a PR changing targetRevision; the app repo's release job
-# shows the snippet ready to paste.
+# in the homelab-apps AppProject that syncs the repo's deploy/ at the tag pinned here. Adding an app is
+# a PR; for a new version, Renovate opens and automerges the PR changing targetRevision after the
+# release (docs/adr/021).
 #   <name>:                  # name of the Application and, by default, of the namespace
 #     repoURL: https://github.com/<owner>/<repo>
 #     targetRevision: vX.Y.Z
