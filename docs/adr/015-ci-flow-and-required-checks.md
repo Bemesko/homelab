@@ -35,7 +35,9 @@ Three tiers.
 2. **PRs that can affect the bootstrap: `e2e` with the `lite` profile.** `scripts/ci-changes.sh` classifies the diff in a `changes` job (no third-party action). The lite profile runs the bootstrap, the idempotency check, the minimal assertions (node Ready, `argocd`, `root` and `hello-world` Synced/Healthy, KSOPS Secret decrypted, Tailscale operator absent) and the reset. It runs in parallel with `lint` and `render`. Pushes to `main` do not run it.
 
    The first run of this design (PR #52) showed that cutting only the assertions was not enough: the `lite` e2e took 541 s, with the assertions at 345 s, because the `root` Application still synced every heavy app (Immich, Postgres, observability), and they competed for the runner's CPU and I/O with the three apps the profile waits for. So the profile also sets the chart value `minimal` (Ansible `apps_minimal`), and the `root` Application renders only `argocd`, `hello-world` and the Tailscale operator.
-3. **`e2e-full`: every Application Healthy, Immich, Obsidian, Home Assistant, the external apps and the observability pipeline.** It runs nightly (`schedule`), on demand (`workflow_dispatch`) and on a PR that gets the `e2e-full` label. It is a canary for drift, such as a chart or image that disappeared upstream, not a merge gate.
+3. **`e2e-full`: every Application Healthy, Immich, Obsidian, Home Assistant, the external apps and the observability pipeline.** It runs nightly (`schedule`), on demand (`workflow_dispatch`) and on a PR that gets the `e2e-full` label. These runs are a canary for drift, such as a chart or image that disappeared upstream.
+
+> **Amended by [ADR 021](021-dependency-updates-renovate.md) (#42):** version updates now merge by themselves, so a PR that changes what ArgoCD deploys runs the `full` profile before the merge. The sections below describe the current rule.
 
 Supporting changes:
 
@@ -48,11 +50,19 @@ Supporting changes:
 
 Only **`ci-ok`** should be required in the branch protection (configured in #39 as code, [ADR 020](020-github-rules-as-code.md)). It runs `if: always()` after `changes`, `lint`, `render` and `e2e`, passes when each of them succeeded or was skipped and fails otherwise. A workflow-level `paths:` filter was rejected on purpose: a required check that never starts stays "pending" and blocks the PR, while a skipped job inside the workflow is reported and `ci-ok` accepts it.
 
-`e2e-full` is never required. A red nightly run is something to look at the next day, not something that blocks a PR.
+The `e2e-full` workflow is never required. A red nightly run is something to look at the next day, not something that blocks a PR. When `ci.yaml` itself picks the `full` profile, that run is part of `ci-ok`.
 
-### What triggers the `lite` e2e
+### What triggers the e2e, and with which profile
 
-The classification lives in `scripts/ci-changes.sh` and is **fail-safe**: a PR runs the e2e unless every changed file is on a short list of paths known not to affect the bootstrap (docs and repo metadata, workloads other than `hello-world`, the lint/render-only scripts, `Makefile`, `.pre-commit-config.yaml`). A new or unknown path runs the e2e. `kubernetes/apps/values.yaml` counts only when its `charts.argocd` block changed (the initial ArgoCD install reads it), so Renovate chart bumps skip it. `kubernetes/apps/templates/` still runs it: the `root` Application syncs that chart. Pushes to `main`, `schedule` and `workflow_dispatch` are not classified (the first never runs the e2e; the other two call `e2e-full` directly).
+The classification lives in `scripts/ci-changes.sh`. Each changed file asks for a profile and the highest one wins:
+
+| Profile | Changed paths |
+|---|---|
+| `full` | `kubernetes/values/`, `kubernetes/workloads/`, and any change to the data of `kubernetes/apps/values.yaml` (chart versions, a new or repointed app), except as below |
+| `lite` | everything else, including new or unknown paths (**fail-safe**): `ansible/`, `kubernetes/apps/templates/`, `kubernetes/bootstrap/`, `tests/`, the e2e scripts, the CI definition |
+| none | docs and repo metadata, `*.md`, `kubernetes/apps/values.yaml` when only comments or the version of our own apps (`apps.<name>.targetRevision`, ADR 021) changed, `infra/`, `pipelines/`, the Renovate configuration, the lint/render-only scripts, `Makefile`, `.pre-commit-config.yaml` |
+
+Pushes to `main`, `schedule` and `workflow_dispatch` are not classified (the first never runs the e2e; the other two call `e2e-full` directly).
 
 ## Targets
 
@@ -60,15 +70,16 @@ To re-measure after the first runs of the new flow:
 
 | Change | Before | Target |
 |---|---|---|
-| Docs, workloads, chart bumps | about 9-10 min | 2 min or less |
+| Docs | about 9-10 min | 2 min or less |
 | Ansible, bootstrap, CI definition | about 10 min | 5 min or less |
+| Workloads, chart and image bumps (`full`, ADR 021) | about 9-10 min | about 10 min |
 | Nightly full e2e | about 8 min (on every PR) | about 8 min, off the PR path |
 
 Idempotency and the reset remain on every PR that touches the bootstrap.
 
 ## Consequences
 
-- A workload or chart change is validated by `lint` (including `helm unittest` and kubeconform/kube-linter) and `render`, not by a cluster. If it breaks an app, the alerts and the nightly run show it, and the revert is a PR.
-- A change that should have run the e2e but was not classified as such is caught by the nightly run. When that happens, widen the rule in `scripts/ci-changes.sh` and add a case to its test.
-- A PR that wants the full check before the merge (a new app, a new chart) gets the `e2e-full` label.
+- A workload or chart change is validated in a cluster before the merge (ADR 021), at the cost of the `full` profile's minutes on that PR.
+- A change that should have run the e2e but was not classified as such is caught by the nightly run. When that happens, widen the rule in `scripts/ci-changes.sh`.
+- A PR outside the `full` paths that wants the full check before the merge (for example a template of the app-of-apps) gets the `e2e-full` label.
 - `ci-ok` must be the only name in the ruleset; renaming or removing it breaks the protection, so its name is stable on purpose (#40).

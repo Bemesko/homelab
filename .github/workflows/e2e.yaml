@@ -1,8 +1,8 @@
 name: e2e
 
 # Reusable: brings up k3s + ArgoCD on the runner with the real playbook (docs/adr/015).
-# Called by ci.yaml (profile lite, on PRs that touch the host bootstrap) and by e2e-full.yaml
-# (profile full, nightly / on demand / PRs labeled e2e-full).
+# Called by ci.yaml (profile lite on PRs that touch the host bootstrap, full on PRs that change what
+# ArgoCD deploys) and by e2e-full.yaml (profile full, nightly / on demand / PRs labeled e2e-full).
 on:
   workflow_call:
     inputs:

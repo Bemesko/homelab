@@ -1,0 +1,91 @@
+name: renovate
+
+# Self-hosted Renovate (docs/adr/021): opens the version update pull requests configured in renovate.json.
+# Never add a pull_request trigger: this repository is public and the job holds the GitHub App key.
+on:
+  schedule:
+    # Third-party updates are only proposed on Mondays (renovate/default.json). The daily run is the
+    # safety net for a release of our own apps whose dispatch failed.
+    - cron: "17 8 * * *" # 05:17 America/Sao_Paulo
+    - cron: "17 11 * * 1" # second Monday attempt
+  # main requires up-to-date branches: after each merge, the remaining update branches are rebased.
+  push:
+    branches: [main]
+  # Also how a release of one of our apps starts a run (pipelines/actions/dispatch-homelab-update).
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Only log what would change"
+        type: boolean
+        default: false
+      log_level:
+        description: "Renovate log level"
+        type: choice
+        options: [info, debug]
+        default: info
+
+permissions:
+  contents: read
+
+concurrency:
+  group: renovate
+  cancel-in-progress: false
+
+jobs:
+  renovate:
+    # Skipped until the GitHub App exists (docs/adr/021, "Setting up the GitHub App").
+    if: github.repository == 'Bemesko/homelab' && vars.RENOVATE_APP_CLIENT_ID != ''
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
+    env:
+      RENOVATE_IMAGE: ghcr.io/renovatebot/renovate:44.261.1@sha256:6acd266508ae2f370fd91fb2ee0467b31a84b4c9bd08ad2b4c1387cfa286029c
+    steps:
+      # The App token (not GITHUB_TOKEN) is what makes CI run on the pull requests Renovate opens.
+      - name: GitHub App token
+        id: token
+        uses: actions/create-github-app-token@f418cff399f7aef4c2f0ad47e25ca7a6abbdd6fc # v3.4.0
+        with:
+          client-id: ${{ vars.RENOVATE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.RENOVATE_APP_PRIVATE_KEY }}
+
+      # Same App, installed on the organization for the private app repositories only, with read access.
+      # Without it the run goes on and Renovate just cannot see their new tags.
+      - name: GitHub App token for the private app repositories
+        id: private-apps
+        continue-on-error: true
+        uses: actions/create-github-app-token@f418cff399f7aef4c2f0ad47e25ca7a6abbdd6fc # v3.4.0
+        with:
+          client-id: ${{ vars.RENOVATE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.RENOVATE_APP_PRIVATE_KEY }}
+          owner: bernats-homelab
+          repositories: bernats-finances-v4
+          permission-contents: read
+
+      - name: Renovate
+        env:
+          RENOVATE_TOKEN: ${{ steps.token.outputs.token }}
+          PRIVATE_APPS_TOKEN: ${{ steps.private-apps.outputs.token }}
+          RENOVATE_REPOSITORIES: ${{ github.repository }}
+          RENOVATE_ONBOARDING: "false"
+          RENOVATE_REQUIRE_CONFIG: required
+          RENOVATE_PLATFORM_COMMIT: enabled
+          LOG_LEVEL: ${{ inputs.log_level || 'info' }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          if [[ "${DRY_RUN}" == "true" ]]; then
+            export RENOVATE_DRY_RUN=full
+          fi
+          if [[ -n "${PRIVATE_APPS_TOKEN}" ]]; then
+            # One host rule per private app repository: the token is only used to read its tags.
+            RENOVATE_HOST_RULES="$(jq -nc '[{
+              hostType: "github-tags",
+              matchHost: "https://api.github.com/repos/bernats-homelab/bernats-finances-v4",
+              token: env.PRIVATE_APPS_TOKEN
+            }]')"
+            export RENOVATE_HOST_RULES
+          fi
+          docker run --rm \
+            --env RENOVATE_TOKEN --env RENOVATE_REPOSITORIES --env RENOVATE_ONBOARDING \
+            --env RENOVATE_REQUIRE_CONFIG --env RENOVATE_PLATFORM_COMMIT --env RENOVATE_DRY_RUN \
+            --env RENOVATE_HOST_RULES --env LOG_LEVEL \
+            "${RENOVATE_IMAGE}"

@@ -2,7 +2,7 @@ name: ci
 
 # Design and required checks: docs/adr/015-ci-flow-and-required-checks.md.
 # The only check meant to be REQUIRED in the branch protection is `ci-ok`: the e2e is skipped
-# when the change cannot affect the host bootstrap, and a skipped job must not block a PR.
+# when the change cannot affect the cluster, and a skipped job must not block a PR.
 on:
   push:
     branches: [main]
@@ -26,6 +26,7 @@ jobs:
     runs-on: ubuntu-26.04
     outputs:
       e2e: ${{ steps.classify.outputs.e2e }}
+      e2e_profile: ${{ steps.classify.outputs.e2e_profile }}
     steps:
       - uses: actions/checkout@v5
         with:
@@ -70,7 +71,7 @@ jobs:
     if: needs.changes.outputs.e2e == 'true'
     uses: ./.github/workflows/e2e.yaml
     with:
-      profile: lite
+      profile: ${{ needs.changes.outputs.e2e_profile }}
 
   # Stable aggregate for the branch protection. Skipped is fine (e2e not needed); failed or cancelled is not.
   ci-ok:
