@@ -11,6 +11,10 @@ on:
   # main requires up-to-date branches: after each merge, the remaining update branches are rebased.
   push:
     branches: [main]
+  # A checkbox ticked on the Dependency Dashboard (filtered by the job's `if`): there is no webhook
+  # server, so this is how Renovate hears about it.
+  issues:
+    types: [edited]
   # Also how a release of one of our apps starts a run (pipelines/actions/dispatch-homelab-update).
   workflow_dispatch:
     inputs:
@@ -27,14 +31,24 @@ on:
 permissions:
   contents: read
 
+# One run at a time, and a newer pending run replaces the older one. Issue events the job ignores go to a
+# group of their own, so they never replace a pending run (Renovate itself edits the Dashboard mid-run).
 concurrency:
-  group: renovate
+  group: >-
+    ${{ github.event_name == 'issues'
+    && (github.event.issue.user.login != 'bemesko-homelab-renovate[bot]' || github.event.sender.type == 'Bot')
+    && format('renovate-ignored-{0}', github.run_id) || 'renovate' }}
   cancel-in-progress: false
 
 jobs:
   renovate:
-    # Skipped until the GitHub App exists (docs/adr/021, "Setting up the GitHub App").
-    if: github.repository == 'Bemesko/homelab' && vars.RENOVATE_APP_CLIENT_ID != ''
+    # Skipped until the GitHub App exists (docs/adr/021, "Setting up the GitHub Apps"). Of the issue edits,
+    # only a person editing Renovate's own Dashboard counts: anyone can edit an issue they opened here,
+    # and Renovate rewrites the Dashboard itself.
+    if: >-
+      github.repository == 'Bemesko/homelab' && vars.RENOVATE_APP_CLIENT_ID != ''
+      && (github.event_name != 'issues'
+      || (github.event.issue.user.login == 'bemesko-homelab-renovate[bot]' && github.event.sender.type != 'Bot'))
     runs-on: ubuntu-26.04
     timeout-minutes: 30
     env:
