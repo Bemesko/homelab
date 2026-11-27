@@ -47,7 +47,7 @@ apps:
 smokeApp:
   enabled: false
   repoURL: https://github.com/bernats-homelab/repotpl-k8s-app
-  targetRevision: v0.1.0
+  targetRevision: v0.2.2
 
 # SINGLE SOURCE of chart versions. Ansible reads this file for the initial ArgoCD
 # helm install, so the bootstrap and the self-managed release always use the same version.
