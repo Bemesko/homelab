@@ -79,9 +79,8 @@
       "enabled": false
     },
     {
-      "description": "Our own apps: the owner's release is the decision to deploy, so it goes in at once, whatever the version jump (the smoke app is the e2e fixture and keeps the common rules)",
+      "description": "Our own apps and their template (the e2e smoke app): the owner's release is the decision to deploy, so it goes in at once, whatever the version jump",
       "matchDepTypes": ["homelab-app"],
-      "matchDepNames": ["!bernats-homelab/repotpl-k8s-app"],
       "schedule": ["at any time"],
       "minimumReleaseAge": null,
       "separateMajorMinor": false,
