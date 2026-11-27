@@ -26,7 +26,7 @@ No CNCF project covers the general case.
 
 `.github/workflows/renovate.yaml` runs the Renovate container, pinned by digest, with a token from our own GitHub App. The hosted Mend app was the simpler option, but it cannot run post-upgrade commands, which the binary checksums need, and any workflow that adds a commit to a Renovate PR needs an App token anyway: a commit pushed with `GITHUB_TOKEN` does not start the CI, so `ci-ok` would never report on it.
 
-It runs daily, on demand, when one of our apps publishes a release, and on every push to `main`. The last one exists because the ruleset requires up-to-date branches (ADR 020): after one update merges, the others have to be rebased before they can. New branches for third-party updates are only created on Mondays (America/Sao_Paulo); the Dependency Dashboard checkboxes force one earlier.
+It runs daily, on demand, when one of our apps publishes a release, when someone ticks a checkbox on the Dependency Dashboard issue, and on every push to `main`. The last one exists because the ruleset requires up-to-date branches (ADR 020): after one update merges, the others have to be rebased before they can. New branches for third-party updates are only created on Mondays (America/Sao_Paulo); the Dependency Dashboard checkboxes force one earlier. With no webhook server, the workflow listens to `issues: edited` for that, filtered to a person editing the issue Renovate opened: the repository is public, and Renovate rewrites the Dashboard during its own runs.
 
 The workflow must never get a `pull_request` trigger: the repository is public and the job holds the App key.
 

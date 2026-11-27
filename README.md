@@ -483,7 +483,7 @@ Run it on the control node, where the age key lives. After the first apply the n
 
 ### Version updates (Renovate)
 
-Renovate runs from [renovate.yaml](.github/workflows/renovate.yaml) and opens grouped pull requests, weekly for third-party versions and right after a release for our own apps; most merge by themselves once `ci-ok` is green. Pipeline pieces the app repositories share live in [pipelines/](pipelines/README.md). The repository's **Dependency Dashboard** issue lists what is pending, and its checkboxes force an update outside the schedule. Rules, exceptions and the one-time GitHub Apps setup: [ADR 021](docs/adr/021-dependency-updates-renovate.md).
+Renovate runs from [renovate.yaml](.github/workflows/renovate.yaml) and opens grouped pull requests, weekly for third-party versions and right after a release for our own apps; most merge by themselves once `ci-ok` is green. Pipeline pieces the app repositories share live in [pipelines/](pipelines/README.md). The repository's **Dependency Dashboard** issue lists what is pending, and ticking one of its checkboxes starts a run that opens that update outside the schedule. Rules, exceptions and the one-time GitHub Apps setup: [ADR 021](docs/adr/021-dependency-updates-renovate.md).
 
 ## Troubleshooting
 
