@@ -77,7 +77,7 @@ charts:
   rustfs:
     repoURL: https://charts.rustfs.com
     chart: rustfs
-    version: 1.0.6
+    version: 1.0.7
   immich:
     # OCI only: the immich-charts HTTP repo was discontinued.
     repoURL: oci://ghcr.io/immich-app/immich-charts
