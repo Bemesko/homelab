@@ -37,9 +37,9 @@ readonly AGE_VERSION="v1.3.2"
 readonly AGE_SHA256_AMD64="cbe24006683f8eb669266162894b9a522a1af52f2665fbc63a4bb032ed26ac10"
 readonly AGE_SHA256_ARM64="6b8dc4333c53a5a57c9e5834e3a48f92605d7154014cd07269ff3327db5d37f4"
 # renovate: datasource=github-releases depName=helm/helm
-readonly HELM_VERSION="v4.3.1"
-readonly HELM_SHA256_AMD64="0403a88ae20913d11b10a2467b50087721fea7581736da6b9d3992f5357fe54b"
-readonly HELM_SHA256_ARM64="8cf8f66ecbc252ac8f7f06cca68aba88508ddfde3a6a34feb1678ad1694b4f88"
+readonly HELM_VERSION="v4.3.2"
+readonly HELM_SHA256_AMD64="d1c0278d46beab79582d7e50f5b3dc206944ba8e577cde618513fd07daa53983"
+readonly HELM_SHA256_ARM64="df31cb61680ef728f82c770e5280dd565617bee6b039d37e85c677288be4bbb0"
 # renovate: datasource=github-releases depName=kubernetes/kubernetes
 readonly KUBECTL_VERSION="v1.37.1"
 readonly KUBECTL_SHA256_AMD64="65691ff77eb6fa44c908b77a1082c9f092c3b9733b5cefabec0d1104890e21a8"
