@@ -22,7 +22,7 @@ spec:
       automountServiceAccountToken: false
       containers:
         - name: obsidian
-          image: lscr.io/linuxserver/obsidian:v1.14.5-ls151@sha256:37716e2370ec8e3c6d0aa30f758bd0646916c64cd07d157c15ed8db856398eb1
+          image: lscr.io/linuxserver/obsidian:v1.15.1-ls154@sha256:b46ff12bcb8a63900700265bb995f0e2e17f618a1afecabf6c217da13c6e9a84
           env:
             # Same owner as the NFS export all_squash (Bernardo:users).
             - name: PUID
