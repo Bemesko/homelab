@@ -5,3 +5,11 @@ all:
       hosts:
         ci:
           ansible_connection: local
+          # Shared runners get "429 Data limit exceeded" from the ECR public registry (ArgoCD's Redis):
+          # pull its Docker official images from Google's Docker Hub mirror first (same digests).
+          k3s_registry_mirrors:
+            ecr-public.aws.com:
+              endpoint:
+                - https://mirror.gcr.io
+              rewrite:
+                "^docker/library/(.*)": library/$1

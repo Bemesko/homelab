@@ -11,6 +11,10 @@ argument_specs:
       tailscale_enabled:
         type: bool
         required: true
+      k3s_registry_mirrors:
+        description: The `mirrors` section of registries.yaml; ignored when there is a ghcr.io token
+        type: dict
+        default: {}
       ghcr_pull_username:
         description: GitHub user that owns the GHCR pull PAT
         type: str

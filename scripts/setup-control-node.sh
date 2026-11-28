@@ -15,38 +15,52 @@ readonly BIN_DIR="${HOME}/.local/bin"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 readonly REPO_ROOT
 
-# --- pinned versions (update version + sha256 of EVERY architecture together) -------------------
+# --- pinned versions (Renovate bumps them; after a manual edit: scripts/update-checksums.sh) ----
+# renovate: datasource=pypi depName=ansible-core
 readonly ANSIBLE_CORE_VERSION="2.21.5"
+# renovate: datasource=pypi depName=ansible-lint
 readonly ANSIBLE_LINT_VERSION="26.10.1"
+# renovate: datasource=pypi depName=pre-commit
 readonly PRE_COMMIT_VERSION="4.7.0"
+# renovate: datasource=pypi depName=kubernetes
 readonly KUBERNETES_PY_VERSION="37.0.1"
 # For the Ansible OpenTelemetry callback, enabled only on the control node (see the Makefile).
+# renovate: datasource=pypi depName=opentelemetry-sdk
 readonly OTEL_PY_VERSION="1.45.2"
 
+# renovate: datasource=github-releases depName=getsops/sops
 readonly SOPS_VERSION="v3.13.3"
 readonly SOPS_SHA256_AMD64="e5bec3346a873ae91d871550f3e698c1aad962aff462a080e40f25fde17fef6b"
 readonly SOPS_SHA256_ARM64="53b0abacd38ef1b12a66d6c100956691b9cefce018d91f81e73ddf7438b94d77"
+# renovate: datasource=github-releases depName=FiloSottile/age
 readonly AGE_VERSION="v1.3.2"
 readonly AGE_SHA256_AMD64="cbe24006683f8eb669266162894b9a522a1af52f2665fbc63a4bb032ed26ac10"
 readonly AGE_SHA256_ARM64="6b8dc4333c53a5a57c9e5834e3a48f92605d7154014cd07269ff3327db5d37f4"
+# renovate: datasource=github-releases depName=helm/helm
 readonly HELM_VERSION="v4.3.1"
 readonly HELM_SHA256_AMD64="0403a88ae20913d11b10a2467b50087721fea7581736da6b9d3992f5357fe54b"
 readonly HELM_SHA256_ARM64="8cf8f66ecbc252ac8f7f06cca68aba88508ddfde3a6a34feb1678ad1694b4f88"
+# renovate: datasource=github-releases depName=kubernetes/kubernetes
 readonly KUBECTL_VERSION="v1.37.1"
 readonly KUBECTL_SHA256_AMD64="65691ff77eb6fa44c908b77a1082c9f092c3b9733b5cefabec0d1104890e21a8"
 readonly KUBECTL_SHA256_ARM64="ff749f4b78d9c4f1ec87307df9b50119ed819e2094aa9810cb9acffc3286c8c7"
 # OpenTofu for infra/hetzner (`make tofu-plan/tofu-apply`, ADR 019).
+# renovate: datasource=github-releases depName=opentofu/opentofu
 readonly TOFU_VERSION="v1.13.9"
 readonly TOFU_SHA256_AMD64="b34b327cc1ef07178207b6f2cd1f5276537d3e5b7be316500f6dac50d4c0a857"
 readonly TOFU_SHA256_ARM64="5dc196dde75b667e4806d358310ec96742774cd0993c54c1237efee5644b69b8"
 
 # Dev/test tools: x86_64 only.
+# renovate: datasource=github-releases depName=yannh/kubeconform
 readonly KUBECONFORM_VERSION="v0.8.0"
 readonly KUBECONFORM_SHA256="9bc2bffbf71f261128533edaf912153948b7ff238f9a531ae6d34466ec287883"
+# renovate: datasource=github-releases depName=stackrox/kube-linter
 readonly KUBE_LINTER_VERSION="v0.8.3"
 readonly KUBE_LINTER_SHA256="1a6d8419b11971372971fdbc22682b684ebfb7cf1c39591662d1b6ca736c41df"
+# renovate: datasource=github-releases depName=kubernetes-sigs/kustomize extractVersion=^kustomize/(?<version>.+)$
 readonly KUSTOMIZE_VERSION="v5.8.3"
 readonly KUSTOMIZE_SHA256="cb9e31198d3f63b44848bd0afc4c8efc56e6cfef9c93a4a39a211940e6decd61"
+# renovate: datasource=github-releases depName=helm-unittest/helm-unittest
 readonly HELM_UNITTEST_VERSION="v1.2.1"
 # ---------------------------------------------------------------------------------------------
 

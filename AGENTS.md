@@ -18,7 +18,7 @@
 
 - The laptop is reached over SSH through the tailnet: NEVER create tasks that change Tailscale, SSH, the firewall or the host network (hook `no-lockout`). The only exceptions are issue #24's `host_network` role (ADR 017: it only ADDS a DHCP profile to the wired port and a Wi-Fi power-save setting, and arms a rollback) and issue #32's: the `control_node_access` role only ADDS the control node's public keys to `authorized_keys`, never removes any and never touches the SSH server config (only that line carries `# lockout-safe`); the `control_node_tailscale` role, which only runs on the Pi; and the `control_node_ssh` role, which only runs on the Pi and allows SSH password login only from the tailnet and the home network (both excluded from the hook in `.pre-commit-config.yaml`)
 - Never version the hostname, user, tailnet name (`*.ts.net`) or kubeconfig; the real inventory is `ansible/inventory/local.yaml` (gitignored)
-- Every new version comes with a sha256 (binaries) or digest (images)
+- Every new version comes with a sha256 (binaries) or digest (images). A pinned download carries a `# renovate: datasource=... depName=...` comment above its version; after editing a version by hand run `scripts/update-checksums.sh <depName>` (the CI checks it; ADR 021)
 - Variables registered/defined in roles carry the role prefix (ansible-lint `production`)
 - Every `command`/`shell` has `changed_when`/`creates`; the e2e requires changed=0 on the second run
 - Chart version changes: only in `kubernetes/apps/values.yaml`

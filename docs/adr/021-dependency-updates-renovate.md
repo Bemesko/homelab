@@ -43,7 +43,10 @@ The principle: **what passes the CI may be applied to the cluster.** ArgoCD foll
 | Any major version (label `major-update`) | Breaking changes by definition |
 | Immich and the Postgres images | The upgrade migrates the database; a green CI starts from an empty one |
 | OpenTofu providers | Only take effect with `make *-apply`, which the CI does not run |
-| `tailscale-operator` and the OTel Collector image (temporary) | Each has a second pin that Renovate does not read yet (the control node's Tailscale, the host collector); the rule goes away when it does |
+| Tailscale (operator chart and the control node's client) | The CI runs without Tailscale |
+| The OTel Collector (images and the host `.deb`, grouped) | The CI does not install the host collector |
+| Syncthing (NAS) and the OpenTelemetry Python packages (control node) | The CI has neither host |
+| A new Kubernetes minor (k3s, kubectl, manifest schemas) | Planned work; patches merge by themselves |
 
 Releases wait 3 days (`minimumReleaseAge`) before they are proposed. Many registries publish no release date, and Renovate would hold those updates forever, so a missing date is accepted (`timestamp-optional`): for those the delay does not apply.
 
@@ -61,6 +64,21 @@ image:
 **An image without the comment is silently never updated.** The digest must start with `sha256:`; where a chart's own digest key does not take the prefix (Grafana's `sha`), it goes in the tag.
 
 cert-manager and the Barman Cloud plugin ship CRDs and RBAC in the chart that belong to one image version. Chart and images are grouped, and `scripts/check-chart-images.py` (in `make test-render`) compares the pinned tags with the chart's `appVersion`: a PR that updates only one side stays red until Renovate adds the other.
+
+### Downloaded tools: the sha256 comes in the same PR
+
+Versions in Ansible variables and shell constants are marked with a comment on the line above, which one regex manager reads:
+
+```yaml
+# renovate: datasource=github-releases depName=helm/helm
+helm_version: v4.3.1
+helm_sha256: ...
+```
+
+- After a bump, Renovate runs `scripts/update-checksums.sh <depName>` (`postUpgradeTasks`), the only command its allow list accepts. The script downloads each artifact, never executes it, compares the hash with the checksum file the project publishes, and rewrites the pins. `age`, `kube-linter`, the Syncthing `.deb` and the k3s installer publish none: their hash is only computed.
+- **The `checksums` job of the CI** runs the script for every version a pull request changes and fails if it rewrites anything. It covers what the e2e does not install (arm64, the NAS and control node packages), a failed task (GitHub auto-merge would not notice it) and a version edited by hand.
+- **After a manual edit:** `scripts/update-checksums.sh <depName>` (or `--changed origin/main`). A new pinned download needs the comment, an entry in `VERSION_PINS` and a case in the script, and its name in the rule of `renovate.json`.
+- Not tracked: `log2ram`, a Debian package version.
 
 ### Our own apps: their owners deploy
 
@@ -84,7 +102,6 @@ The apps under `apps:` in `kubernetes/apps/values.yaml` are ours, and publishing
 
 ### Not covered yet (#42)
 
-- Binaries pinned with a sha256 (Ansible variables, `scripts/setup-control-node.sh`).
 - The vendored dashboards (`dashboards.lock`).
 
 ## Setting up the GitHub Apps
@@ -127,5 +144,5 @@ With "Actions: write" the key can start, cancel and re-run workflows here, and d
 - Updates arrive as grouped, tested PRs; most merge by themselves. A release of our own app reaches the cluster with no step in this repository.
 - A PR that changes charts, images or workloads takes the time of the `full` e2e (7 to 10 minutes) instead of about 2.
 - What the e2e does not exercise (the NAS, Tailscale, an upgrade of existing data) can still break after an automerge. The alerts show it and the revert is a PR; widen the exceptions when that happens.
-- Updates of Ansible variables and control-node tools only reach the hosts at the next `make apply` or `make control-node`.
+- Updates of Ansible variables and control-node tools only reach the hosts at the next `make apply` or `make control-node`, even when they merged by themselves.
 - The repository now holds one credential in Actions secrets, and the app repositories hold the dispatch one. Revoking an App or deleting its key stops it.
