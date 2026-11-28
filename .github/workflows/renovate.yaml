@@ -52,7 +52,7 @@ jobs:
     runs-on: ubuntu-26.04
     timeout-minutes: 30
     env:
-      RENOVATE_IMAGE: ghcr.io/renovatebot/renovate:44.264.1@sha256:35777dd4aa87beee05ba64c7728a2c5e3c70687fdb654909710bac93c697efd1
+      RENOVATE_IMAGE: ghcr.io/renovatebot/renovate:45.3.2@sha256:d0358088501c7665688673c8932474b02517941703a16e970e8b4fcf235299cb
     steps:
       # The App token (not GITHUB_TOKEN) is what makes CI run on the pull requests Renovate opens.
       - name: GitHub App token
