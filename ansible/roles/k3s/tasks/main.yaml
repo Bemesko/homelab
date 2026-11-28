@@ -85,11 +85,24 @@
   when: k3s_ghcr_auth_enabled | bool
   notify: Restart k3s
 
-- name: Remove the ghcr.io credential from k3s
+# CI only (inventory/ci.yaml, where there is no ghcr.io token): registry mirrors, tried before the registry.
+- name: Configure the registry mirrors in k3s
+  ansible.builtin.copy:
+    dest: /etc/rancher/k3s/registries.yaml
+    owner: root
+    group: root
+    mode: "0600"
+    content: |
+      # Managed by Ansible (homelab)
+      {{ {'mirrors': k3s_registry_mirrors} | to_nice_yaml(indent=2) }}
+  when: not (k3s_ghcr_auth_enabled | bool) and k3s_registry_mirrors | length > 0
+  notify: Restart k3s
+
+- name: Remove registries.yaml from k3s
   ansible.builtin.file:
     path: /etc/rancher/k3s/registries.yaml
     state: absent
-  when: not (k3s_ghcr_auth_enabled | bool)
+  when: not (k3s_ghcr_auth_enabled | bool) and k3s_registry_mirrors | length == 0
   notify: Restart k3s
 
 - name: Download the k3s installer (pinned version and checksum)

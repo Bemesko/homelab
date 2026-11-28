@@ -42,6 +42,7 @@ Three tiers.
 Supporting changes:
 
 - `.github/actions/setup-tools` wraps `scripts/setup-control-node.sh` and caches its output (`~/.local/bin`, pipx, the helm plugin and the Ansible collections), keyed on the script, `ansible/requirements.yml` and the runner image. The pins and sha256 checks are unchanged; they run on a cache miss. It is a composite action so that #40 can promote it to the shared pipeline library.
+- The runner pulls ArgoCD's Redis from the ECR public registry, which started answering `429 Data limit exceeded` (#42). `inventory/ci.yaml` points k3s at `mirror.gcr.io` for that registry's Docker official images (`k3s_registry_mirrors`); the digests are the same and the cluster at home is not changed.
 - `.github/workflows/e2e.yaml` is a reusable workflow (`profile: lite|full`), called by `ci.yaml` and `e2e-full.yaml`.
 - `scripts/e2e-assert.sh [lite|full]` (default `full`).
 - `make test-changed` runs pre-commit only on what the branch changed against `origin/main`, for a quick check before pushing. `make test` stays the complete local run and `make plan` still comes before `make apply`.

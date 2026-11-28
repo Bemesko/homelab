@@ -74,6 +74,18 @@
         "# renovate: image=(?<depName>\\S+)\\n\\s*tag: (?<currentValue>[^@\\s]+)\\n\\s*(?:digest|sha): (?<currentDigest>sha256:[a-f0-9]{64})"
       ],
       "datasourceTemplate": "docker"
+    },
+    {
+      "customType": "regex",
+      "description": "Versions of downloaded tools and Python packages, marked with a `# renovate: datasource=... depName=...` comment",
+      "managerFilePatterns": [
+        "/^ansible/group_vars/all/main\\.yaml$/",
+        "/^ansible/roles/[^/]+/defaults/main\\.yaml$/",
+        "/^scripts/[^/]+\\.sh$/"
+      ],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)(?: versioning=(?<versioning>\\S+))?(?: extractVersion=(?<extractVersion>\\S+))?\\n(?:readonly )?[A-Za-z0-9_]+(?:: |=)\"?(?<currentValue>[A-Za-z0-9.+_-]+)\"?"
+      ]
     }
   ],
   "packageRules": [
@@ -127,8 +139,6 @@
         "grafana",
         "opencost",
         "opentelemetry-collector",
-        "ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib",
-        "ghcr.io/open-telemetry/opentelemetry-collector-contrib/telemetrygen",
         "docker.io/grafana/grafana",
         "docker.io/grafana/loki",
         "docker.io/grafana/tempo",
@@ -180,11 +190,61 @@
       "automerge": false
     },
     {
-      "description": "Temporary (#42): these have a second pin Renovate does not read yet, so a human completes the PR",
+      "description": "Downloaded tools pinned by sha256: recompute it in the same pull request. The checksums job of the CI fails if it did not happen",
+      "matchDatasources": ["github-releases"],
       "matchDepNames": [
-        "tailscale-operator",
-        "ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib"
+        "k3s-io/k3s",
+        "helm/helm",
+        "getsops/sops",
+        "FiloSottile/age",
+        "kubernetes/kubernetes",
+        "opentofu/opentofu",
+        "yannh/kubeconform",
+        "stackrox/kube-linter",
+        "kubernetes-sigs/kustomize",
+        "open-telemetry/opentelemetry-collector-releases",
+        "syncthing/syncthing",
+        "tailscale/tailscale"
       ],
+      "postUpgradeTasks": {
+        "commands": ["scripts/update-checksums.sh {{{depName}}}"],
+        "fileFilters": [
+          "ansible/group_vars/all/main.yaml",
+          "ansible/roles/control_node_tailscale/defaults/main.yaml",
+          "scripts/setup-control-node.sh"
+        ]
+      }
+    },
+    {
+      "description": "k3s, kubectl and the manifest schemas follow the same Kubernetes minor",
+      "matchDepNames": ["k3s-io/k3s", "kubernetes/kubernetes"],
+      "groupName": "kubernetes"
+    },
+    {
+      "description": "A new Kubernetes minor is planned: only patches merge by themselves",
+      "matchDepNames": ["k3s-io/k3s", "kubernetes/kubernetes"],
+      "matchUpdateTypes": ["minor"],
+      "automerge": false
+    },
+    {
+      "description": "The host collector (.deb) is not installed by the CI: it moves with the collector images, and a human merges",
+      "matchDepNames": [
+        "open-telemetry/opentelemetry-collector-releases",
+        "ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib",
+        "ghcr.io/open-telemetry/opentelemetry-collector-contrib/telemetrygen"
+      ],
+      "groupName": "opentelemetry collector",
+      "automerge": false
+    },
+    {
+      "description": "The CI runs without Tailscale: neither the operator nor the control node's client is exercised",
+      "matchDepNames": ["tailscale-operator", "tailscale/tailscale"],
+      "groupName": "tailscale",
+      "automerge": false
+    },
+    {
+      "description": "Only installed on the NAS or on the control node, which the CI does not have",
+      "matchDepNames": ["syncthing/syncthing", "opentelemetry-sdk"],
       "automerge": false
     }
   ]
