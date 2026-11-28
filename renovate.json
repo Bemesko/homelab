@@ -64,6 +64,16 @@
         "image: (?<depName>[^:\\s]+):(?<currentValue>[^@\\s]+)@(?<currentDigest>sha256:[a-f0-9]{64})"
       ],
       "datasourceTemplate": "docker"
+    },
+    {
+      "customType": "regex",
+      "description": "Images in Helm values split between tag and digest, marked with a `# renovate: image=<repository>` comment",
+      "managerFilePatterns": ["/^kubernetes/values/.+\\.yaml$/"],
+      "matchStrings": [
+        "# renovate: image=(?<depName>\\S+)\\n\\s*tag: (?<currentValue>[^@\\s]+)@(?<currentDigest>sha256:[a-f0-9]{64})",
+        "# renovate: image=(?<depName>\\S+)\\n\\s*tag: (?<currentValue>[^@\\s]+)\\n\\s*(?:digest|sha): (?<currentDigest>sha256:[a-f0-9]{64})"
+      ],
+      "datasourceTemplate": "docker"
     }
   ],
   "packageRules": [
@@ -118,16 +128,33 @@
         "opencost",
         "opentelemetry-collector",
         "ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib",
-        "ghcr.io/open-telemetry/opentelemetry-collector-contrib/telemetrygen"
+        "ghcr.io/open-telemetry/opentelemetry-collector-contrib/telemetrygen",
+        "docker.io/grafana/grafana",
+        "docker.io/grafana/loki",
+        "docker.io/grafana/tempo",
+        "quay.io/kiwigrid/k8s-sidecar",
+        "quay.io/prometheus/prometheus",
+        "quay.io/prometheus-operator/prometheus-config-reloader",
+        "registry.k8s.io/kube-state-metrics/kube-state-metrics"
       ],
       "groupName": "observability"
     },
     {
-      "matchDepNames": ["cloudnative-pg", "plugin-barman-cloud"],
-      "groupName": "cloudnative-pg"
+      "description": "Chart and images move together (scripts/check-chart-images.py fails a PR that updates only one side)",
+      "matchDepNames": ["cert-manager", "quay.io/jetstack/cert-manager-*"],
+      "groupName": "cert-manager"
     },
     {
-      "matchDepNames": ["rustfs", "rustfs/rc"],
+      "description": "Chart and images move together (scripts/check-chart-images.py fails a PR that updates only one side)",
+      "matchDepNames": [
+        "plugin-barman-cloud",
+        "ghcr.io/cloudnative-pg/plugin-barman-cloud",
+        "ghcr.io/cloudnative-pg/plugin-barman-cloud-sidecar"
+      ],
+      "groupName": "barman cloud plugin"
+    },
+    {
+      "matchDepNames": ["rustfs", "rustfs/rustfs", "rustfs/rc"],
       "groupName": "rustfs"
     },
     {
@@ -155,9 +182,6 @@
     {
       "description": "Temporary (#42): these have a second pin Renovate does not read yet, so a human completes the PR",
       "matchDepNames": [
-        "cert-manager",
-        "plugin-barman-cloud",
-        "rustfs",
         "tailscale-operator",
         "ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib"
       ],

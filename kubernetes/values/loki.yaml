@@ -5,6 +5,7 @@ deploymentMode: Monolithic
 
 loki:
   image:
+    # renovate: image=docker.io/grafana/loki
     tag: 3.7.9
     digest: sha256:0db216b630ae1f348a1584c67f3cead8b4c1fc839169a39501db664744158e28
   # A single tenant (homelab): no X-Scope-OrgID.

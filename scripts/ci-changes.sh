@@ -31,6 +31,7 @@ profile_for() {
     scripts/check-alert-rules.py | scripts/check-no-lockout.sh | scripts/check-sops-encrypted.sh) echo none ;;
     scripts/kustomize-build.sh | scripts/render-manifests.sh | scripts/validate-manifests.sh) echo none ;;
     scripts/vendor-dashboards.sh | scripts/ksops-stub.py | .pre-commit-config.yaml | Makefile) echo none ;;
+    scripts/check-chart-images.py) echo none ;;
     # Everything else (ansible/, kubernetes/apps/, kubernetes/bootstrap/, tests/, the e2e scripts, the
     # CI definition, unknown paths) runs the bootstrap.
     *) echo lite ;;

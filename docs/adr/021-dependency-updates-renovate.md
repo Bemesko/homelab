@@ -43,9 +43,24 @@ The principle: **what passes the CI may be applied to the cluster.** ArgoCD foll
 | Any major version (label `major-update`) | Breaking changes by definition |
 | Immich and the Postgres images | The upgrade migrates the database; a green CI starts from an empty one |
 | OpenTofu providers | Only take effect with `make *-apply`, which the CI does not run |
-| `cert-manager`, `plugin-barman-cloud`, `rustfs`, `tailscale-operator`, the OTel Collector image (temporary) | Each has a second pin that Renovate does not read yet; the rule goes away when it does |
+| `tailscale-operator` and the OTel Collector image (temporary) | Each has a second pin that Renovate does not read yet (the control node's Tailscale, the host collector); the rule goes away when it does |
 
 Releases wait 3 days (`minimumReleaseAge`) before they are proposed. Many registries publish no release date, and Renovate would hold those updates forever, so a missing date is accepted (`timestamp-optional`): for those the delay does not apply.
+
+### Images in Helm values
+
+A values file is not a manifest, so no built-in manager reads it, and many entries name no repository (it is the chart's default). Each pin carries a comment right above its `tag`, which is what the regex manager reads:
+
+```yaml
+image:
+  # renovate: image=quay.io/jetstack/cert-manager-controller
+  tag: v1.21.3
+  digest: sha256:...        # `sha:` in some charts; or `tag: v1.0.0@sha256:...` on one line
+```
+
+**An image without the comment is silently never updated.** The digest must start with `sha256:`; where a chart's own digest key does not take the prefix (Grafana's `sha`), it goes in the tag.
+
+cert-manager and the Barman Cloud plugin ship CRDs and RBAC in the chart that belong to one image version. Chart and images are grouped, and `scripts/check-chart-images.py` (in `make test-render`) compares the pinned tags with the chart's `appVersion`: a PR that updates only one side stays red until Renovate adds the other.
 
 ### Our own apps: their owners deploy
 
@@ -70,7 +85,6 @@ The apps under `apps:` in `kubernetes/apps/values.yaml` are ours, and publishing
 ### Not covered yet (#42)
 
 - Binaries pinned with a sha256 (Ansible variables, `scripts/setup-control-node.sh`).
-- Images in Helm values that have no repository or no tag next to the digest.
 - The vendored dashboards (`dashboards.lock`).
 
 ## Setting up the GitHub Apps

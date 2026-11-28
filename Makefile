@@ -57,9 +57,10 @@ test-unit: ## helm lint + helm unittest of the app-of-apps chart
 	helm lint --strict kubernetes/apps
 	helm unittest kubernetes/apps
 
-test-render: ## Render the repo manifests and upstream charts and validate them with kubeconform/kube-linter
+test-render: ## Render the repo manifests and upstream charts, validate them (kubeconform/kube-linter) and check chart images
 	./scripts/validate-manifests.sh local
 	./scripts/validate-manifests.sh upstream
+	python3 scripts/check-chart-images.py
 
 test: lint test-unit test-render ## Everything that runs without a cluster
 
