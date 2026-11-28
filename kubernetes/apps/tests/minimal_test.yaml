@@ -13,6 +13,7 @@ templates:
   - templates/loki.yaml
   - templates/observability.yaml
   - templates/obsidian.yaml
+  - templates/natsidian.yaml
   - templates/opencost.yaml
   - templates/otel-agent.yaml
   - templates/otel-gateway.yaml

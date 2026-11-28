@@ -1,0 +1,23 @@
+# Strategic merge over the obsidian base. volumeMounts merge by mountPath, so the old mount is
+# deleted explicitly and the new one added; the config claim stays obsidian-config (per namespace).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: obsidian
+spec:
+  template:
+    spec:
+      containers:
+        - name: obsidian
+          env:
+            - name: TITLE
+              value: natsidian
+          volumeMounts:
+            - mountPath: /vaults/borbsidian
+              $patch: delete
+            - name: vault
+              mountPath: /vaults/natsidian
+      volumes:
+        - name: vault
+          persistentVolumeClaim:
+            claimName: natsidian-vault

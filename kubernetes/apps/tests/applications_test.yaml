@@ -7,6 +7,7 @@ templates:
   - templates/immich-database.yaml
   - templates/immich.yaml
   - templates/obsidian.yaml
+  - templates/natsidian.yaml
   - templates/home-assistant-database.yaml
   - templates/home-assistant.yaml
   - templates/backup.yaml
@@ -69,6 +70,10 @@ tests:
           path: metadata.annotations["argocd.argoproj.io/sync-wave"]
           value: "2"
         template: templates/obsidian.yaml
+      - equal:
+          path: metadata.annotations["argocd.argoproj.io/sync-wave"]
+          value: "2"
+        template: templates/natsidian.yaml
       - equal:
           path: metadata.annotations["argocd.argoproj.io/sync-wave"]
           value: "2"
@@ -298,6 +303,32 @@ tests:
       - equal:
           path: spec.sources[1].path
           value: kubernetes/workloads/obsidian/storage/base
+
+  - it: natsidian with Tailscale uses the overlay (natsidian Ingress + basic auth) and the NAS vault
+    template: templates/natsidian.yaml
+    asserts:
+      - equal:
+          path: spec.sources[0].path
+          value: kubernetes/workloads/natsidian/overlays/tailscale
+      - equal:
+          path: spec.sources[1].path
+          value: kubernetes/workloads/natsidian/storage/overlays/nas
+      - equal:
+          path: spec.destination.namespace
+          value: natsidian
+
+  - it: natsidian without Tailscale and without the NAS (CI) uses base for both
+    template: templates/natsidian.yaml
+    set:
+      tailscaleOperator.enabled: false
+      nasStorage.enabled: false
+    asserts:
+      - equal:
+          path: spec.sources[0].path
+          value: kubernetes/workloads/natsidian/base
+      - equal:
+          path: spec.sources[1].path
+          value: kubernetes/workloads/natsidian/storage/base
 
   - it: Home Assistant with Tailscale uses the overlay (casa Ingress, hostNetwork) and the NAS /config
     template: templates/home-assistant.yaml

@@ -1,4 +1,5 @@
 # base = CI (no Tailscale, no basic auth). overlays/tailscale = laptop.
+# Also reused by the second instance, workloads/natsidian (docs/adr/022): keep the names and labels generic.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: obsidian

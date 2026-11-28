@@ -1,0 +1,16 @@
+# https://natsidian.<your-tailnet>, with automatic Tailscale TLS (Selkies requires a
+# secure context for WebCodecs; the backend speaks HTTP on 3000).
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: obsidian
+spec:
+  ingressClassName: tailscale
+  defaultBackend:
+    service:
+      name: obsidian
+      port:
+        name: http
+  tls:
+    - hosts:
+        - natsidian

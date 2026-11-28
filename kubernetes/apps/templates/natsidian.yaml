@@ -1,0 +1,31 @@
+{{- if not .Values.minimal }}
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: natsidian
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  sources:
+    # "natsidian" Ingress and basic auth (KSOPS) only with Tailscale; CI uses base.
+    - repoURL: {{ .Values.repoURL }}
+      targetRevision: {{ .Values.targetRevision }}
+      path: kubernetes/workloads/natsidian/{{ ternary "overlays/tailscale" "base" .Values.tailscaleOperator.enabled }}
+    # Same layout as the obsidian Application (ADR 022): the vault PVC is synced with the Deployment that mounts it.
+    - repoURL: {{ .Values.repoURL }}
+      targetRevision: {{ .Values.targetRevision }}
+      path: kubernetes/workloads/natsidian/storage/{{ ternary "overlays/nas" "base" .Values.nasStorage.enabled }}
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: natsidian
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+{{- end }}

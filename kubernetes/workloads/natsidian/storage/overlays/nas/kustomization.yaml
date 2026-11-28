@@ -1,0 +1,22 @@
+# Binds the natsidian PVC to the NFS PV created by Ansible (nas_storage role), which
+# keeps the NAS hostname and path out of the repo. PVCs are immutable: switch from base to
+# nas before the first sync.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: natsidian
+resources:
+  - ../../base
+patches:
+  - target:
+      kind: PersistentVolumeClaim
+      name: natsidian-vault
+    patch: |
+      - op: replace
+        path: /spec/storageClassName
+        value: ""
+      - op: add
+        path: /spec/volumeName
+        value: natsidian-vault
+      - op: replace
+        path: /spec/resources/requests/storage
+        value: 10Gi

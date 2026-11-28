@@ -29,7 +29,7 @@ if [[ "${profile}" == "full" ]]; then
   if grep -A1 '^offsiteBackup:' kubernetes/apps/values.yaml | grep -q 'enabled: true'; then
     offsite_backup=true
   fi
-  apps=(root argocd hello-world cloudnative-pg cert-manager barman-cloud-plugin immich-database immich obsidian home-assistant-database home-assistant k8s-app-smoke grocery-ops prometheus loki tempo observability otel-gateway otel-agent grafana opencost)
+  apps=(root argocd hello-world cloudnative-pg cert-manager barman-cloud-plugin immich-database immich obsidian natsidian home-assistant-database home-assistant k8s-app-smoke grocery-ops prometheus loki tempo observability otel-gateway otel-agent grafana opencost)
   if [[ "${offsite_backup}" == "true" ]]; then
     apps+=(backup)
   fi
@@ -79,14 +79,16 @@ grep -q '"res":"pong"' <<<"${ping}" || {
   exit 1
 }
 
-echo "==> Obsidian (Selkies) serves the web page"
-kubectl -n obsidian rollout status deployment/obsidian --timeout=600s
-page="$(kubectl get --raw /api/v1/namespaces/obsidian/services/obsidian:http/proxy/)"
-grep -qi '<html' <<<"${page}" || {
-  echo "ERROR: unexpected response from Obsidian:" >&2
-  head -c 500 <<<"${page}" >&2
-  exit 1
-}
+echo "==> Obsidian (Selkies) serves the web page, both instances (docs/adr/022)"
+for ns in obsidian natsidian; do
+  kubectl -n "${ns}" rollout status deployment/obsidian --timeout=600s
+  page="$(kubectl get --raw "/api/v1/namespaces/${ns}/services/obsidian:http/proxy/")"
+  grep -qi '<html' <<<"${page}" || {
+    echo "ERROR: unexpected response from Obsidian in ${ns}:" >&2
+    head -c 500 <<<"${page}" >&2
+    exit 1
+  }
+done
 
 echo "==> Home Assistant Postgres (CNPG) ready"
 kubectl -n home-assistant wait cluster.postgresql.cnpg.io/home-assistant-database --for=condition=Ready --timeout=600s
