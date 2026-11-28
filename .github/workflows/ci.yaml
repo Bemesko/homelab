@@ -65,6 +65,22 @@ jobs:
       - name: Render + kubeconform/kube-linter (includes upstream charts)
         run: make test-render
 
+  # A new version of a downloaded tool must come with its sha256 (docs/adr/021): recomputes the hashes of
+  # the versions this pull request changes and fails if they differ. The e2e does not install most of them.
+  checksums:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          fetch-depth: 0 # the base commit holds the previous versions
+      - name: sha256 of the changed versions
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          ./scripts/update-checksums.sh --changed "${BASE_SHA}"
+          git diff --exit-code
+
   # Runs in parallel with lint/render: a failing lint should not hide an e2e result (or the reverse).
   e2e:
     needs: [changes]
@@ -76,7 +92,7 @@ jobs:
   # Stable aggregate for the branch protection. Skipped is fine (e2e not needed); failed or cancelled is not.
   ci-ok:
     if: always()
-    needs: [changes, lint, render, e2e]
+    needs: [changes, lint, render, checksums, e2e]
     runs-on: ubuntu-26.04
     steps:
       - name: Every required job passed or was skipped

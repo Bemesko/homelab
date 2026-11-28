@@ -83,6 +83,8 @@ jobs:
           RENOVATE_ONBOARDING: "false"
           RENOVATE_REQUIRE_CONFIG: required
           RENOVATE_PLATFORM_COMMIT: enabled
+          # The only command Renovate may run after an update (renovate.json, postUpgradeTasks).
+          RENOVATE_ALLOWED_COMMANDS: '["^scripts/update-checksums\\.sh [A-Za-z0-9._/-]+$"]'
           LOG_LEVEL: ${{ inputs.log_level || 'info' }}
           DRY_RUN: ${{ inputs.dry_run }}
         run: |
@@ -101,5 +103,5 @@ jobs:
           docker run --rm \
             --env RENOVATE_TOKEN --env RENOVATE_REPOSITORIES --env RENOVATE_ONBOARDING \
             --env RENOVATE_REQUIRE_CONFIG --env RENOVATE_PLATFORM_COMMIT --env RENOVATE_DRY_RUN \
-            --env RENOVATE_HOST_RULES --env LOG_LEVEL \
+            --env RENOVATE_HOST_RULES --env RENOVATE_ALLOWED_COMMANDS --env LOG_LEVEL \
             "${RENOVATE_IMAGE}"
