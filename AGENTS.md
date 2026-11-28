@@ -22,6 +22,7 @@
 - Variables registered/defined in roles carry the role prefix (ansible-lint `production`)
 - Every `command`/`shell` has `changed_when`/`creates`; the e2e requires changed=0 on the second run
 - Chart version changes: only in `kubernetes/apps/values.yaml`
+- An image pinned in `kubernetes/values/` needs a `# renovate: image=<repository>` comment right above its `tag:` (digest with the `sha256:` prefix), or Renovate never updates it (ADR 021)
 - Version updates come from self-hosted Renovate (`renovate.json`, shared preset `renovate/default.json`, ADR 021) and automerge on a green `ci-ok`: a new kind of version pin needs a Renovate manager, and a pin that CI cannot test needs an `automerge: false` rule. A new version of our own apps (`apps.<name>.targetRevision`) is automerged without an e2e. The Renovate GitHub App key is the one credential kept in the repository's Actions secrets
 - Grafana dashboards: only through `scripts/vendor-dashboards.sh` (version + sha256 in `dashboards.lock`, tweaks in `patches/*.jq`); never paste dashboard JSON by hand (our own dashboards live in `dashboards/<folder>/`, outside the lock). Alert rules: `base/alerts/*.yaml`, with `severity` critical, warning or info
 - External apps always by `vX.Y.Z` tag (never a branch) and in the `homelab-apps` AppProject; the GitHub App and GHCR credentials only in `ansible/secrets/` (optional)

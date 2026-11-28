@@ -12,9 +12,11 @@ mode:
 
 image:
   rustfs:
+    # renovate: image=rustfs/rustfs
     tag: 1.0.6@sha256:ee717072290bec9b11abfc0365f8310b00df1cd9b3639943edae47bdef05044a
   initImage:
     repository: busybox
+    # renovate: image=busybox
     tag: 1.37.0@sha256:a7dbc319b1438115a207e11930dc4bb3e643dcb3ec0bdd694bb36cd8fad289ec
 
 # Root credentials (RUSTFS_ACCESS_KEY/RUSTFS_SECRET_KEY) from a KSOPS Secret in
