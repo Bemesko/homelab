@@ -5,11 +5,11 @@ description: >-
 
 inputs:
   client-id:
-    description: Client ID of the homelab-dispatch GitHub App. Empty (App not set up in this repository) skips the step.
+    description: Client ID of the bemesko-homelab-dispatch GitHub App. Empty (App not set up in this repository) skips the step.
     required: false
     default: ""
   private-key:
-    description: Private key of the homelab-dispatch GitHub App.
+    description: Private key of the bemesko-homelab-dispatch GitHub App.
     required: false
     default: ""
 

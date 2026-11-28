@@ -98,17 +98,21 @@ The apps under `apps:` in `kubernetes/apps/values.yaml` are ours, and publishing
 
 ### Shared preset
 
-`renovate/default.json` holds what every homelab repository should share (schedule, release age, digest pinning for actions, the major rule). This repository extends it with `local>Bemesko/homelab//renovate/default`; another repository would use `github>Bemesko/homelab//renovate/default`. The preset never turns on automerge: the app repositories require no checks (ADR 020), so automerge there would merge untested. Each repository opts in. Wiring the app repositories and `repotpl-k8s-app` is a later step.
+`renovate/default.json` holds what every homelab repository should share (schedule, release age, digest pinning for actions, the major rule). This repository extends it with `local>Bemesko/homelab//renovate/default`; another repository would use `github>Bemesko/homelab//renovate/default`. The preset never turns on automerge: the app repositories require no checks (ADR 020), so automerge there would merge untested. Each repository opts in. No other repository extends it today.
 
-### Not covered yet (#42)
+### Inside the app repositories: Dependabot
 
-- The vendored dashboards (`dashboards.lock`).
+The app repositories and the template keep their own Dependabot configuration for their dependencies (packages, base images, Actions), which already proposes them weekly. Renovate here only follows the tag each one publishes. Wiring Renovate into them would duplicate that work; the shared preset stays there for a repository that opts in later.
+
+### Not covered
+
+- The vendored dashboards (`dashboards.lock`), left to #96.
 
 ## Setting up the GitHub Apps
 
 Once, by the repository owner. Both are created in GitHub → Settings → Developer settings → GitHub Apps → New, with the webhook off.
 
-### The Renovate App (`homelab-renovate`)
+### The Renovate App (`bemesko-homelab-renovate`)
 
 1. Repository permissions: **Read and write** on Checks, Commit statuses, Contents, Issues, Pull requests and Workflows; **Read** on Administration, Dependabot alerts and Metadata.
 2. "Where can this GitHub App be installed?": **Any account**, so the organization can install it.
@@ -117,12 +121,12 @@ Once, by the repository owner. Both are created in GitHub → Settings → Devel
 
 ```bash
 gh variable set RENOVATE_APP_CLIENT_ID --repo Bemesko/homelab --body '<client id>'
-gh secret set RENOVATE_APP_PRIVATE_KEY --repo Bemesko/homelab < homelab-renovate.private-key.pem
+gh secret set RENOVATE_APP_PRIVATE_KEY --repo Bemesko/homelab < bemesko-homelab-renovate.<date>.private-key.pem
 ```
 
 Then delete the downloaded `.pem`. Until the variable exists, the workflow is skipped. To check the setup without changing anything: `gh workflow run renovate.yaml -f dry_run=true`.
 
-### The dispatch App (`homelab-dispatch`)
+### The dispatch App (`bemesko-homelab-dispatch`)
 
 A separate App, because its key is copied into the app repositories: the Renovate key there would give every one of them write access to this repository's code and workflows.
 
@@ -133,7 +137,7 @@ A separate App, because its key is copied into the app repositories: the Renovat
 ```bash
 for repo in Bemesko/grocery-ops bernats-homelab/bernats-finances-v4 bernats-homelab/repotpl-k8s-app; do
   gh variable set HOMELAB_DISPATCH_CLIENT_ID --repo "$repo" --body '<client id>'
-  gh secret set HOMELAB_DISPATCH_PRIVATE_KEY --repo "$repo" < homelab-dispatch.private-key.pem
+  gh secret set HOMELAB_DISPATCH_PRIVATE_KEY --repo "$repo" < bemesko-homelab-dispatch.<date>.private-key.pem
 done
 ```
 

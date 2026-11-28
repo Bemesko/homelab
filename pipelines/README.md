@@ -31,4 +31,4 @@ Last step of an app's release job: starts the homelab's Renovate workflow, which
     private-key: ${{ secrets.HOMELAB_DISPATCH_PRIVATE_KEY }}
 ```
 
-It never fails the release: without the variable it does nothing, and an error is a warning. The daily Renovate run is the fallback. Credentials: [ADR 021](../docs/adr/021-dependency-updates-renovate.md#the-dispatch-app-homelab-dispatch). Organization secrets do not reach private repositories on the Free plan, so a private app needs them in the repository itself.
+It never fails the release: without the variable it does nothing, and an error is a warning. The daily Renovate run is the fallback. Credentials: [ADR 021](../docs/adr/021-dependency-updates-renovate.md#the-dispatch-app-bemesko-homelab-dispatch). Organization secrets do not reach private repositories on the Free plan, so a private app needs them in the repository itself.
