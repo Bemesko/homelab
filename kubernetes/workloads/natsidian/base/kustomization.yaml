@@ -1,0 +1,10 @@
+# Second Obsidian instance, for another person's vault (docs/adr/022). It reuses the obsidian base,
+# so the image and its digest stay in one place; vault-patch.yaml only changes the title and the vault.
+# Names inside the namespace stay as in the base (Deployment, Service, PVC obsidian-config).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: natsidian
+resources:
+  - ../../obsidian/base
+patches:
+  - path: vault-patch.yaml

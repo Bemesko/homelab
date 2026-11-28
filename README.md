@@ -194,7 +194,7 @@ The playbook does not change the NAS; it only checks what you configure here. Th
 
 ### 2. Inventory (`ansible/inventory/local.yaml`)
 
-Fill in the variables from `inventory.example.yaml`: `nas_storage_enabled: true`, `nas_storage_host` and `nas_storage_exports.{photos,data,obsidian,home_assistant}`, which are the `/export/...` paths (`obsidian` and `home_assistant` are described in each app's section). Do this **before** the first `make apply` with Immich. PVCs are immutable, and with `nas_storage_enabled: false` they would be created on `local-path`.
+Fill in the variables from `inventory.example.yaml`: `nas_storage_enabled: true`, `nas_storage_host` and `nas_storage_exports.{photos,data,obsidian,natsidian,home_assistant}`, which are the `/export/...` paths (`obsidian`, `natsidian` and `home_assistant` are described in each app's section). Do this **before** the first `make apply` with Immich. PVCs are immutable, and with `nas_storage_enabled: false` they would be created on `local-path`.
 
 Then run `make plan` and `make apply`. The `nas_storage` role checks the exports with `showmount` and test-mounts each one, including a write to `immich-data`. If something is wrong in OMV, it fails before creating the PVs.
 
@@ -238,9 +238,16 @@ Every Postgres (Immich, Home Assistant and the external apps) is backed up by Cl
   - Tested on 2026-11-21: Immich identical (72 tables, 252,198 rows); Home Assistant PITR stopped exactly at the target.
 - **Old Immich dumps:** Immich's own `pg_dump` (in `immich-data/backups`) is off. The files there are from before ADR 014 and can be removed by hand.
 
-## Obsidian in the browser (vault on the NAS)
+## Obsidian in the browser (vaults on the NAS)
 
-The Obsidian desktop app runs in the cluster ([linuxserver/obsidian](https://docs.linuxserver.io/images/docker-obsidian/)) and opens in the browser at `https://borbsidian.<your-tailnet>`, with a user and password. The vault lives on the NAS, mounted over NFS, and the app state (`/config`) lives on the laptop disk. See [ADR 006](docs/adr/006-obsidian-nas-nfs.md).
+The Obsidian desktop app runs in the cluster ([linuxserver/obsidian](https://docs.linuxserver.io/images/docker-obsidian/)), one instance per vault. Each vault lives on the NAS, mounted over NFS, and the app state (`/config`) lives on the laptop disk. Each instance has its own user and password, and both are reachable only through the tailnet.
+
+| Vault | Address | Vault path in Obsidian | NAS export key | Decision |
+|---|---|---|---|---|
+| `borbsidian` | `https://borbsidian.<your-tailnet>` | `/vaults/borbsidian` | `obsidian` | [ADR 006](docs/adr/006-obsidian-nas-nfs.md) |
+| `natsidian` | `https://natsidian.<your-tailnet>` | `/vaults/natsidian` | `natsidian` | [ADR 022](docs/adr/022-second-obsidian-instance.md) |
+
+The steps below set up `borbsidian`; the second vault is in its own subsection after them.
 
 1. **NAS (OMV UI):** create the vault's shared folder (it can point to an existing folder) and an NFS share, **Read/Write**, for `<laptop Tailscale IP>/32` with `subtree_check,all_squash,anonuid=<uid>,anongid=<gid>`, like `immich-data`. Put the path in `nas_storage_exports.obsidian` and run `make apply`.
 2. **Password:** the user and password are in `kubernetes/workloads/obsidian/overlays/tailscale/auth.sops.yaml`:
@@ -249,6 +256,19 @@ The Obsidian desktop app runs in the cluster ([linuxserver/obsidian](https://doc
    ```
    To change the password, run `sops edit` on the same file and push.
 3. **First access:** in Obsidian, use *Open folder as vault* on `/vaults/borbsidian`. The choice is saved in `/config`.
+
+### Second vault (`natsidian`)
+
+Same stack as `borbsidian`, with its own namespace, user and password ([ADR 022](docs/adr/022-second-obsidian-instance.md)). It is reachable from a computer with Tailscale; access over the home LAN without Tailscale is a follow-up.
+
+1. **NAS (OMV UI):** create the vault's shared folder **inside `data-with-backup`**, so the NAS replica (the OMV Rsync job, ADR 019) and the off-site backup include it. Then create an NFS share, **Read/Write**, for the same `<laptop Tailscale IP>/32` with the same options as above. Put its path in `nas_storage_exports.natsidian` and run `make plan` and `make apply`. PVCs are immutable, so the share and the export must exist before the first sync.
+2. **One-time copy:** copy the vault from the other computer into the shared folder, including the hidden `.obsidian` folder, with the files owned by the squash user (`1000:100`). After the copy, edit the vault only in the browser instance, and keep the original as a backup without editing it.
+3. **Password:** the user (`CUSTOM_USER`) and password (`PASSWORD`) are in `kubernetes/workloads/natsidian/overlays/tailscale/auth.sops.yaml`:
+   ```bash
+   sops -d kubernetes/workloads/natsidian/overlays/tailscale/auth.sops.yaml
+   ```
+   To change the password, run `sops edit` on the same file and push.
+4. **First access:** at `https://natsidian.<your-tailnet>`, use *Open folder as vault* on `/vaults/natsidian`.
 
 **Editing in several places.** Over NFS, the cluster's Obsidian is not notified of changes made from other devices (Syncthing, SMB), because inotify does not cross NFS. Edit in one place at a time. When you come back to the browser Obsidian, run *Reload app without saving* (command palette) before editing, so you do not overwrite the newer version.
 

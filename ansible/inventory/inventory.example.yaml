@@ -16,6 +16,7 @@ all:
             photos: </export/photos>
             data: </export/immich-data>
             obsidian: </export/borbsidian>
+            natsidian: </export/natsidian>
             home_assistant: </export/home-assistant>
             backups: </export/cnpg-backups>
           # Wired-first network: DHCP on the Ethernet port, Wi-Fi power saving off, rollback on failure (ADR 017).

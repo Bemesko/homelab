@@ -59,7 +59,7 @@
           { "$ref": "#/definitions/dnsLabel" },
           {
             "not": {
-              "enum": ["root", "argocd", "tailscale-operator", "hello-world", "cloudnative-pg", "immich-database", "immich", "obsidian", "home-assistant-database", "home-assistant", "backup", "k8s-app-smoke", "prometheus", "loki", "tempo", "grafana", "otel-agent", "otel-gateway", "observability", "opencost", "cert-manager", "barman-cloud-plugin", "rustfs"]
+              "enum": ["root", "argocd", "tailscale-operator", "hello-world", "cloudnative-pg", "immich-database", "immich", "obsidian", "natsidian", "home-assistant-database", "home-assistant", "backup", "k8s-app-smoke", "prometheus", "loki", "tempo", "grafana", "otel-agent", "otel-gateway", "observability", "opencost", "cert-manager", "barman-cloud-plugin", "rustfs"]
             }
           }
         ]

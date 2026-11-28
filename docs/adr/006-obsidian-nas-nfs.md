@@ -1,6 +1,6 @@
 # 006 — Obsidian in the browser with the NAS vault over NFS
 
-- **Status:** accepted
+- **Status:** accepted. A second instance, with its own vault and user, is in [022](022-second-obsidian-instance.md)
 - **Date:** 2026-11-05
 
 ## Context

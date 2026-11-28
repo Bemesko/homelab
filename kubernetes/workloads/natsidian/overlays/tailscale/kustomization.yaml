@@ -1,0 +1,20 @@
+# Laptop: exposed on the tailnet as https://natsidian.<your-tailnet>, with basic auth.
+# The secret lives only here because CI does not decrypt secrets outside hello-world.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: natsidian
+resources:
+  - ../../base
+  - ingress.yaml
+generators:
+  - secret-generator.yaml
+patches:
+  - target:
+      kind: Deployment
+      name: obsidian
+    patch: |
+      - op: add
+        path: /spec/template/spec/containers/0/envFrom
+        value:
+          - secretRef:
+              name: obsidian-auth
